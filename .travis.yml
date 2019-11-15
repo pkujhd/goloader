@@ -14,6 +14,6 @@ before_install:
   - go get github.com/kr/pretty
 
 script:
-  - go build github.com/dearplain/goloader/examples/loader
-  - go tool compile $GOPATH/src/github.com/dearplain/goloader/examples/base/base.go
+  - go build github.com/pkujhd/goloader/examples/loader
+  - go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
   - ./loader -o base.o -run main.main
