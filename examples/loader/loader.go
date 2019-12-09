@@ -12,8 +12,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkujhd/goloader"
 	"github.com/kr/pretty"
+	"github.com/pkujhd/goloader"
+	"github.com/pkujhd/goloader/basecontext"
 )
 
 func mustOK(err error) {
@@ -43,7 +44,6 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 func main() {
-
 	var files arrayFlags
 	flag.Var(&files, "o", "load go object file")
 	var pkgpath = flag.String("p", "", "package path")
@@ -75,6 +75,13 @@ func main() {
 	w := sync.WaitGroup{}
 	rw := sync.RWMutex{}
 	goloader.RegTypes(symPtr, &w, w.Wait, &rw)
+	scontext := basecontext.TSContext{}
+	bcontext := basecontext.TBaseContext{}
+	var iscontext basecontext.ISContext
+	var ibcontext basecontext.IBaseContext
+	iscontext = &scontext
+	ibcontext = &bcontext
+	goloader.RegTypes(symPtr, iscontext, ibcontext)
 
 	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {
