@@ -50,6 +50,7 @@ func RegSymbol(symPtr map[string]uintptr) {
 	for _, sym := range syms {
 		if sym.Name == "runtime.init" && sym.Code == 't' {
 			codeType = 't'
+			break
 		}
 	}
 	for _, sym := range syms {
