@@ -46,8 +46,14 @@ func RegSymbol(symPtr map[string]uintptr) {
 	defer f.Close()
 
 	syms, err := f.Symbols()
+	codeType := 'T'
 	for _, sym := range syms {
-		if sym.Code == 'T' && !strings.HasPrefix(sym.Name, "type..") {
+		if sym.Name == "runtime.text" && sym.Code == 't' {
+			codeType = 't'
+		}
+	}
+	for _, sym := range syms {
+		if sym.Code == codeType && !strings.HasPrefix(sym.Name, "type..") {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		} else if strings.HasPrefix(sym.Name, "runtime.") {
 			symPtr[sym.Name] = uintptr(sym.Addr)
