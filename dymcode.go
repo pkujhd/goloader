@@ -157,7 +157,7 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 	var reloc CodeReloc
 
 	for _, sym := range obj.Syms {
-		if sym.Kind == STEXT {
+		if sym.Kind == STEXT && sym.DupOK == false {
 			relocSym(&reloc, symFile{sym: sym,
 				file: f}, syms, symMap,
 				gcObjs, fileTabOffsetMap)
@@ -208,7 +208,7 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 
 	for i, obj := range goObjs {
 		for _, sym := range obj.Syms {
-			if sym.Kind == STEXT {
+			if sym.Kind == STEXT && sym.DupOK == false {
 				relocSym(&reloc, symFile{sym: sym,
 					file: fs[i]}, allSyms, symMap,
 					gcObjs, fileTabOffsetMap)
