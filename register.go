@@ -48,7 +48,7 @@ func RegSymbol(symPtr map[string]uintptr) {
 	syms, err := f.Symbols()
 	codeType := 'T'
 	for _, sym := range syms {
-		if sym.Name == "runtime.text" && sym.Code == 't' {
+		if sym.Name == "runtime.init" && sym.Code == 't' {
 			codeType = 't'
 		}
 	}
