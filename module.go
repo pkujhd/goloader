@@ -1,10 +1,9 @@
 package goloader
 
 import (
-	"fmt"
-	"reflect"
-	"strings"
 	"unsafe"
+
+	"cmd/objfile/goobj"
 )
 
 //go:linkname firstmoduledata runtime.firstmoduledata
@@ -38,17 +37,6 @@ type textsect struct {
 	baseaddr uintptr // relocated section address
 }
 
-type itab struct {
-	inter  uintptr
-	_type  uintptr
-	link   uintptr
-	hash   uint32 // copy of _type.hash. Used for type switches.
-	bad    bool   // type does not implement interface
-	inhash bool   // has this itab been added to hash?
-	unused [2]byte
-	fun    [1]uintptr // variable sized
-}
-
 type nameOff int32
 type typeOff int32
 type textOff int32
@@ -72,58 +60,11 @@ type bitvector struct {
 	bytedata *uint8
 }
 
-type moduledata struct {
-	pclntable    []byte
-	ftab         []functab
-	filetab      []uint32
-	findfunctab  uintptr
-	minpc, maxpc uintptr
-
-	text, etext           uintptr
-	noptrdata, enoptrdata uintptr
-	data, edata           uintptr
-	bss, ebss             uintptr
-	noptrbss, enoptrbss   uintptr
-	end, gcdata, gcbss    uintptr
-	types, etypes         uintptr
-
-	textsectmap []textsect
-	typelinks   []int32 // offsets from types
-	itablinks   []*itab
-
-	ptab []ptabEntry
-
-	pluginpath string
-	pkghashes  []modulehash
-
-	modulename   string
-	modulehashes []modulehash
-
-	gcdatamask, gcbssmask bitvector
-
-	typemap map[typeOff]uintptr // offset to *_rtype in previous module
-
-	next *moduledata
-}
-
-type _func struct {
-	entry   uintptr // start pc
-	nameoff int32   // function name
-
-	args int32 // in/out args size
-	_    int32 // previously legacy frame size; kept for layout compatibility
-
-	pcsp      int32
-	pcfile    int32
-	pcln      int32
-	npcdata   int32
-	nfuncdata int32
-}
-
 type funcInfoData struct {
 	_func
 	pcdata   []uint32
 	funcdata []uintptr
+	Var      []goobj.Var
 }
 
 type stackmap struct {
@@ -145,134 +86,6 @@ const minfunc = 16                 // minimum function size
 const pcbucketsize = 256 * minfunc // size of bucket in the pc->func lookup table
 const nsub = len(findfuncbucket{}.subbuckets)
 
-func readFuncData(module *Module, curSymFile symFile,
-	allSyms map[string]symFile, gcObjs map[string]uintptr,
-	fileTabOffsetMap map[string]int, curSymOffset, curCodeLen int) {
-
-	fs := readAtSeeker{ReadSeeker: curSymFile.file}
-	curSym := curSymFile.sym
-
-	{
-		x := curCodeLen
-		b := x / pcbucketsize
-		i := x % pcbucketsize / (pcbucketsize / nsub)
-		for lb := b - len(module.pcfunc); lb >= 0; lb-- {
-			module.pcfunc = append(module.pcfunc, findfuncbucket{
-				idx: uint32(256 * len(module.pcfunc))})
-		}
-		bucket := &module.pcfunc[b]
-		bucket.subbuckets[i] = byte(len(module.ftab) - int(bucket.idx))
-	}
-
-	var fileTabOffset = len(module.filetab)
-	var fileOffsets []uint32
-	var fullFile string
-	for _, fileName := range curSym.Func.File {
-		fileOffsets = append(fileOffsets, uint32(len(fullFile)+len(module.pclntable)))
-		fileName = strings.TrimLeft(curSym.Func.File[0], "gofile..")
-		fullFile += fileName + "\x00"
-	}
-	if tabOffset, ok := fileTabOffsetMap[fullFile]; !ok {
-		module.pclntable = append(module.pclntable, []byte(fullFile)...)
-		fileTabOffsetMap[fullFile] = fileTabOffset
-		module.filetab = append(module.filetab, fileOffsets...)
-	} else {
-		fileTabOffset = tabOffset
-	}
-	var pcFileHead [2]byte
-	if fileTabOffset > 128 {
-		fmt.Println("filetab overflow!")
-	}
-	pcFileHead[0] = byte(fileTabOffset << 1)
-
-	nameOff := len(module.pclntable)
-	nameByte := make([]byte, len(curSym.Name)+1)
-	copy(nameByte, []byte(curSym.Name))
-	module.pclntable = append(module.pclntable, nameByte...)
-
-	spOff := len(module.pclntable)
-	var fb = make([]byte, curSym.Func.PCSP.Size)
-	fs.ReadAt(fb, curSym.Func.PCSP.Offset)
-	// fmt.Println("sp val:", fb)
-	module.pclntable = append(module.pclntable, fb...)
-
-	pcfileOff := len(module.pclntable)
-	fb = make([]byte, curSym.Func.PCFile.Size)
-	fs.ReadAt(fb, curSym.Func.PCFile.Offset)
-	// dumpPCData(fb, "pcfile")
-	module.pclntable = append(module.pclntable, pcFileHead[:]...)
-	module.pclntable = append(module.pclntable, fb...)
-
-	pclnOff := len(module.pclntable)
-	fb = make([]byte, curSym.Func.PCLine.Size)
-	fs.ReadAt(fb, curSym.Func.PCLine.Offset)
-	module.pclntable = append(module.pclntable, fb...)
-
-	fdata := _func{
-		entry:     uintptr(curSymOffset),
-		nameoff:   int32(nameOff),
-		args:      int32(curSym.Func.Args),
-		pcsp:      int32(spOff),
-		pcfile:    int32(pcfileOff),
-		pcln:      int32(pclnOff),
-		npcdata:   int32(len(curSym.Func.PCData)),
-		nfuncdata: int32(len(curSym.Func.FuncData)),
-	}
-	var fInfo funcInfoData
-	fInfo._func = fdata
-	for _, data := range curSym.Func.PCData {
-		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
-
-		var b = make([]byte, data.Size)
-		fs.ReadAt(b, data.Offset)
-		// dumpPCData(b)
-		module.pclntable = append(module.pclntable, b...)
-	}
-	for _, data := range curSym.Func.FuncData {
-		var offset uintptr
-		if off, ok := gcObjs[data.Sym.Name]; !ok {
-			if gcobj, ok := allSyms[data.Sym.Name]; ok {
-				var b = make([]byte, gcobj.sym.Data.Size)
-				cfs := readAtSeeker{ReadSeeker: gcobj.file}
-				cfs.ReadAt(b, gcobj.sym.Data.Offset)
-				offset = uintptr(len(module.stkmaps))
-				module.stkmaps = append(module.stkmaps, b)
-				gcObjs[data.Sym.Name] = offset
-			} else if len(data.Sym.Name) == 0 {
-				fInfo.funcdata = append(fInfo.funcdata, 0)
-			} else {
-				fmt.Println("unknown gcobj:", data.Sym.Name)
-			}
-		} else {
-			offset = off
-		}
-
-		fInfo.funcdata = append(fInfo.funcdata, offset)
-	}
-
-	module.ftab = append(module.ftab, functab{
-		entry: uintptr(curSymOffset),
-	})
-
-	module.funcinfo = append(module.funcinfo, fInfo)
-}
-
-func dumpPCData(b []byte, prefix string) {
-	fmt.Println(prefix, b)
-	var pc uintptr
-	val := int32(-1)
-	var ok bool
-	b, ok = step(b, &pc, &val, true)
-	for {
-		if !ok || len(b) <= 0 {
-			fmt.Println(prefix, "step end")
-			break
-		}
-		fmt.Println(prefix, "pc:", pc, "val:", val)
-		b, ok = step(b, &pc, &val, false)
-	}
-}
-
 //go:linkname step runtime.step
 func step(p []byte, pc *uintptr, val *int32, first bool) (newp []byte, ok bool)
 
@@ -290,136 +103,27 @@ type funcInfo struct {
 	datap *moduledata
 }
 
-const (
-	_PCDATA_StackMapIndex       = 0
-	_PCDATA_InlTreeIndex        = 1
-	_FUNCDATA_ArgsPointerMaps   = 0
-	_FUNCDATA_LocalsPointerMaps = 1
-	_FUNCDATA_InlTree           = 2
-	_ArgsSizeUnknown            = -0x80000000
-)
-
-func dumpStackMap(f interface{}) {
-	finfo := findfunc(getFuncPtr(f))
-	fmt.Println(funcname(finfo))
-	stkmap := (*stackmap)(funcdata(finfo, _FUNCDATA_LocalsPointerMaps))
-	fmt.Printf("%v %p\n", stkmap, stkmap)
-}
-
-type moduledata110 struct {
-	pclntable    []byte
-	ftab         []functab
-	filetab      []uint32
-	findfunctab  uintptr
-	minpc, maxpc uintptr
-
-	text, etext           uintptr
-	noptrdata, enoptrdata uintptr
-	data, edata           uintptr
-	bss, ebss             uintptr
-	noptrbss, enoptrbss   uintptr
-	end, gcdata, gcbss    uintptr
-	types, etypes         uintptr
-
-	textsectmap []textsect
-	typelinks   []int32 // offsets from types
-	itablinks   []*itab
-
-	ptab []ptabEntry
-
-	pluginpath string
-	pkghashes  []modulehash
-
-	modulename   string
-	modulehashes []modulehash
-
-	hasmain uint8 // 1 if module contains the main function, 0 otherwise
-
-	gcdatamask, gcbssmask bitvector
-
-	typemap map[typeOff]uintptr // offset to *_rtype in previous module
-
-	bad bool // module failed to load and should be ignored
-
-	next *moduledata110
-}
-
-func moduledataTo110(m110 *moduledata110, m *moduledata) {
-	m110.pclntable = m.pclntable
-	m110.ftab = m.ftab
-	m110.filetab = m.filetab
-	m110.filetab = m.filetab
-	m110.findfunctab = m.findfunctab
-	m110.minpc = m.minpc
-	m110.maxpc = m.maxpc
-	m110.text = m.text
-	m110.etext = m.etext
-	m110.typemap = m.typemap
-	m110.types = m.types
-	m110.etypes = m.etypes
-}
-
-func linkModule(first uintptr, offset uintptr, newModule uintptr) {
-	for datap := first; ; {
-		p := (*uintptr)(unsafe.Pointer(datap + offset))
-		nextdatap := *p
-		if nextdatap == 0 {
-			*p = newModule
+func addModule(codeModule *CodeModule, aModule *moduledata) {
+	modules[aModule] = true
+	for datap := &firstmoduledata; ; {
+		if datap.next == nil {
+			datap.next = aModule
 			break
 		}
-		datap = nextdatap
+		datap = datap.next
 	}
+	codeModule.Module = aModule
 }
 
-func unlinkModule(first uintptr, offset uintptr, module uintptr) {
-	prevp := first
-	for datap := first; datap != 0; {
-		p := (*uintptr)(unsafe.Pointer(datap + offset))
-		nextdatap := *p
+func removeModule(module interface{}) {
+	prevp := &firstmoduledata
+	for datap := &firstmoduledata; datap != nil; {
 		if datap == module {
-			pp := (*uintptr)(unsafe.Pointer(prevp + offset))
-			*pp = nextdatap
+			prevp.next = datap.next
+			break
 		}
 		prevp = datap
-		datap = nextdatap
+		datap = datap.next
 	}
-}
-
-func addModule(codeModule *CodeModule, m *moduledata, goVer string) {
-	switch goVer[:5] {
-	case "go1.8", "go1.9":
-		tmpModule = m
-		modules[tmpModule] = true
-		offset := uintptr(unsafe.Pointer(&m.next)) - uintptr(unsafe.Pointer(m))
-		linkModule(uintptr(unsafe.Pointer(&firstmoduledata)),
-			offset, reflect.ValueOf(tmpModule).Pointer())
-	case "go1.1":
-		var m110 moduledata110
-		moduledataTo110(&m110, m)
-		tmpModule = &m110
-		modules[tmpModule] = true
-		offset := uintptr(unsafe.Pointer(&m110.next)) - uintptr(unsafe.Pointer(&m110))
-		linkModule(uintptr(unsafe.Pointer(&firstmoduledata)),
-			offset, reflect.ValueOf(tmpModule).Pointer())
-	default:
-		panic("unsupported go version: " + goVer)
-	}
-	codeModule.Module = tmpModule
-}
-
-func removeModule(module interface{}, goVer string) {
-	var offset uintptr
-	switch goVer[:5] {
-	case "go1.8", "go1.9":
-		var m moduledata
-		offset = uintptr(unsafe.Pointer(&m.next)) - uintptr(unsafe.Pointer(&m))
-	case "go1.1":
-		var m110 moduledata110
-		offset = uintptr(unsafe.Pointer(&m110.next)) - uintptr(unsafe.Pointer(&m110))
-	default:
-		panic("unsupported go version: " + goVer)
-	}
-	unlinkModule(uintptr(unsafe.Pointer(&firstmoduledata)), offset,
-		reflect.ValueOf(module).Pointer())
 	delete(modules, module)
 }
