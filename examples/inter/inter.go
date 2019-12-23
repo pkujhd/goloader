@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/pkujhd/goloader/basecontext"
+	"github.com/pkujhd/goloader/examples/basecontext"
 )
 
 func scontextPrint(i basecontext.ISContext) {

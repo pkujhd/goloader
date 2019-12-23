@@ -14,7 +14,7 @@ import (
 
 	"github.com/kr/pretty"
 	"github.com/pkujhd/goloader"
-	"github.com/pkujhd/goloader/basecontext"
+	"github.com/pkujhd/goloader/examples/basecontext"
 )
 
 func mustOK(err error) {
@@ -71,7 +71,7 @@ func main() {
 	// most of time you don't need to register function, but if loader complain about it, you have to.
 	goloader.RegTypes(symPtr, http.ListenAndServe, http.Dir("/"),
 		http.Handler(http.FileServer(http.Dir("/"))), http.FileServer, http.HandleFunc,
-		&http.Request{})
+		&http.Request{}, &http.Server{})
 	w := sync.WaitGroup{}
 	rw := sync.RWMutex{}
 	goloader.RegTypes(symPtr, &w, w.Wait, &rw)
@@ -82,6 +82,7 @@ func main() {
 	iscontext = &scontext
 	ibcontext = &bcontext
 	goloader.RegTypes(symPtr, iscontext, ibcontext)
+	symPtr["os.Stdout"] = *(*uintptr)(unsafe.Pointer(&os.Stdout))
 
 	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {
