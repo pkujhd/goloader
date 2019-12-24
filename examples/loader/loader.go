@@ -17,12 +17,6 @@ import (
 	"github.com/pkujhd/goloader/examples/basecontext"
 )
 
-func mustOK(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 type arrayFlags struct {
 	File    []string
 	PkgPath []string

@@ -70,6 +70,9 @@ func (t *_type) typeOff(off typeOff) *_type
 //go:linkname name.name runtime.name.name
 func (n name) name() (s string)
 
+//go:linkname getitab runtime.getitab
+func getitab(inter int, typ int, canfail bool) int
+
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
 	if ut == nil {
@@ -142,11 +145,8 @@ func regTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
 		symFullName = typePrefix + symName
 	}
 	symPtr[symFullName] = ptr
-	// fmt.Println(symFullName, v.Kind())
+	//fmt.Println(symFullName, v.Kind())
 }
-
-//go:linkname getitab runtime.getitab
-func getitab(inter int, typ int, canfail bool) int
 
 func addIFaceSubFuncType(funcTypeMap map[string]*int, typemap map[typeOff]uintptr,
 	inter *interfacetype, dataBase int) {

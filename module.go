@@ -1,9 +1,8 @@
 package goloader
 
 import (
-	"unsafe"
-
 	"cmd/objfile/goobj"
+	"unsafe"
 )
 
 //go:linkname firstmoduledata runtime.firstmoduledata

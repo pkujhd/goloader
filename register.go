@@ -31,18 +31,45 @@ type sliceHeader struct {
 }
 
 // RegSymbol register common types for relocation
+func regBasicSymbol(symPtr map[string]uintptr) {
+	int_0 := int(0)
+	int8_0 := int8(0)
+	int16_0 := int16(0)
+	int32_0 := int32(0)
+	int64_0 := int64(0)
+	RegTypes(symPtr, &int_0, &int8_0, &int16_0, &int32_0, &int64_0)
+
+	uint_0 := uint(0)
+	uint8_0 := uint8(0)
+	uint16_0 := uint16(0)
+	uint32_0 := uint32(0)
+	uint64_0 := uint64(0)
+	RegTypes(symPtr, &uint_0, &uint8_0, &uint16_0, &uint32_0, &uint64_0)
+
+	float32_0 := float32(0)
+	float64_0 := float64(0)
+	complex64_0 := complex64(0)
+	complex128_0 := complex128(0)
+	RegTypes(symPtr, &float32_0, &float64_0, &complex64_0, &complex128_0)
+
+	bool_true := true
+	string_empty := ""
+	unsafe_pointer := unsafe.Pointer(&int_0)
+	uintptr_ := uintptr(0)
+	RegTypes(symPtr, &bool_true, &string_empty, unsafe_pointer, uintptr_)
+
+	RegTypes(symPtr, []int{}, []int8{}, []int16{}, []int32{}, []int64{})
+	RegTypes(symPtr, []uint{}, []uint8{}, []uint16{}, []uint32{}, []uint64{})
+	RegTypes(symPtr, []float32{}, []float64{}, []complex64{}, []complex128{})
+	RegTypes(symPtr, []bool{}, []string{}, []unsafe.Pointer{}, []uintptr{})
+}
+
 func RegSymbol(symPtr map[string]uintptr) {
-
-	var int0 = int(0)
-	RegTypes(symPtr, int(0), int8(0), int16(0), int32(0), int64(0),
-		uint(0), uint8(0), uint16(0), uint32(0), uint64(0), true, &int0,
-		float32(0), float64(0), complex64(0), complex128(0),
-		"", []byte{}, []uint{}, []int{}, uintptr(0), make(chan bool, 1), unsafe.Pointer(&symPtr))
-
+	regBasicSymbol(symPtr)
 	ex, err := os.Executable()
-	mustOK(err)
+	assert(err)
 	f, err := objfile.Open(ex)
-	mustOK(err)
+	assert(err)
 	defer f.Close()
 
 	syms, err := f.Symbols()
@@ -98,7 +125,7 @@ func RegType(symPtr map[string]uintptr, name string, typ interface{}) {
 }
 
 func RegFunc(symPtr map[string]uintptr, name string, f interface{}) {
-	var ptr = *(*uintptr)((*interfaceHeader)(unsafe.Pointer(&f)).word)
+	var ptr = getFuncPtr(f)
 	symPtr[name] = ptr
 }
 
