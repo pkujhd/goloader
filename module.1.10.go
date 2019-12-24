@@ -3,10 +3,7 @@
 
 package goloader
 
-import (
-	"fmt"
-	"strings"
-)
+import "cmd/objfile/goobj"
 
 // layout of Itab known to compilers
 // allocated in non-garbage-collected memory
@@ -92,69 +89,7 @@ type _func struct {
 	nfuncdata int32
 }
 
-func readFuncData(module *Module, curSymFile symFile,
-	allSyms map[string]symFile, gcObjs map[string]uintptr,
-	fileTabOffsetMap map[string]int, curSymOffset, curCodeLen int) {
-
-	fs := readAtSeeker{ReadSeeker: curSymFile.file}
-	curSym := curSymFile.sym
-
-	{
-		x := curCodeLen
-		b := x / pcbucketsize
-		i := x % pcbucketsize / (pcbucketsize / nsub)
-		for lb := b - len(module.pcfunc); lb >= 0; lb-- {
-			module.pcfunc = append(module.pcfunc, findfuncbucket{
-				idx: uint32(256 * len(module.pcfunc))})
-		}
-		bucket := &module.pcfunc[b]
-		bucket.subbuckets[i] = byte(len(module.ftab) - int(bucket.idx))
-	}
-
-	var fileTabOffset = len(module.filetab)
-	var fileOffsets []uint32
-	var fullFile string
-	for _, fileName := range curSym.Func.File {
-		fileOffsets = append(fileOffsets, uint32(len(fullFile)+len(module.pclntable)))
-		fileName = strings.TrimLeft(curSym.Func.File[0], "gofile..")
-		fullFile += fileName + "\x00"
-	}
-	if tabOffset, ok := fileTabOffsetMap[fullFile]; !ok {
-		module.pclntable = append(module.pclntable, []byte(fullFile)...)
-		fileTabOffsetMap[fullFile] = fileTabOffset
-		module.filetab = append(module.filetab, fileOffsets...)
-	} else {
-		fileTabOffset = tabOffset
-	}
-	var pcFileHead [2]byte
-	if fileTabOffset > 128 {
-		fmt.Println("filetab overflow!")
-	}
-	pcFileHead[0] = byte(fileTabOffset << 1)
-
-	nameOff := len(module.pclntable)
-	nameByte := make([]byte, len(curSym.Name)+1)
-	copy(nameByte, []byte(curSym.Name))
-	module.pclntable = append(module.pclntable, nameByte...)
-
-	spOff := len(module.pclntable)
-	var fb = make([]byte, curSym.Func.PCSP.Size)
-	fs.ReadAt(fb, curSym.Func.PCSP.Offset)
-	// fmt.Println("sp val:", fb)
-	module.pclntable = append(module.pclntable, fb...)
-
-	pcfileOff := len(module.pclntable)
-	fb = make([]byte, curSym.Func.PCFile.Size)
-	fs.ReadAt(fb, curSym.Func.PCFile.Offset)
-	// dumpPCData(fb, "pcfile")
-	module.pclntable = append(module.pclntable, pcFileHead[:]...)
-	module.pclntable = append(module.pclntable, fb...)
-
-	pclnOff := len(module.pclntable)
-	fb = make([]byte, curSym.Func.PCLine.Size)
-	fs.ReadAt(fb, curSym.Func.PCLine.Offset)
-	module.pclntable = append(module.pclntable, fb...)
-
+func init_func(curSym *goobj.Sym, curSymOffset, nameOff, spOff, pcfileOff, pclnOff int) _func {
 	fdata := _func{
 		entry:     uintptr(curSymOffset),
 		nameoff:   int32(nameOff),
@@ -165,41 +100,5 @@ func readFuncData(module *Module, curSymFile symFile,
 		npcdata:   int32(len(curSym.Func.PCData)),
 		nfuncdata: int32(len(curSym.Func.FuncData)),
 	}
-	var fInfo funcInfoData
-	fInfo._func = fdata
-	for _, data := range curSym.Func.PCData {
-		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
-
-		var b = make([]byte, data.Size)
-		fs.ReadAt(b, data.Offset)
-		// dumpPCData(b)
-		module.pclntable = append(module.pclntable, b...)
-	}
-	for _, data := range curSym.Func.FuncData {
-		var offset uintptr
-		if off, ok := gcObjs[data.Sym.Name]; !ok {
-			if gcobj, ok := allSyms[data.Sym.Name]; ok {
-				var b = make([]byte, gcobj.sym.Data.Size)
-				cfs := readAtSeeker{ReadSeeker: gcobj.file}
-				cfs.ReadAt(b, gcobj.sym.Data.Offset)
-				offset = uintptr(len(module.stkmaps))
-				module.stkmaps = append(module.stkmaps, b)
-				gcObjs[data.Sym.Name] = offset
-			} else if len(data.Sym.Name) == 0 {
-				fInfo.funcdata = append(fInfo.funcdata, 0)
-			} else {
-				fmt.Println("unknown gcobj:", data.Sym.Name)
-			}
-		} else {
-			offset = off
-		}
-
-		fInfo.funcdata = append(fInfo.funcdata, offset)
-	}
-
-	module.ftab = append(module.ftab, functab{
-		entry: uintptr(curSymOffset),
-	})
-
-	module.funcinfo = append(module.funcinfo, fInfo)
+	return fdata
 }
