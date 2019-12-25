@@ -14,16 +14,19 @@ const (
 	R_CALLIND_NAME = "R_CALLIND"
 )
 
+// See reflect/value.go emptyInterface
 type interfaceHeader struct {
 	typ  uintptr
 	word unsafe.Pointer
 }
 
+// See reflect/value.go stringHeader
 type stringHeader struct {
 	Data uintptr
 	Len  int
 }
 
+// See reflect/value.go sliceHeader
 type sliceHeader struct {
 	Data uintptr
 	Len  int
@@ -96,7 +99,8 @@ func RegItab(symPtr map[string]uintptr, name string, addr uintptr) {
 	symPtr[name] = uintptr(addr)
 	bs := strings.TrimLeft(name, "go.itab.")
 	bss := strings.Split(bs, ",")
-	ptrs := *(*[2]uintptr)(unsafe.Pointer(addr))
+	var slice = sliceHeader{addr, len(bss), len(bss)}
+	ptrs := *(*[]uintptr)(unsafe.Pointer(&slice))
 	for i, ptr := range ptrs {
 		typeName := bss[len(bss)-i-1]
 		if typeName[0] == '*' {
@@ -113,9 +117,9 @@ func RegItab(symPtr map[string]uintptr, name string, addr uintptr) {
 
 func RegTLS(symPtr map[string]uintptr, offset int) {
 	var ptr interface{} = RegSymbol
-	var ptr2 = *(*uintptr)((*interfaceHeader)(unsafe.Pointer(&ptr)).word)
-	var ptr3 = (*[36]byte)(unsafe.Pointer(ptr2))
-	var tlsValue = uintptr(binary.LittleEndian.Uint32(ptr3[offset:]))
+	var slice = sliceHeader{*(*uintptr)((*interfaceHeader)(unsafe.Pointer(&ptr)).word), offset + 4, offset + 4}
+	var bytes = *(*[]byte)(unsafe.Pointer(&slice))
+	var tlsValue = uintptr(binary.LittleEndian.Uint32(bytes[offset:]))
 	symPtr[TLSNAME] = tlsValue
 }
 
