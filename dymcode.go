@@ -105,23 +105,15 @@ type CodeModule struct {
 	Module     interface{}
 	pcfuncdata []findfuncbucket
 	stkmaps    [][]byte
-	itabs      []itabReloc
-	itabSyms   []itabSym
+	itabs      []itabSym
 	typemap    map[typeOff]uintptr
 }
 
 type itabSym struct {
+	Reloc
 	ptr   int
 	inter int
 	_type int
-}
-
-type itabReloc struct {
-	locOff  int
-	symOff  int
-	size    int
-	locType int
-	add     int
 }
 
 type symFile struct {
@@ -425,42 +417,38 @@ func addItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 		inter := seg.symAddrs[curSym.Reloc[0].SymOff]
 		_type := seg.symAddrs[curSym.Reloc[1].SymOff]
 		if inter == -1 || _type == -1 {
+			seg.itabMap[itabName] = -1
 			continue
 		}
-		seg.itabMap[itabName] = len(codeModule.itabSyms)
-		codeModule.itabSyms = append(codeModule.itabSyms, itabSym{inter: inter, _type: _type})
+		seg.itabMap[itabName] = len(codeModule.itabs)
+		codeModule.itabs = append(codeModule.itabs, itabSym{inter: inter, _type: _type})
 
-		addIFaceSubFuncType(seg.funcType, codeModule.typemap,
-			(*interfacetype)(unsafe.Pointer(uintptr(inter))), seg.codeBase)
+		addIFaceSubFuncType(seg.funcType, codeModule.typemap, (*interfacetype)(unsafe.Pointer(uintptr(inter))), seg.codeBase)
 	}
 }
 
 func relocateItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
-	for i := range codeModule.itabSyms {
-		it := &codeModule.itabSyms[i]
+	for i := range codeModule.itabs {
+		it := &codeModule.itabs[i]
 		it.ptr = getitab(it.inter, it._type, false)
-	}
-
-	for _, it := range codeModule.itabs {
-		symAddr := codeModule.itabSyms[it.symOff].ptr
-		if symAddr == 0 {
+		if it.ptr == 0 {
 			continue
 		}
-		switch it.locType {
+		switch it.Type {
 		case R_PCREL:
-			pc := seg.codeBase + it.locOff + it.size
-			offset := symAddr - pc + it.add
+			pc := seg.codeBase + it.Offset + it.Size
+			offset := it.ptr - pc + it.Add
 			if offset > 0x7FFFFFFF || offset < -0x80000000 {
-				offset = (seg.codeBase + seg.offset) - pc + it.add
-				binary.LittleEndian.PutUint32(seg.codeByte[it.locOff:], uint32(offset))
-				seg.codeByte[it.locOff-2:][0] = movcode
-				*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(symAddr)
+				offset = (seg.codeBase + seg.offset) - pc + it.Add
+				binary.LittleEndian.PutUint32(seg.codeByte[it.Offset:], uint32(offset))
+				seg.codeByte[it.Offset-2:][0] = movcode
+				*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(it.ptr)
 				seg.offset += PtrSize
 				continue
 			}
-			binary.LittleEndian.PutUint32(seg.codeByte[it.locOff:], uint32(offset))
+			binary.LittleEndian.PutUint32(seg.codeByte[it.Offset:], uint32(offset))
 		case R_ADDRARM64:
-			relocADRP(seg.codeByte[it.locOff:], seg.codeBase+it.locOff, symAddr, "unknown")
+			relocADRP(seg.codeByte[it.Offset:], seg.codeBase+it.Offset, it.ptr, "unknown")
 		}
 	}
 }
@@ -473,9 +461,11 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 				continue
 			}
 			if seg.symAddrs[loc.SymOff] == 0 && strings.HasPrefix(sym.Name, "go.itab") {
-				codeModule.itabs = append(codeModule.itabs,
-					itabReloc{locOff: loc.Offset, symOff: seg.itabMap[sym.Name],
-						size: loc.Size, locType: loc.Type, add: loc.Add})
+				itab := &codeModule.itabs[seg.itabMap[sym.Name]]
+				itab.Offset = loc.Offset
+				itab.Size = loc.Size
+				itab.Type = loc.Type
+				itab.Add = loc.Add
 				continue
 			}
 
@@ -604,6 +594,44 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 
 		}
 	}
+}
+
+func addFuncTab(module *moduledata, i, pclnOff int, code *CodeReloc, seg *segment, symPtr map[string]uintptr) int {
+	module.ftab[i].entry = uintptr(seg.symAddrs[int(code.Mod.ftab[i].entry)])
+
+	if pclnOff%PtrSize != 0 {
+		pclnOff = pclnOff + (PtrSize - pclnOff%PtrSize)
+	}
+	module.ftab[i].funcoff = uintptr(pclnOff)
+	fi := code.Mod.funcinfo[i]
+	fi.entry = module.ftab[i].entry
+	copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi._func), _funcSize)
+	pclnOff += _funcSize
+
+	if len(fi.pcdata) > 0 {
+		size := int(4 * fi.npcdata)
+		copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi.pcdata[0]), size)
+		pclnOff += size
+	}
+
+	var funcdata = make([]uintptr, len(fi.funcdata))
+	copy(funcdata, fi.funcdata)
+	for i, v := range fi.funcdata {
+		if v != 0 {
+			funcdata[i] = (uintptr)(unsafe.Pointer(&(code.Mod.stkmaps[v][0])))
+		} else {
+			funcdata[i] = (uintptr)(0)
+		}
+	}
+	if pclnOff%PtrSize != 0 {
+		pclnOff = pclnOff + (PtrSize - pclnOff%PtrSize)
+	}
+	AddStackObject(code, &fi, seg, symPtr)
+	funcDataSize := int(PtrSize * fi.nfuncdata)
+	copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&funcdata[0]), funcDataSize)
+	pclnOff += funcDataSize
+
+	return pclnOff
 }
 
 func buildModule(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
