@@ -148,101 +148,65 @@ var (
 	jmpcode     byte = 0xe9
 )
 
-func ReadObj(f *os.File) (*CodeReloc, error) {
-	obj, err := goobj.Parse(f, "main")
-	if err != nil {
-		return nil, fmt.Errorf("read error: %v", err)
-	}
+type objSyms struct {
+	symfiles map[string]symFile
+	symMap   map[string]int
+	gcObjs   map[string]uintptr
+	fileMap  map[string]int
+}
 
-	var syms = make(map[string]symFile)
+func readObj(f *os.File, reloc *CodeReloc, objsyms *objSyms, pkgpath *string) error {
+	if pkgpath == nil || *pkgpath == "" {
+		var defaultPkgPath = "main"
+		pkgpath = &defaultPkgPath
+	}
+	obj, err := goobj.Parse(f, *pkgpath)
+	if err != nil {
+		return fmt.Errorf("read error: %v", err)
+	}
 	for _, sym := range obj.Syms {
-		syms[sym.Name] = symFile{
+		objsyms.symfiles[sym.Name] = symFile{
 			sym:  sym,
 			file: f,
 		}
 	}
-
-	var symMap = make(map[string]int)
-	var gcObjs = make(map[string]uintptr)
-	var fileTabOffsetMap = make(map[string]int)
-
-	var reloc CodeReloc
-
 	for _, sym := range obj.Syms {
 		if sym.Kind == STEXT && sym.DupOK == false {
-			relocSym(&reloc, symFile{sym: sym,
-				file: f}, syms, symMap,
-				gcObjs, fileTabOffsetMap)
+			relocSym(reloc, sym.Name, objsyms)
 		} else if sym.Kind == SRODATA {
 			if strings.HasPrefix(sym.Name, "type.") {
-				relocSym(&reloc, symFile{sym: sym,
-					file: f}, syms, symMap,
-					gcObjs, fileTabOffsetMap)
+				relocSym(reloc, sym.Name, objsyms)
 			}
 		}
 	}
+	return nil
+}
 
-	return &reloc, nil
+func ReadObj(f *os.File) (*CodeReloc, error) {
+	var reloc CodeReloc
+	var objsyms = objSyms{make(map[string]symFile), make(map[string]int), make(map[string]uintptr), make(map[string]int)}
+	return &reloc, readObj(f, &reloc, &objsyms, nil)
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	var fs []*os.File
-	for _, file := range files {
+	var reloc CodeReloc
+	var objsyms = objSyms{make(map[string]symFile), make(map[string]int), make(map[string]uintptr), make(map[string]int)}
+	for i, file := range files {
+		fmt.Println(file, pkgPath[i])
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, err
 		}
-		fs = append(fs, f)
 		defer f.Close()
-	}
-
-	var allSyms = make(map[string]symFile)
-
-	var symMap = make(map[string]int)
-	var gcObjs = make(map[string]uintptr)
-	var fileTabOffsetMap = make(map[string]int)
-
-	var reloc CodeReloc
-
-	var goObjs []*goobj.Package
-	for i, f := range fs {
-		if pkgPath[i] == "" {
-			pkgPath[i] = "main"
-		}
-		obj, err := goobj.Parse(f, pkgPath[i])
+		err = readObj(f, &reloc, &objsyms, &(pkgPath[i]))
 		if err != nil {
-			return nil, fmt.Errorf("read error: %v", err)
-		}
-
-		for _, sym := range obj.Syms {
-			allSyms[sym.Name] = symFile{
-				sym:  sym,
-				file: f,
-			}
-		}
-		goObjs = append(goObjs, obj)
-	}
-
-	for i, obj := range goObjs {
-		for _, sym := range obj.Syms {
-			if sym.Kind == STEXT && sym.DupOK == false {
-				relocSym(&reloc, symFile{sym: sym,
-					file: fs[i]}, allSyms, symMap,
-					gcObjs, fileTabOffsetMap)
-			} else if sym.Kind == SRODATA {
-				if strings.HasPrefix(sym.Name, "type.") {
-					relocSym(&reloc, symFile{sym: sym,
-						file: fs[i]}, allSyms, symMap,
-						gcObjs, fileTabOffsetMap)
-				}
-			}
+			return nil, err
 		}
 	}
-
 	return &reloc, nil
 }
 
-func addSym(symMap map[string]int, symArray *[]SymData, rsym *SymData) int {
+func addSymMap(symMap map[string]int, symArray *[]SymData, rsym *SymData) int {
 	var offset int
 	if of, ok := symMap[rsym.Name]; !ok {
 		offset = len(*symArray)
@@ -267,70 +231,66 @@ func (r *readAtSeeker) ReadAt(p []byte, offset int64) (n int, err error) {
 	return r.Read(p)
 }
 
-func relocSym(reloc *CodeReloc, curSym symFile,
-	allSyms map[string]symFile, symMap map[string]int,
-	gcObjs map[string]uintptr, fileTabOffsetMap map[string]int) int {
-
-	if curSymOffset, ok := symMap[curSym.sym.Name]; ok {
-		return curSymOffset
+func relocSym(reloc *CodeReloc, symName string, objsyms *objSyms) int {
+	if offset, ok := objsyms.symMap[symName]; ok {
+		return offset
 	}
-
+	symfile := objsyms.symfiles[symName]
 	var rsym SymData
-	rsym.Name = curSym.sym.Name
-	rsym.Kind = int(curSym.sym.Kind)
-	curSymOffset := addSym(symMap, &reloc.Syms, &rsym)
+	rsym.Name = symfile.sym.Name
+	rsym.Kind = int(symfile.sym.Kind)
+	addSymMap(objsyms.symMap, &reloc.Syms, &rsym)
 
-	code := make([]byte, curSym.sym.Data.Size)
-	curSym.file.Seek(curSym.sym.Data.Offset, io.SeekStart)
-	_, err := curSym.file.Read(code)
+	code := make([]byte, symfile.sym.Data.Size)
+	symfile.file.Seek(symfile.sym.Data.Offset, io.SeekStart)
+	_, err := symfile.file.Read(code)
 	assert(err)
-	switch int(curSym.sym.Kind) {
+	switch int(symfile.sym.Kind) {
 	case STEXT:
 		rsym.Offset = len(reloc.Code)
 		reloc.Code = append(reloc.Code, code...)
-		readFuncData(&reloc.Mod, curSym, allSyms, gcObjs,
-			fileTabOffsetMap, curSymOffset, rsym.Offset)
+		readFuncData(&reloc.Mod, symName, objsyms, rsym.Offset)
 	default:
 		rsym.Offset = len(reloc.Data)
 		reloc.Data = append(reloc.Data, code...)
 	}
-	addSym(symMap, &reloc.Syms, &rsym)
+	addSymMap(objsyms.symMap, &reloc.Syms, &rsym)
 
-	for _, re := range curSym.sym.Reloc {
+	for _, re := range symfile.sym.Reloc {
 		symOff := -1
-		if s, ok := allSyms[re.Sym.Name]; ok {
-			symOff = relocSym(reloc, s, allSyms, symMap,
-				gcObjs, fileTabOffsetMap)
+		if s, ok := objsyms.symfiles[re.Sym.Name]; ok {
+			symOff = relocSym(reloc, s.sym.Name, objsyms)
 		} else {
-			var exSym SymData
-			exSym.Name = re.Sym.Name
-			exSym.Offset = -1
+			var exsym SymData
+			exsym.Name = re.Sym.Name
+			exsym.Offset = -1
 			if re.Type == R_TLS_LE {
-				exSym.Name = TLSNAME
-				exSym.Offset = int(re.Offset)
+				exsym.Name = TLSNAME
+				exsym.Offset = int(re.Offset)
 			}
 			if re.Type == R_CALLIND {
-				exSym.Offset = 0
-				exSym.Name = R_CALLIND_NAME
+				exsym.Offset = 0
+				exsym.Name = R_CALLIND_NAME
 			}
-			if strings.HasPrefix(exSym.Name, "type..importpath.") {
-				path := strings.TrimLeft(exSym.Name, "type..importpath.")
-				path = strings.Trim(path, ".")
-				pathb := []byte(path)
-				pathb = append(pathb, 0)
-				exSym.Offset = len(reloc.Data)
-				reloc.Data = append(reloc.Data, pathb...)
+			if strings.HasPrefix(exsym.Name, "type..importpath.") {
+				path := strings.Trim(strings.TrimLeft(exsym.Name, "type..importpath."), ".")
+				pathbytes := []byte(path)
+				pathbytes = append(pathbytes, 0)
+				exsym.Offset = len(reloc.Data)
+				reloc.Data = append(reloc.Data, pathbytes...)
 			}
-			symOff = addSym(symMap, &reloc.Syms, &exSym)
+			symOff = addSymMap(objsyms.symMap, &reloc.Syms, &exsym)
 		}
 		rsym.Reloc = append(rsym.Reloc,
-			Reloc{Offset: int(re.Offset) + rsym.Offset, SymOff: symOff,
-				Type: int(re.Type),
-				Size: int(re.Size), Add: int(re.Add)})
+			Reloc{Offset: int(re.Offset) + rsym.Offset,
+				SymOff: symOff,
+				Type:   int(re.Type),
+				Size:   int(re.Size),
+				Add:    int(re.Add)})
 	}
-	reloc.Syms[curSymOffset].Reloc = rsym.Reloc
+	reloc.Syms[objsyms.symMap[symName]].Reloc = rsym.Reloc
 
-	return curSymOffset
+	return objsyms.symMap[symName]
 }
 
 func strWrite(buf *bytes.Buffer, str ...string) {

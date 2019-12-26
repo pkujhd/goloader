@@ -104,12 +104,10 @@ type funcInfo struct {
 	datap *moduledata
 }
 
-func readFuncData(module *Module, curSymFile symFile,
-	allSyms map[string]symFile, gcObjs map[string]uintptr,
-	fileTabOffsetMap map[string]int, curSymOffset, curCodeLen int) {
+func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen int) {
 
-	fs := readAtSeeker{ReadSeeker: curSymFile.file}
-	curSym := curSymFile.sym
+	fs := readAtSeeker{ReadSeeker: objsyms.symfiles[symName].file}
+	curSym := objsyms.symfiles[symName].sym
 
 	{
 		x := curCodeLen
@@ -131,9 +129,9 @@ func readFuncData(module *Module, curSymFile symFile,
 		fileName = strings.TrimLeft(curSym.Func.File[0], "gofile..")
 		fullFile += fileName + "\x00"
 	}
-	if tabOffset, ok := fileTabOffsetMap[fullFile]; !ok {
+	if tabOffset, ok := objsyms.fileMap[fullFile]; !ok {
 		module.pclntable = append(module.pclntable, []byte(fullFile)...)
-		fileTabOffsetMap[fullFile] = fileTabOffset
+		objsyms.fileMap[fullFile] = fileTabOffset
 		module.filetab = append(module.filetab, fileOffsets...)
 	} else {
 		fileTabOffset = tabOffset
@@ -167,7 +165,7 @@ func readFuncData(module *Module, curSymFile symFile,
 	fs.ReadAt(fb, curSym.Func.PCLine.Offset)
 	module.pclntable = append(module.pclntable, fb...)
 
-	fdata := init_func(curSym, curSymOffset, nameOff, spOff, pcfileOff, pclnOff)
+	fdata := init_func(curSym, objsyms.symMap[symName], nameOff, spOff, pcfileOff, pclnOff)
 	var fInfo funcInfoData
 	fInfo._func = fdata
 	for _, data := range curSym.Func.PCData {
@@ -180,14 +178,14 @@ func readFuncData(module *Module, curSymFile symFile,
 	}
 	for _, data := range curSym.Func.FuncData {
 		var offset uintptr
-		if off, ok := gcObjs[data.Sym.Name]; !ok {
-			if gcobj, ok := allSyms[data.Sym.Name]; ok {
+		if off, ok := objsyms.gcObjs[data.Sym.Name]; !ok {
+			if gcobj, ok := objsyms.symfiles[data.Sym.Name]; ok {
 				var b = make([]byte, gcobj.sym.Data.Size)
 				cfs := readAtSeeker{ReadSeeker: gcobj.file}
 				cfs.ReadAt(b, gcobj.sym.Data.Offset)
 				offset = uintptr(len(module.stkmaps))
 				module.stkmaps = append(module.stkmaps, b)
-				gcObjs[data.Sym.Name] = offset
+				objsyms.gcObjs[data.Sym.Name] = offset
 			} else if len(data.Sym.Name) == 0 {
 				offset = 0
 			} else {
@@ -202,7 +200,7 @@ func readFuncData(module *Module, curSymFile symFile,
 	fInfo.Var = curSym.Func.Var
 
 	module.ftab = append(module.ftab, functab{
-		entry: uintptr(curSymOffset),
+		entry: uintptr(objsyms.symMap[symName]),
 	})
 
 	module.funcinfo = append(module.funcinfo, fInfo)
