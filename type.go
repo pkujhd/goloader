@@ -94,8 +94,8 @@ func (t *_type) Type() reflect.Type {
 
 func ToType(typ reflect.Type) *_type {
 	var obj interface{} = typ
-	typePtr := uintptr((*interfaceHeader)(unsafe.Pointer(&obj)).word)
-	return (*_type)(unsafe.Pointer(typePtr))
+	typePtr := (*interfaceHeader)(unsafe.Pointer(&obj)).word
+	return (*_type)(typePtr)
 }
 
 func GetFunctionName(i interface{}) string {
@@ -135,7 +135,7 @@ func regTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
 		symName = symName[1:]
 	}
 
-	pkgPath := (*_type)(unsafe.Pointer(header.typ)).PkgPath()
+	pkgPath := (*_type)(header.typ).PkgPath()
 
 	var symFullName string
 	lastSlash := strings.LastIndexByte(pkgPath, '/')

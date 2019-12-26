@@ -4,5 +4,4 @@
 package goloader
 
 func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
-
 }

@@ -16,7 +16,7 @@ const (
 
 // See reflect/value.go emptyInterface
 type interfaceHeader struct {
-	typ  uintptr
+	typ  unsafe.Pointer
 	word unsafe.Pointer
 }
 
@@ -100,18 +100,18 @@ func RegItab(symPtr map[string]uintptr, name string, addr uintptr) {
 	bs := strings.TrimLeft(name, "go.itab.")
 	bss := strings.Split(bs, ",")
 	var slice = sliceHeader{addr, len(bss), len(bss)}
-	ptrs := *(*[]uintptr)(unsafe.Pointer(&slice))
+	ptrs := *(*[]unsafe.Pointer)(unsafe.Pointer(&slice))
 	for i, ptr := range ptrs {
 		typeName := bss[len(bss)-i-1]
 		if typeName[0] == '*' {
 			var obj interface{} = reflect.TypeOf(0)
-			(*interfaceHeader)(unsafe.Pointer(&obj)).word = unsafe.Pointer(ptr)
+			(*interfaceHeader)(unsafe.Pointer(&obj)).word = ptr
 			typ := obj.(reflect.Type).Elem()
 			obj = typ
 			typePtr := uintptr((*interfaceHeader)(unsafe.Pointer(&obj)).word)
 			symPtr["type."+typeName[1:]] = typePtr
 		}
-		symPtr["type."+typeName] = ptr
+		symPtr["type."+typeName] = uintptr(ptr)
 	}
 }
 
@@ -125,7 +125,7 @@ func RegTLS(symPtr map[string]uintptr, offset int) {
 
 func RegType(symPtr map[string]uintptr, name string, typ interface{}) {
 	aHeader := (*interfaceHeader)(unsafe.Pointer(&typ))
-	symPtr[name] = aHeader.typ
+	symPtr[name] = uintptr(aHeader.typ)
 }
 
 func RegFunc(symPtr map[string]uintptr, name string, f interface{}) {
