@@ -192,7 +192,6 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 	var reloc CodeReloc
 	var objsyms = objSyms{make(map[string]symFile), make(map[string]int), make(map[string]uintptr), make(map[string]int)}
 	for i, file := range files {
-		fmt.Println(file, pkgPath[i])
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, err
