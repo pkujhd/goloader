@@ -9,6 +9,7 @@ import (
 
 func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
 	if len(fi.funcdata) > _FUNCDATA_StackObjects {
+		stackObjectRecordSize := unsafe.Sizeof(stackObjectRecord{})
 		b := code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]]
 		n := *(*int)(unsafe.Pointer(&b[0]))
 		p := uintptr(unsafe.Pointer(&b[PtrSize]))
@@ -16,25 +17,24 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 			obj := *(*stackObjectRecord)(unsafe.Pointer(p))
 			for _, v := range fi.Var {
 				if v.Offset == (int64)(obj.off) {
-					typeName := v.Type.Name
-					ptr, ok := symPtr[typeName]
+					ptr, ok := symPtr[v.Type.Name]
 					if !ok {
-						ptr, ok = seg.typeSymPtr[typeName]
+						ptr, ok = seg.typeSymPtr[v.Type.Name]
 					}
 					if ok {
-						off := PtrSize + i*(int)(unsafe.Sizeof(stackObjectRecord{})) + PtrSize
+						off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 						if PtrSize == 4 {
 							binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))
 						} else {
 							binary.LittleEndian.PutUint64(b[off:], *(*uint64)(unsafe.Pointer(&ptr)))
 						}
 					} else {
-						strWrite(&seg.err, "unresolve external:", typeName, "\n")
+						strWrite(&seg.err, "unresolve external:", v.Type.Name, "\n")
 					}
 					break
 				}
 			}
-			p = p + unsafe.Sizeof(stackObjectRecord{})
+			p = p + stackObjectRecordSize
 		}
 	}
 }
