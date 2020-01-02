@@ -99,6 +99,31 @@ func funcdata(f funcInfo, i int32) unsafe.Pointer
 //go:linkname funcname runtime.funcname
 func funcname(f funcInfo) string
 
+//see src/cmd/link/internal/ld/pcln.go
+func addvarint(val uint32) []byte {
+	var d []byte
+	n := int32(0)
+	for v := val; v >= 0x80; v >>= 7 {
+		n++
+	}
+	n++
+
+	old := len(d)
+	for cap(d) < len(d)+int(n) {
+		d = append(d[:cap(d)], 0)
+	}
+	d = d[:old+int(n)]
+
+	p := d[old:]
+	var v uint32
+	for v = val; v >= 0x80; v >>= 7 {
+		p[0] = byte(v | 0x80)
+		p = p[1:]
+	}
+	p[0] = byte(v)
+	return d
+}
+
 type funcInfo struct {
 	*_func
 	datap *moduledata
@@ -121,26 +146,18 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 		bucket.subbuckets[i] = byte(len(module.ftab) - int(bucket.idx))
 	}
 
-	var fileTabOffset = len(module.filetab)
-	var fileOffsets []uint32
-	var fullFile string
+	pcFileHead := addvarint(uint32(len(module.filetab)) << 1)
+	pcFileHead = append(pcFileHead, 0)
 	for _, fileName := range curSym.Func.File {
-		fileOffsets = append(fileOffsets, uint32(len(fullFile)+len(module.pclntable)))
-		fileName = strings.TrimLeft(curSym.Func.File[0], "gofile..")
-		fullFile += fileName + "\x00"
+		fileName = strings.TrimLeft(fileName, "gofile..")
+		fileName = fileName + "\x00"
+		if off, ok := objsyms.fileMap[fileName]; !ok {
+			module.filetab = append(module.filetab, (uint32)(len(module.pclntable)))
+			module.pclntable = append(module.pclntable, []byte(fileName)...)
+		} else {
+			module.filetab = append(module.filetab, uint32(off))
+		}
 	}
-	if tabOffset, ok := objsyms.fileMap[fullFile]; !ok {
-		module.pclntable = append(module.pclntable, []byte(fullFile)...)
-		objsyms.fileMap[fullFile] = fileTabOffset
-		module.filetab = append(module.filetab, fileOffsets...)
-	} else {
-		fileTabOffset = tabOffset
-	}
-	var pcFileHead [2]byte
-	if fileTabOffset > 128 {
-		fmt.Println("filetab overflow!")
-	}
-	pcFileHead[0] = byte(fileTabOffset << 1)
 
 	nameOff := len(module.pclntable)
 	nameByte := make([]byte, len(curSym.Name)+1)
@@ -156,7 +173,6 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	pcfileOff := len(module.pclntable)
 	fb = make([]byte, curSym.Func.PCFile.Size)
 	fs.ReadAt(fb, curSym.Func.PCFile.Offset)
-	// dumpPCData(fb, "pcfile")
 	module.pclntable = append(module.pclntable, pcFileHead[:]...)
 	module.pclntable = append(module.pclntable, fb...)
 
