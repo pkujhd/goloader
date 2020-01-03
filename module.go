@@ -134,17 +134,15 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	fs := readAtSeeker{ReadSeeker: objsyms.symfiles[symName].file}
 	curSym := objsyms.symfiles[symName].sym
 
-	{
-		x := curCodeLen
-		b := x / pcbucketsize
-		i := x % pcbucketsize / (pcbucketsize / nsub)
-		for lb := b - len(module.pcfunc); lb >= 0; lb-- {
-			module.pcfunc = append(module.pcfunc, findfuncbucket{
-				idx: uint32(256 * len(module.pcfunc))})
-		}
-		bucket := &module.pcfunc[b]
-		bucket.subbuckets[i] = byte(len(module.ftab) - int(bucket.idx))
+	x := curCodeLen
+	b := x / pcbucketsize
+	i := x % pcbucketsize / (pcbucketsize / nsub)
+	for lb := b - len(module.pcfunc); lb >= 0; lb-- {
+		module.pcfunc = append(module.pcfunc, findfuncbucket{
+			idx: uint32(256 * len(module.pcfunc))})
 	}
+	bucket := &module.pcfunc[b]
+	bucket.subbuckets[i] = byte(len(module.ftab) - int(bucket.idx))
 
 	pcFileHead := addvarint(uint32(len(module.filetab)) << 1)
 	pcFileHead = append(pcFileHead, 0)
@@ -167,7 +165,6 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	spOff := len(module.pclntable)
 	var fb = make([]byte, curSym.Func.PCSP.Size)
 	fs.ReadAt(fb, curSym.Func.PCSP.Offset)
-	// fmt.Println("sp val:", fb)
 	module.pclntable = append(module.pclntable, fb...)
 
 	pcfileOff := len(module.pclntable)
@@ -186,10 +183,8 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	fInfo._func = fdata
 	for _, data := range curSym.Func.PCData {
 		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
-
 		var b = make([]byte, data.Size)
 		fs.ReadAt(b, data.Offset)
-		// dumpPCData(b)
 		module.pclntable = append(module.pclntable, b...)
 	}
 	for _, data := range curSym.Func.FuncData {
