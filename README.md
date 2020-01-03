@@ -43,7 +43,8 @@ go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/http/http.go
 ./loader -o http.o -run main.main
 
 #build multiple go files
-go tool compile -I $GOPATH/pkg/darwin_amd64 1.go 2.go
+go tool compile -I $GOPATH/pkg/darwin_amd64 -o test.o test1.go test2.go
+./loader -o test.o -run main.main
 
 ```
 
