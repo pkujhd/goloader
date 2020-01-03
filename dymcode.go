@@ -605,8 +605,8 @@ func buildModule(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 		(_funcSize+128)*len(code.Mod.ftab))
 	copy(module.pclntable, code.Mod.pclntable)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&code.Mod.pcfunc[0]))
-	module.minpc = (uintptr)(unsafe.Pointer(&seg.codeByte[0]))
-	module.maxpc = (uintptr)(unsafe.Pointer(&seg.codeByte[len(code.Code)-1])) + 2
+	module.minpc = uintptr(seg.codeBase)
+	module.maxpc = uintptr(seg.dataBase)
 	module.filetab = code.Mod.filetab
 	module.typemap = codeModule.typemap
 	module.types = uintptr(seg.codeBase)
