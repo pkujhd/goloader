@@ -138,6 +138,7 @@ type segment struct {
 var (
 	modules     = make(map[interface{}]bool)
 	modulesLock sync.Mutex
+	moduleHead       = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
 	mov32bit         = [8]byte{0x00, 0x00, 0x80, 0xD2, 0x00, 0x00, 0xA0, 0xF2}
 	armcode          = []byte{0x04, 0xF0, 0x1F, 0xE5, 0x00, 0x00, 0x00, 0x00}
 	arm64code        = []byte{0x43, 0x00, 0x00, 0x58, 0x60, 0x00, 0x1F, 0xD6, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
@@ -184,12 +185,14 @@ func readObj(f *os.File, reloc *CodeReloc, objsyms *objSyms, pkgpath *string) er
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
 	var reloc CodeReloc
+	reloc.Mod.pclntable = append(reloc.Mod.pclntable, moduleHead...)
 	var objsyms = objSyms{make(map[string]symFile), make(map[string]int), make(map[string]uintptr), make(map[string]int)}
 	return &reloc, readObj(f, &reloc, &objsyms, nil)
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 	var reloc CodeReloc
+	reloc.Mod.pclntable = append(reloc.Mod.pclntable, moduleHead...)
 	var objsyms = objSyms{make(map[string]symFile), make(map[string]int), make(map[string]uintptr), make(map[string]int)}
 	for i, file := range files {
 		f, err := os.Open(file)
@@ -627,6 +630,7 @@ func buildModule(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 	modulesLock.Lock()
 	addModule(codeModule, &module)
 	modulesLock.Unlock()
+	moduledataverify1(&module)
 
 	copy(seg.codeByte, code.Code)
 	copy(seg.codeByte[len(code.Code):], code.Data)

@@ -99,6 +99,9 @@ func funcdata(f funcInfo, i int32) unsafe.Pointer
 //go:linkname funcname runtime.funcname
 func funcname(f funcInfo) string
 
+//go:linkname moduledataverify1 runtime.moduledataverify1
+func moduledataverify1(datap *moduledata)
+
 //see src/cmd/link/internal/ld/pcln.go
 func addvarint(val uint32) []byte {
 	var d []byte
