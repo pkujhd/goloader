@@ -50,4 +50,3 @@ go tool compile -I $GOPATH/pkg/darwin_amd64 1.go 2.go
 ## Warning
 
 This has currently only been tested and developed on Golang 1.8-1.13 (x64/x86, darwin, linux, windows).
-Be aware of Golang's internal structs change, especially the moduledata struct.
