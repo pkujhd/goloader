@@ -178,9 +178,8 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	fs.ReadAt(fb, curSym.Func.PCLine.Offset)
 	module.pclntable = append(module.pclntable, fb...)
 
-	fdata := init_func(curSym, objsyms.symMap[symName], nameOff, spOff, pcfileOff, pclnOff)
 	var fInfo funcInfoData
-	fInfo._func = fdata
+	fInfo._func = init_func(curSym, objsyms.symMap[symName], nameOff, spOff, pcfileOff, pclnOff)
 	for _, data := range curSym.Func.PCData {
 		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
 		var b = make([]byte, data.Size)
