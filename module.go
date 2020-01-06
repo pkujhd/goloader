@@ -150,8 +150,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	pcFileHead := addvarint(uint32(len(module.filetab)) << 1)
 	pcFileHead = append(pcFileHead, 0)
 	for _, fileName := range curSym.Func.File {
-		fileName = strings.TrimLeft(fileName, "gofile..")
-		fileName = fileName + "\x00"
+		fileName = strings.TrimLeft(fileName, "gofile..") + "\x00"
 		if off, ok := reloc.FileMap[fileName]; !ok {
 			module.filetab = append(module.filetab, (uint32)(len(module.pclntable)))
 			module.pclntable = append(module.pclntable, []byte(fileName)...)
