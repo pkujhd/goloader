@@ -132,10 +132,10 @@ type funcInfo struct {
 	datap *moduledata
 }
 
-func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen int) {
-
-	fs := readAtSeeker{ReadSeeker: objsyms.symfiles[symName].file}
-	curSym := objsyms.symfiles[symName].sym
+func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym, curCodeLen int) {
+	module := &reloc.Mod
+	fs := readAtSeeker{ReadSeeker: objsymmap[symName].file}
+	curSym := objsymmap[symName].sym
 
 	x := curCodeLen
 	b := x / pcbucketsize
@@ -152,7 +152,7 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	for _, fileName := range curSym.Func.File {
 		fileName = strings.TrimLeft(fileName, "gofile..")
 		fileName = fileName + "\x00"
-		if off, ok := objsyms.fileMap[fileName]; !ok {
+		if off, ok := reloc.FileMap[fileName]; !ok {
 			module.filetab = append(module.filetab, (uint32)(len(module.pclntable)))
 			module.pclntable = append(module.pclntable, []byte(fileName)...)
 		} else {
@@ -182,7 +182,7 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	module.pclntable = append(module.pclntable, fb...)
 
 	var fInfo funcInfoData
-	fInfo._func = init_func(curSym, objsyms.symMap[symName], nameOff, spOff, pcfileOff, pclnOff)
+	fInfo._func = init_func(curSym, reloc.SymMap[symName], nameOff, spOff, pcfileOff, pclnOff)
 	for _, data := range curSym.Func.PCData {
 		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
 		var b = make([]byte, data.Size)
@@ -191,14 +191,14 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	}
 	for _, data := range curSym.Func.FuncData {
 		var offset uintptr
-		if off, ok := objsyms.gcObjs[data.Sym.Name]; !ok {
-			if gcobj, ok := objsyms.symfiles[data.Sym.Name]; ok {
+		if off, ok := reloc.GCObjs[data.Sym.Name]; !ok {
+			if gcobj, ok := objsymmap[data.Sym.Name]; ok {
 				var b = make([]byte, gcobj.sym.Data.Size)
 				cfs := readAtSeeker{ReadSeeker: gcobj.file}
 				cfs.ReadAt(b, gcobj.sym.Data.Offset)
 				offset = uintptr(len(module.stkmaps))
 				module.stkmaps = append(module.stkmaps, b)
-				objsyms.gcObjs[data.Sym.Name] = offset
+				reloc.GCObjs[data.Sym.Name] = offset
 			} else if len(data.Sym.Name) == 0 {
 				offset = 0
 			} else {
@@ -213,7 +213,7 @@ func readFuncData(module *Module, symName string, objsyms *objSyms, curCodeLen i
 	fInfo.Var = curSym.Func.Var
 
 	module.ftab = append(module.ftab, functab{
-		entry: uintptr(objsyms.symMap[symName]),
+		entry: uintptr(reloc.SymMap[symName]),
 	})
 
 	module.funcinfo = append(module.funcinfo, fInfo)

@@ -93,10 +93,13 @@ type Reloc struct {
 
 // CodeReloc dispatch and load CodeReloc struct via network is OK
 type CodeReloc struct {
-	Code []byte
-	Data []byte
-	Mod  Module
-	Syms []SymData
+	Code    []byte
+	Data    []byte
+	Mod     Module
+	Syms    []SymData
+	SymMap  map[string]int
+	GCObjs  map[string]uintptr
+	FileMap map[string]int
 }
 
 type CodeModule struct {
@@ -116,7 +119,7 @@ type itabSym struct {
 	_type int
 }
 
-type symFile struct {
+type objSym struct {
 	sym  *goobj.Sym
 	file *os.File
 }
@@ -149,14 +152,7 @@ var (
 	jmpcode     byte = 0xe9
 )
 
-type objSyms struct {
-	symfiles map[string]symFile
-	symMap   map[string]int
-	gcObjs   map[string]uintptr
-	fileMap  map[string]int
-}
-
-func readObj(f *os.File, reloc *CodeReloc, objsyms *objSyms, pkgpath *string) error {
+func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath *string) error {
 	if pkgpath == nil || *pkgpath == "" {
 		var defaultPkgPath = "main"
 		pkgpath = &defaultPkgPath
@@ -166,17 +162,17 @@ func readObj(f *os.File, reloc *CodeReloc, objsyms *objSyms, pkgpath *string) er
 		return fmt.Errorf("read error: %v", err)
 	}
 	for _, sym := range obj.Syms {
-		objsyms.symfiles[sym.Name] = symFile{
+		objsymmap[sym.Name] = objSym{
 			sym:  sym,
 			file: f,
 		}
 	}
 	for _, sym := range obj.Syms {
 		if sym.Kind == STEXT && sym.DupOK == false {
-			relocSym(reloc, sym.Name, objsyms)
+			relocSym(reloc, sym.Name, objsymmap)
 		} else if sym.Kind == SRODATA {
 			if strings.HasPrefix(sym.Name, "type.") {
-				relocSym(reloc, sym.Name, objsyms)
+				relocSym(reloc, sym.Name, objsymmap)
 			}
 		}
 	}
@@ -184,23 +180,23 @@ func readObj(f *os.File, reloc *CodeReloc, objsyms *objSyms, pkgpath *string) er
 }
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
-	var reloc CodeReloc
+	reloc := CodeReloc{SymMap: make(map[string]int), GCObjs: make(map[string]uintptr), FileMap: make(map[string]int)}
 	reloc.Mod.pclntable = append(reloc.Mod.pclntable, moduleHead...)
-	var objsyms = objSyms{make(map[string]symFile), make(map[string]int), make(map[string]uintptr), make(map[string]int)}
-	return &reloc, readObj(f, &reloc, &objsyms, nil)
+	var objsymmap = make(map[string]objSym)
+	return &reloc, readObj(f, &reloc, objsymmap, nil)
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	var reloc CodeReloc
+	reloc := CodeReloc{SymMap: make(map[string]int), GCObjs: make(map[string]uintptr), FileMap: make(map[string]int)}
 	reloc.Mod.pclntable = append(reloc.Mod.pclntable, moduleHead...)
-	var objsyms = objSyms{make(map[string]symFile), make(map[string]int), make(map[string]uintptr), make(map[string]int)}
+	var objsymmap = make(map[string]objSym)
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, err
 		}
 		defer f.Close()
-		err = readObj(f, &reloc, &objsyms, &(pkgPath[i]))
+		err = readObj(f, &reloc, objsymmap, &(pkgPath[i]))
 		if err != nil {
 			return nil, err
 		}
@@ -233,35 +229,35 @@ func (r *readAtSeeker) ReadAt(p []byte, offset int64) (n int, err error) {
 	return r.Read(p)
 }
 
-func relocSym(reloc *CodeReloc, symName string, objsyms *objSyms) int {
-	if offset, ok := objsyms.symMap[symName]; ok {
+func relocSym(reloc *CodeReloc, symName string, objsymmap map[string]objSym) int {
+	if offset, ok := reloc.SymMap[symName]; ok {
 		return offset
 	}
-	symfile := objsyms.symfiles[symName]
+	objsym := objsymmap[symName]
 	var rsym SymData
-	rsym.Name = symfile.sym.Name
-	rsym.Kind = int(symfile.sym.Kind)
-	addSymMap(objsyms.symMap, &reloc.Syms, &rsym)
+	rsym.Name = objsym.sym.Name
+	rsym.Kind = int(objsym.sym.Kind)
+	addSymMap(reloc.SymMap, &reloc.Syms, &rsym)
 
-	code := make([]byte, symfile.sym.Data.Size)
-	symfile.file.Seek(symfile.sym.Data.Offset, io.SeekStart)
-	_, err := symfile.file.Read(code)
+	code := make([]byte, objsym.sym.Data.Size)
+	objsym.file.Seek(objsym.sym.Data.Offset, io.SeekStart)
+	_, err := objsym.file.Read(code)
 	assert(err)
-	switch int(symfile.sym.Kind) {
+	switch int(objsym.sym.Kind) {
 	case STEXT:
 		rsym.Offset = len(reloc.Code)
 		reloc.Code = append(reloc.Code, code...)
-		readFuncData(&reloc.Mod, symName, objsyms, rsym.Offset)
+		readFuncData(reloc, symName, objsymmap, rsym.Offset)
 	default:
 		rsym.Offset = len(reloc.Data)
 		reloc.Data = append(reloc.Data, code...)
 	}
-	addSymMap(objsyms.symMap, &reloc.Syms, &rsym)
+	addSymMap(reloc.SymMap, &reloc.Syms, &rsym)
 
-	for _, re := range symfile.sym.Reloc {
+	for _, re := range objsym.sym.Reloc {
 		symOff := -1
-		if s, ok := objsyms.symfiles[re.Sym.Name]; ok {
-			symOff = relocSym(reloc, s.sym.Name, objsyms)
+		if s, ok := objsymmap[re.Sym.Name]; ok {
+			symOff = relocSym(reloc, s.sym.Name, objsymmap)
 		} else {
 			var exsym SymData
 			exsym.Name = re.Sym.Name
@@ -281,7 +277,7 @@ func relocSym(reloc *CodeReloc, symName string, objsyms *objSyms) int {
 				exsym.Offset = len(reloc.Data)
 				reloc.Data = append(reloc.Data, pathbytes...)
 			}
-			symOff = addSymMap(objsyms.symMap, &reloc.Syms, &exsym)
+			symOff = addSymMap(reloc.SymMap, &reloc.Syms, &exsym)
 		}
 		rsym.Reloc = append(rsym.Reloc,
 			Reloc{Offset: int(re.Offset) + rsym.Offset,
@@ -290,9 +286,9 @@ func relocSym(reloc *CodeReloc, symName string, objsyms *objSyms) int {
 				Size:   int(re.Size),
 				Add:    int(re.Add)})
 	}
-	reloc.Syms[objsyms.symMap[symName]].Reloc = rsym.Reloc
+	reloc.Syms[reloc.SymMap[symName]].Reloc = rsym.Reloc
 
-	return objsyms.symMap[symName]
+	return reloc.SymMap[symName]
 }
 
 func strWrite(buf *bytes.Buffer, str ...string) {
