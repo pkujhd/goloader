@@ -5,6 +5,8 @@
 
 Goloader can load and run Golang code at runtime.
 
+Forked from **dearplain/goloader**,  maintenance because the original author no longer maintain
+
 ## How does it work?
 
 Goloader works like a linker: it relocates the address of symbols in an object file, generates runnable code, and then reuses the runtime function and the type pointer of the loader.
