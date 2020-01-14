@@ -5,7 +5,7 @@
 
 Goloader can load and run Golang code at runtime.
 
-Forked from **dearplain/goloader**,  maintenance because the original author no longer maintain
+Forked from **dearplain/goloader**, Take over maintenance because the original author is not in maintenance
 
 ## How does it work?
 
