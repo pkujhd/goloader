@@ -199,7 +199,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 				module.stkmaps = append(module.stkmaps, b)
 				reloc.GCObjs[data.Sym.Name] = offset
 			} else if len(data.Sym.Name) == 0 {
-				offset = 0
+				offset = 0xFFFFFFFF
 			} else {
 				fmt.Println("unknown gcobj:", data.Sym.Name)
 			}
