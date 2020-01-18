@@ -93,7 +93,7 @@ func main() {
 		funcPtrContainer := (uintptr)(unsafe.Pointer(&runFuncPtr))
 		runFunc := *(*func())(unsafe.Pointer(&funcPtrContainer))
 		runFunc()
-		time.Sleep(time.Second)
+		os.Stdout.Sync()
 		codeModule.Unload()
 
 		// a strict test, try to make mmap random
