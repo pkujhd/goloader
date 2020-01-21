@@ -82,6 +82,10 @@ func main() {
 			fmt.Println("Load error:", err)
 		}
 		runFuncPtr := codeModule.Syms[*run]
+		if runFuncPtr == 0 {
+			fmt.Println("Load error! not find function:", *run)
+			return
+		}
 		funcPtrContainer := (uintptr)(unsafe.Pointer(&runFuncPtr))
 		runFunc := *(*func())(unsafe.Pointer(&funcPtrContainer))
 		runFunc()
