@@ -14,7 +14,6 @@ import (
 
 	"github.com/kr/pretty"
 	"github.com/pkujhd/goloader"
-	"github.com/pkujhd/goloader/examples/basecontext"
 )
 
 type arrayFlags struct {
@@ -69,13 +68,6 @@ func main() {
 	w := sync.WaitGroup{}
 	rw := sync.RWMutex{}
 	goloader.RegTypes(symPtr, &w, w.Wait, &rw)
-	scontext := basecontext.TSContext{}
-	bcontext := basecontext.TBaseContext{}
-	var iscontext basecontext.ISContext
-	var ibcontext basecontext.IBaseContext
-	iscontext = &scontext
-	ibcontext = &bcontext
-	goloader.RegTypes(symPtr, iscontext, ibcontext)
 	symPtr["os.Stdout"] = *(*uintptr)(unsafe.Pointer(&os.Stdout))
 
 	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
