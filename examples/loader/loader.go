@@ -73,6 +73,7 @@ func main() {
 	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 
 	var mmapByte []byte
@@ -80,6 +81,7 @@ func main() {
 		codeModule, err := goloader.Load(reloc, symPtr)
 		if err != nil {
 			fmt.Println("Load error:", err)
+			return
 		}
 		runFuncPtr := codeModule.Syms[*run]
 		if runFuncPtr == 0 {
