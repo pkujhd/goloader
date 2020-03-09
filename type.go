@@ -1,6 +1,3 @@
-// +build go1.8 go1.9 go1.10 go1.11 go1.12 go1.13
-// +build !go1.14,!go1.15
-
 package goloader
 
 import (
@@ -11,32 +8,6 @@ import (
 )
 
 type tflag uint8
-
-type _type struct {
-	size       uintptr
-	ptrdata    uintptr // size of memory prefix holding all pointers
-	hash       uint32
-	tflag      tflag
-	align      uint8
-	fieldalign uint8
-	kind       uint8
-	alg        *typeAlg
-	// gcdata stores the GC type data for the garbage collector.
-	// If the KindGCProg bit is set in kind, gcdata is a GC program.
-	// Otherwise it is a ptrmask bitmap. See mbitmap.go for details.
-	gcdata    *byte
-	str       nameOff
-	ptrToThis typeOff
-}
-
-type typeAlg struct {
-	// function for hashing objects of this type
-	// (ptr to object, seed) -> hash
-	hash func(unsafe.Pointer, uintptr) uintptr
-	// function for comparing objects of this type
-	// (ptr to object A, ptr to object B) -> ==?
-	equal func(unsafe.Pointer, unsafe.Pointer) bool
-}
 
 // Method on non-interface type
 type method struct {
@@ -55,14 +26,6 @@ type interfacetype struct {
 	typ     _type
 	pkgpath name
 	mhdr    []imethod
-}
-
-type uncommonType struct {
-	pkgPath nameOff // import path; empty for built-in types like int, string
-	mcount  uint16  // number of methods
-	_       uint16  // unused
-	moff    uint32  // offset from this uncommontype to [mcount]method
-	_       uint32  // unused
 }
 
 type name struct {
@@ -84,6 +47,9 @@ func (n name) name() (s string)
 //go:linkname getitab runtime.getitab
 func getitab(inter int, typ int, canfail bool) int
 
+//go:linkname add runtime.add
+func add(p unsafe.Pointer, x uintptr) unsafe.Pointer
+
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
 	if ut == nil {
@@ -103,12 +69,6 @@ func (t *_type) Type() reflect.Type {
 	return typ
 }
 
-func ToType(typ reflect.Type) *_type {
-	var obj interface{} = typ
-	typePtr := (*interfaceHeader)(unsafe.Pointer(&obj)).word
-	return (*_type)(typePtr)
-}
-
 func GetFunctionName(i interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 }
@@ -122,10 +82,6 @@ func RegTypes(symPtr map[string]uintptr, interfaces ...interface{}) {
 			regTypeInfo(symPtr, v)
 		}
 	}
-}
-
-func add(p unsafe.Pointer, x uintptr) unsafe.Pointer {
-	return unsafe.Pointer(uintptr(p) + x)
 }
 
 func regTypeInfo(symPtr map[string]uintptr, v reflect.Value) {

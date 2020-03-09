@@ -1,4 +1,4 @@
-// +build go1.12 go1.13
+// +build go1.12
 // +build !go1.14,!go1.15
 
 package goloader
@@ -40,38 +40,25 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 					if !ok {
 						ptr, ok = seg.typeSymPtr[v.Type.Name]
 					}
-					if ok {
-						off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
-						if PtrSize == 4 {
-							binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))
-						} else {
-							binary.LittleEndian.PutUint64(b[off:], *(*uint64)(unsafe.Pointer(&ptr)))
-						}
-					} else {
-						strWrite(&seg.err, "unresolve external:", v.Type.Name, "\n")
-					}
 					break
 				}
 			}
-			if ok == false {
+			if !ok {
 				r := fi.stkobjReloc[i]
 				ptr, ok = symPtr[r.Sym.Name]
 				if !ok {
 					ptr, ok = seg.typeSymPtr[r.Sym.Name]
 				}
-				if ok {
-					off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
-					if PtrSize == 4 {
-						binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))
-					} else {
-						binary.LittleEndian.PutUint64(b[off:], *(*uint64)(unsafe.Pointer(&ptr)))
-					}
-				} else {
-					strWrite(&seg.err, "unresolve external:", r.Sym.Name, "\n")
-				}
 			}
-			if ok == false {
-				strWrite(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
+			if ok {
+				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
+				if PtrSize == 4 {
+					binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))
+				} else {
+					binary.LittleEndian.PutUint64(b[off:], *(*uint64)(unsafe.Pointer(&ptr)))
+				}
+			} else {
+				strWrite(&seg.err, "unresolve external:", fi.name, ".stkobj_", strconv.Itoa(i), "\n")
 			}
 			p = p + stackObjectRecordSize
 		}
