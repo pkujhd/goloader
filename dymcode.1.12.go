@@ -9,7 +9,7 @@ import (
 )
 
 func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
-	if len(fi.funcdata) > _FUNCDATA_StackObjects {
+	if len(fi.funcdata) > _FUNCDATA_StackObjects && fi.funcdata[_FUNCDATA_StackObjects] != 0xFFFFFFFFF {
 		stackObjectRecordSize := unsafe.Sizeof(stackObjectRecord{})
 		b := code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]]
 		n := *(*int)(unsafe.Pointer(&b[0]))
