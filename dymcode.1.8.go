@@ -20,3 +20,6 @@ const (
 
 func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
 }
+
+func AddDeferReturn(code *CodeReloc, fi *funcInfoData) {
+}

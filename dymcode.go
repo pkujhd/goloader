@@ -551,14 +551,6 @@ func addFuncTab(module *moduledata, i, pclnOff int, code *CodeReloc, seg *segmen
 	module.ftab[i].funcoff = uintptr(pclnOff)
 	fi := code.Mod.funcinfo[i]
 	fi.entry = module.ftab[i].entry
-	copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi._func), _funcSize)
-	pclnOff += _funcSize
-
-	if len(fi.pcdata) > 0 {
-		size := int(4 * fi.npcdata)
-		copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi.pcdata[0]), size)
-		pclnOff += size
-	}
 
 	var funcdata = make([]uintptr, len(fi.funcdata))
 	copy(funcdata, fi.funcdata)
@@ -569,10 +561,22 @@ func addFuncTab(module *moduledata, i, pclnOff int, code *CodeReloc, seg *segmen
 			funcdata[i] = (uintptr)(0)
 		}
 	}
+	AddStackObject(code, &fi, seg, symPtr)
+	AddDeferReturn(code, &fi)
+
+	copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi._func), _funcSize)
+	pclnOff += _funcSize
+
+	if len(fi.pcdata) > 0 {
+		size := int(4 * fi.npcdata)
+		copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi.pcdata[0]), size)
+		pclnOff += size
+	}
+
 	if pclnOff%PtrSize != 0 {
 		pclnOff = pclnOff + (PtrSize - pclnOff%PtrSize)
 	}
-	AddStackObject(code, &fi, seg, symPtr)
+
 	funcDataSize := int(PtrSize * fi.nfuncdata)
 	copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&funcdata[0]), funcDataSize)
 	pclnOff += funcDataSize

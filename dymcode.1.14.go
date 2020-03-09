@@ -54,3 +54,15 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 		}
 	}
 }
+
+func AddDeferReturn(code *CodeReloc, fi *funcInfoData) {
+	if len(fi.funcdata) > _FUNCDATA_OpenCodedDeferInfo && fi.funcdata[_FUNCDATA_OpenCodedDeferInfo] != 0xFFFFFFFF {
+		sym := code.Syms[code.SymMap[fi.name]]
+		for _, r := range sym.Reloc {
+			if r.SymOff == code.SymMap["runtime.deferreturn"] {
+				fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
+				break
+			}
+		}
+	}
+}
