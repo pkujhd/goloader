@@ -368,14 +368,15 @@ func addItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 		}
 		seg.itabMap[itabName] = len(codeModule.itabs)
 		codeModule.itabs = append(codeModule.itabs, itabSym{inter: inter, _type: _type})
-
-		addIFaceSubFuncType(seg.funcType, codeModule.typemap, (*interfacetype)(unsafe.Pointer(uintptr(inter))), seg.codeBase)
 	}
 }
 
 func relocateItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 	for i := range codeModule.itabs {
 		it := &codeModule.itabs[i]
+		addIFaceSubFuncType(seg.funcType, codeModule.typemap,
+			(*interfacetype)(unsafe.Pointer(uintptr(it.inter))),
+			(*_type)(unsafe.Pointer(uintptr(it._type))), seg.codeBase)
 		it.ptr = getitab(it.inter, it._type, false)
 		if it.ptr == 0 {
 			continue
