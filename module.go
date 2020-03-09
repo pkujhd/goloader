@@ -63,10 +63,11 @@ type bitvector struct {
 
 type funcInfoData struct {
 	_func
-	pcdata   []uint32
-	funcdata []uintptr
-	Var      []goobj.Var
-	name     string
+	pcdata      []uint32
+	funcdata    []uintptr
+	stkobjReloc []goobj.Reloc
+	Var         []goobj.Var
+	name        string
 }
 
 type stackmap struct {
@@ -206,6 +207,9 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 			}
 		} else {
 			offset = off
+		}
+		if len(fInfo.funcdata) == _FUNCDATA_StackObjects && strings.Contains(data.Sym.Name, "stkobj") {
+			fInfo.stkobjReloc = objsymmap[data.Sym.Name].sym.Reloc
 		}
 		fInfo.funcdata = append(fInfo.funcdata, offset)
 	}
