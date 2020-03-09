@@ -5,6 +5,7 @@ package goloader
 
 import (
 	"encoding/binary"
+	"strconv"
 	"unsafe"
 )
 

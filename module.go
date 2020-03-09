@@ -208,7 +208,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 		} else {
 			offset = off
 		}
-		if len(fInfo.funcdata) == _FUNCDATA_StackObjects && strings.Contains(data.Sym.Name, "stkobj") {
+		if strings.Contains(data.Sym.Name, "stkobj") {
 			fInfo.stkobjReloc = objsymmap[data.Sym.Name].sym.Reloc
 		}
 		fInfo.funcdata = append(fInfo.funcdata, offset)
