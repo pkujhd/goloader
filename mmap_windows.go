@@ -1,3 +1,5 @@
+// +build windows
+
 package goloader
 
 import (
@@ -9,7 +11,7 @@ import (
 func Mmap(size int) ([]byte, error) {
 
 	sizelo := uint32(size >> 32)
-	sizehi := uint32(size) & 0xffffffff
+	sizehi := uint32(size) & 0xFFFFFFFF
 	h, errno := syscall.CreateFileMapping(syscall.InvalidHandle, nil,
 		syscall.PAGE_EXECUTE_READWRITE, sizelo, sizehi, nil)
 	if h == 0 {
