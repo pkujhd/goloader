@@ -1,5 +1,5 @@
-// +build go1.13
-// +build !go1.14,!go1.15
+// +build go1.14
+// +build !go1.15
 
 package goloader
 
@@ -39,12 +39,13 @@ const (
 	_PCDATA_StackMapIndex = 1
 	_PCDATA_InlTreeIndex  = 2
 
-	_FUNCDATA_ArgsPointerMaps   = 0
-	_FUNCDATA_LocalsPointerMaps = 1
-	_FUNCDATA_RegPointerMaps    = 2
-	_FUNCDATA_StackObjects      = 3
-	_FUNCDATA_InlTree           = 4
-	_ArgsSizeUnknown            = -0x80000000
+	_FUNCDATA_ArgsPointerMaps    = 0
+	_FUNCDATA_LocalsPointerMaps  = 1
+	_FUNCDATA_RegPointerMaps     = 2
+	_FUNCDATA_StackObjects       = 3
+	_FUNCDATA_InlTree            = 4
+	_FUNCDATA_OpenCodedDeferInfo = 5
+	_ArgsSizeUnknown             = -0x80000000
 )
 
 type moduledata struct {
@@ -92,12 +93,16 @@ type moduledata struct {
 // Note: this list must match the list in cmd/internal/objabi/funcid.go.
 type funcID uint8
 
+// Layout of in-memory per-function information prepared by linker
+// See https://golang.org/s/go12symtab.
+// Keep in sync with linker (../cmd/link/internal/ld/pcln.go:/pclntab)
+// and with package debug/gosym and with symtab.go in package runtime.
 type _func struct {
 	entry   uintptr // start pc
 	nameoff int32   // function name
 
-	args int32 // in/out args size
-	_    int32 // previously legacy frame size; kept for layout compatibility
+	args        int32  // in/out args size
+	deferreturn uint32 // offset of start of a deferreturn call instruction from entry, if any.
 
 	pcsp      int32
 	pcfile    int32
@@ -105,7 +110,7 @@ type _func struct {
 	npcdata   int32
 	funcID    funcID  // set for certain special runtime functions
 	_         [2]int8 // unused
-	nfuncdata uint8
+	nfuncdata uint8   // must be last
 }
 
 func init_func(curSym *goobj.Sym, curSymOffset, nameOff, spOff, pcfileOff, pclnOff int) _func {
