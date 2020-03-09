@@ -66,6 +66,7 @@ type funcInfoData struct {
 	pcdata   []uint32
 	funcdata []uintptr
 	Var      []goobj.Var
+	name     string
 }
 
 type stackmap struct {
@@ -206,10 +207,10 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 		} else {
 			offset = off
 		}
-
 		fInfo.funcdata = append(fInfo.funcdata, offset)
 	}
 	fInfo.Var = curSym.Func.Var
+	fInfo.name = curSym.Name
 
 	module.ftab = append(module.ftab, functab{
 		entry: uintptr(reloc.SymMap[symName]),
