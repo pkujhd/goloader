@@ -12,10 +12,10 @@ import (
 // layout of Itab known to compilers
 // allocated in non-garbage-collected memory
 // Needs to be in sync with
-// ../cmd/compile/internal/gc/reflect.go:/^func.dumptypestructs.
+// ../cmd/compile/internal/gc/reflect.go:/^func.dumptabs.
 type itab struct {
-	inter uintptr
-	_type uintptr
+	inter *interfacetype
+	_type *_type
 	hash  uint32 // copy of _type.hash. Used for type switches.
 	_     [4]byte
 	fun   [1]uintptr // variable sized. fun[0]==0 means _type does not implement inter.

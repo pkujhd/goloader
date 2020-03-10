@@ -45,7 +45,7 @@ func (t *_type) typeOff(off typeOff) *_type
 func (n name) name() (s string)
 
 //go:linkname getitab runtime.getitab
-func getitab(inter int, typ int, canfail bool) int
+func getitab(inter *interfacetype, typ *_type, canfail bool) int
 
 //go:linkname add runtime.add
 func add(p unsafe.Pointer, x uintptr) unsafe.Pointer

@@ -10,14 +10,11 @@ import "cmd/objfile/goobj"
 // Needs to be in sync with
 // ../cmd/compile/internal/gc/reflect.go:/^func.dumptypestructs.
 type itab struct {
-	inter  uintptr
-	_type  uintptr
-	link   uintptr
-	hash   uint32 // copy of _type.hash. Used for type switches.
-	bad    bool   // type does not implement interface
-	inhash bool   // has this itab been added to hash?
-	unused [2]byte
-	fun    [1]uintptr // variable sized
+	inter *interfacetype
+	_type *_type
+	hash  uint32 // copy of _type.hash. Used for type switches.
+	_     [4]byte
+	fun   [1]uintptr // variable sized. fun[0]==0 means _type does not implement inter.
 }
 
 // PCDATA and FUNCDATA table indexes.

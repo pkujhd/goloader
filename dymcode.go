@@ -103,8 +103,8 @@ type CodeModule struct {
 type itabSym struct {
 	Reloc
 	ptr   int
-	inter int
-	_type int
+	inter *interfacetype
+	_type *_type
 }
 
 type objSym struct {
@@ -361,22 +361,20 @@ func addItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 	for itabName, itabIndex := range seg.itabMap {
 		curSym := code.Syms[itabIndex]
 		inter := seg.symAddrs[curSym.Reloc[0].SymOff]
-		_type := seg.symAddrs[curSym.Reloc[1].SymOff]
-		if inter == -1 || _type == -1 {
+		typ := seg.symAddrs[curSym.Reloc[1].SymOff]
+		if inter == -1 || typ == -1 {
 			seg.itabMap[itabName] = -1
 			continue
 		}
 		seg.itabMap[itabName] = len(codeModule.itabs)
-		codeModule.itabs = append(codeModule.itabs, itabSym{inter: inter, _type: _type})
+		codeModule.itabs = append(codeModule.itabs, itabSym{inter: (*interfacetype)((unsafe.Pointer)(uintptr(inter))), _type: (*_type)((unsafe.Pointer)(uintptr(typ)))})
 	}
 }
 
 func relocateItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 	for i := range codeModule.itabs {
 		it := &codeModule.itabs[i]
-		addIFaceSubFuncType(seg.funcType, codeModule.typemap,
-			(*interfacetype)(unsafe.Pointer(uintptr(it.inter))),
-			(*_type)(unsafe.Pointer(uintptr(it._type))), seg.codeBase)
+		addIFaceSubFuncType(seg.funcType, codeModule.typemap, it.inter, it._type, seg.codeBase)
 		it.ptr = getitab(it.inter, it._type, false)
 		if it.ptr == 0 {
 			continue

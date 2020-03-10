@@ -12,13 +12,11 @@ import (
 // Needs to be in sync with
 // ../cmd/compile/internal/gc/reflect.go:/^func.dumptypestructs.
 type itab struct {
-	inter  uintptr
-	_type  uintptr
-	link   uintptr
-	hash   uint32 // copy of _type.hash. Used for type switches.
-	bad    bool   // type does not implement interface
-	inhash bool   // has this itab been added to hash?
-	unused [2]byte
+	inter  *interfacetype
+	_type  *_type
+	link   *itab
+	bad    int32
+	inhash int32      // has this itab been added to hash?
 	fun    [1]uintptr // variable sized
 }
 

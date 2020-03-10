@@ -2,6 +2,7 @@ package goloader
 
 import (
 	"cmd/objfile/goobj"
+	"encoding/binary"
 	"fmt"
 	"strings"
 	"unsafe"
@@ -104,31 +105,6 @@ func funcname(f funcInfo) string
 //go:linkname moduledataverify1 runtime.moduledataverify1
 func moduledataverify1(datap *moduledata)
 
-//see src/cmd/link/internal/ld/pcln.go
-func addvarint(val uint32) []byte {
-	var d []byte
-	n := int32(0)
-	for v := val; v >= 0x80; v >>= 7 {
-		n++
-	}
-	n++
-
-	old := len(d)
-	for cap(d) < len(d)+int(n) {
-		d = append(d[:cap(d)], 0)
-	}
-	d = d[:old+int(n)]
-
-	p := d[old:]
-	var v uint32
-	for v = val; v >= 0x80; v >>= 7 {
-		p[0] = byte(v | 0x80)
-		p = p[1:]
-	}
-	p[0] = byte(v)
-	return d
-}
-
 type funcInfo struct {
 	*_func
 	datap *moduledata
@@ -149,8 +125,8 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	bucket := &module.pcfunc[b]
 	bucket.subbuckets[i] = byte(len(module.ftab) - int(bucket.idx))
 
-	pcFileHead := addvarint(uint32(len(module.filetab)) << 1)
-	pcFileHead = append(pcFileHead, 0)
+	pcFileHead := make([]byte, 32)
+	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(module.filetab))<<1)
 	for _, fileName := range curSym.Func.File {
 		fileName = strings.TrimLeft(fileName, "gofile..") + "\x00"
 		if off, ok := reloc.FileMap[fileName]; !ok {
@@ -174,7 +150,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	pcfileOff := len(module.pclntable)
 	fb = make([]byte, curSym.Func.PCFile.Size)
 	fs.ReadAt(fb, curSym.Func.PCFile.Offset)
-	module.pclntable = append(module.pclntable, pcFileHead[:]...)
+	module.pclntable = append(module.pclntable, pcFileHead[:pcFileHeadSize-1]...)
 	module.pclntable = append(module.pclntable, fb...)
 
 	pclnOff := len(module.pclntable)
