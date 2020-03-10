@@ -88,6 +88,7 @@ type CodeReloc struct {
 	SymMap  map[string]int
 	GCObjs  map[string]uintptr
 	FileMap map[string]int
+	Arch    string
 }
 
 type CodeModule struct {
@@ -146,6 +147,10 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 		pkgpath = &defaultPkgPath
 	}
 	obj, err := goobj.Parse(f, *pkgpath)
+	if len(reloc.Arch) != 0 && reloc.Arch != obj.Arch {
+		return fmt.Errorf("read obj error: Arch %s != Arch %s", reloc.Arch, obj.Arch)
+	}
+	reloc.Arch = obj.Arch
 	if err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
@@ -560,8 +565,9 @@ func addFuncTab(module *moduledata, i, pclnOff int, code *CodeReloc, seg *segmen
 			funcdata[i] = (uintptr)(0)
 		}
 	}
+
 	AddStackObject(code, &fi, seg, symPtr)
-	AddDeferReturn(code, &fi)
+	AddDeferReturn(code, &fi, seg)
 
 	copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi._func), _funcSize)
 	pclnOff += _funcSize

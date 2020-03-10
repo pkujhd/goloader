@@ -61,5 +61,5 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 	}
 }
 
-func AddDeferReturn(code *CodeReloc, fi *funcInfoData) {
+func AddDeferReturn(code *CodeReloc, fi *funcInfoData, seg *segment) {
 }

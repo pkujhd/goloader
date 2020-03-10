@@ -61,12 +61,20 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 	}
 }
 
-func AddDeferReturn(code *CodeReloc, fi *funcInfoData) {
+func AddDeferReturn(code *CodeReloc, fi *funcInfoData, seg *segment) {
 	if len(fi.funcdata) > _FUNCDATA_OpenCodedDeferInfo && fi.funcdata[_FUNCDATA_OpenCodedDeferInfo] != 0xFFFFFFFF {
 		sym := code.Syms[code.SymMap[fi.name]]
 		for _, r := range sym.Reloc {
 			if r.SymOff == code.SymMap["runtime.deferreturn"] {
-				fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
+				//../cmd/link/internal/ld/pcln.go:pclntab
+				switch code.Arch {
+				case "amd64", "386":
+					fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
+				case "arm", "arm64":
+					fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
+				default:
+					strWrite(&seg.err, "not support arch:", code.Arch, "\n")
+				}
 				break
 			}
 		}
