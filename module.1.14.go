@@ -119,15 +119,16 @@ func init_func(curSym *goobj.Sym, curSymOffset, nameOff, spOff, pcfileOff, pclnO
 		file = strings.TrimLeft(curSym.Func.File[0], "gofile..")
 	}
 	fdata := _func{
-		entry:     uintptr(curSymOffset),
-		nameoff:   int32(nameOff),
-		args:      int32(curSym.Func.Args),
-		pcsp:      int32(spOff),
-		pcfile:    int32(pcfileOff),
-		pcln:      int32(pclnOff),
-		npcdata:   int32(len(curSym.Func.PCData)),
-		funcID:    funcID(objabi.GetFuncID(curSym.Name, file)),
-		nfuncdata: uint8(len(curSym.Func.FuncData)),
+		entry:       uintptr(curSymOffset),
+		nameoff:     int32(nameOff),
+		args:        int32(curSym.Func.Args),
+		deferreturn: uint32(0),
+		pcsp:        int32(spOff),
+		pcfile:      int32(pcfileOff),
+		pcln:        int32(pclnOff),
+		npcdata:     int32(len(curSym.Func.PCData)),
+		funcID:      funcID(objabi.GetFuncID(curSym.Name, file)),
+		nfuncdata:   uint8(len(curSym.Func.FuncData)),
 	}
 	return fdata
 }

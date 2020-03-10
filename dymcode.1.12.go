@@ -29,38 +29,34 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 		stackObjectRecordSize := unsafe.Sizeof(stackObjectRecord{})
 		b := code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]]
 		n := *(*int)(unsafe.Pointer(&b[0]))
-		p := uintptr(unsafe.Pointer(&b[PtrSize]))
+		p := unsafe.Pointer(&b[PtrSize])
 		for i := 0; i < n; i++ {
-			obj := *(*stackObjectRecord)(unsafe.Pointer(p))
-			ptr := uintptr(0)
-			ok := false
+			obj := *(*stackObjectRecord)(p)
+			var name string
 			for _, v := range fi.Var {
 				if v.Offset == (int64)(obj.off) {
-					ptr, ok = symPtr[v.Type.Name]
-					if !ok {
-						ptr, ok = seg.typeSymPtr[v.Type.Name]
-					}
+					name = v.Type.Name
 					break
 				}
 			}
-			if !ok {
-				r := fi.stkobjReloc[i]
-				ptr, ok = symPtr[r.Sym.Name]
-				if !ok {
-					ptr, ok = seg.typeSymPtr[r.Sym.Name]
-				}
+			if len(name) == 0 {
+				name = fi.stkobjReloc[i].Sym.Name
 			}
-			if ok {
+			ptr, ok := symPtr[name]
+			if !ok {
+				ptr, ok = seg.typeSymPtr[name]
+			}
+			if !ok {
+				strWrite(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
+			} else {
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
 					binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))
 				} else {
 					binary.LittleEndian.PutUint64(b[off:], *(*uint64)(unsafe.Pointer(&ptr)))
 				}
-			} else {
-				strWrite(&seg.err, "unresolve external:", fi.name, ".stkobj_", strconv.Itoa(i), "\n")
 			}
-			p = p + stackObjectRecordSize
+			p = add(p, stackObjectRecordSize)
 		}
 	}
 }

@@ -29,26 +29,22 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 		stackObjectRecordSize := unsafe.Sizeof(stackObjectRecord{})
 		b := code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]]
 		n := *(*int)(unsafe.Pointer(&b[0]))
-		p := uintptr(unsafe.Pointer(&b[PtrSize]))
+		p := unsafe.Pointer(&b[PtrSize])
 		for i := 0; i < n; i++ {
-			obj := *(*stackObjectRecord)(unsafe.Pointer(p))
-			ptr := uintptr(0)
-			ok := false
+			obj := *(*stackObjectRecord)(p)
+			var name string
 			for _, v := range fi.Var {
 				if v.Offset == (int64)(obj.off) {
-					ptr, ok = symPtr[v.Type.Name]
-					if !ok {
-						ptr, ok = seg.typeSymPtr[v.Type.Name]
-					}
+					name = v.Type.Name
 					break
 				}
 			}
+			if len(name) == 0 {
+				name = fi.stkobjReloc[i].Sym.Name
+			}
+			ptr, ok := symPtr[name]
 			if !ok {
-				r := fi.stkobjReloc[i]
-				ptr, ok = symPtr[r.Sym.Name]
-				if !ok {
-					ptr, ok = seg.typeSymPtr[r.Sym.Name]
-				}
+				ptr, ok = seg.typeSymPtr[name]
 			}
 			if !ok {
 				strWrite(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
@@ -60,7 +56,7 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 					binary.LittleEndian.PutUint64(b[off:], *(*uint64)(unsafe.Pointer(&ptr)))
 				}
 			}
-			p = p + stackObjectRecordSize
+			p = add(p, stackObjectRecordSize)
 		}
 	}
 }

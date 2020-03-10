@@ -116,7 +116,6 @@ func regTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
 		symFullName = typePrefix + symName
 	}
 	symPtr[symFullName] = ptr
-	//fmt.Println(symFullName, v.Kind())
 }
 
 func addIFaceSubFuncType(funcTypeMap map[string]*int, typemap map[typeOff]uintptr,
@@ -143,9 +142,7 @@ func addIFaceSubFuncType(funcTypeMap map[string]*int, typemap map[typeOff]uintpt
 		if symAddrPtr, ok := funcTypeMap[name]; ok {
 			itypePtr := int(uintptr(unsafe.Pointer(itype)))
 			*symAddrPtr = itypePtr
-			// fmt.Println(*symAddrPtr)
 			typemap[typeOff(itypePtr-dataBase)] = uintptr(itypePtr)
-			// fmt.Println(name, itypePtr-dataBase, itypePtr)
 		}
 		xmhdr[k].mtyp = typeOff((uintptr)((unsafe.Pointer)(itype)) - (uintptr)(dataBase))
 	}
