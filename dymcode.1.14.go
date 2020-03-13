@@ -47,7 +47,7 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 				ptr, ok = seg.typeSymPtr[name]
 			}
 			if !ok {
-				strWrite(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
+				sprintf(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
 			} else {
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
@@ -73,7 +73,7 @@ func AddDeferReturn(code *CodeReloc, fi *funcInfoData, seg *segment) {
 				case "arm", "arm64":
 					fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					strWrite(&seg.err, "not support arch:", code.Arch, "\n")
+					sprintf(&seg.err, "not support arch:", code.Arch, "\n")
 				}
 				break
 			}

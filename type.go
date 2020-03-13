@@ -47,9 +47,6 @@ func (n name) name() (s string)
 //go:linkname getitab runtime.getitab
 func getitab(inter *interfacetype, typ *_type, canfail bool) int
 
-//go:linkname add runtime.add
-func add(p unsafe.Pointer, x uintptr) unsafe.Pointer
-
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
 	if ut == nil {

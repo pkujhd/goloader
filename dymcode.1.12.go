@@ -47,7 +47,7 @@ func AddStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[
 				ptr, ok = seg.typeSymPtr[name]
 			}
 			if !ok {
-				strWrite(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
+				sprintf(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
 			} else {
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
