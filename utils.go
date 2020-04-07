@@ -14,7 +14,7 @@ func assert(err error) {
 	}
 }
 
-func PutUint24(b []byte, v uint32) {
+func putUint24(b []byte, v uint32) {
 	_ = b[2] // early bounds check to guarantee safety of writes below
 	b[0] = byte(v)
 	b[1] = byte(v >> 8)

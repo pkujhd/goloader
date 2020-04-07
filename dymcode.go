@@ -379,7 +379,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 							if align != 0 {
 								seg.offset += (4 - align)
 							}
-							PutUint24(code.Code[loc.Offset:], uint32(seg.offset-(loc.Offset+pcOff))/4)
+							putUint24(code.Code[loc.Offset:], uint32(seg.offset-(loc.Offset+pcOff))/4)
 							if loc.Type == R_CALLARM64 {
 								copy(seg.codeByte[seg.offset:], arm64code)
 								seg.offset += len(arm64code)
@@ -391,7 +391,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 							seg.offset += PtrSize
 						}
 					} else {
-						PutUint24(code.Code[loc.Offset:], uint32(offset))
+						putUint24(code.Code[loc.Offset:], uint32(offset))
 					}
 				case R_ADDRARM64:
 					if curSym.Kind != STEXT {
@@ -444,8 +444,8 @@ func addFuncTab(module *moduledata, i, pclnOff int, code *CodeReloc, seg *segmen
 		}
 	}
 
-	AddStackObject(code, &fi, seg, symPtr)
-	AddDeferReturn(code, &fi, seg)
+	addStackObject(code, &fi, seg, symPtr)
+	addDeferReturn(code, &fi, seg)
 
 	copy2Slice(module.pclntable[pclnOff:], unsafe.Pointer(&fi._func), _funcSize)
 	pclnOff += _funcSize
