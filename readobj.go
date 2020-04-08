@@ -40,14 +40,21 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
 	reloc := CodeReloc{SymMap: make(map[string]int), GCObjs: make(map[string]uintptr), FileMap: make(map[string]int)}
-	reloc.Mod.pclntable = append(reloc.Mod.pclntable, moduleHead...)
+	reloc.Mod.pclntable = append(reloc.Mod.pclntable, x86moduleHead...)
 	var objsymmap = make(map[string]objSym)
-	return &reloc, readObj(f, &reloc, objsymmap, nil)
+	err := readObj(f, &reloc, objsymmap, nil)
+	if err != nil {
+		return nil, err
+	}
+	if reloc.Arch == "arm" || reloc.Arch == "arm64" {
+		copy(reloc.Mod.pclntable, armmoduleHead)
+	}
+	return &reloc, err
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 	reloc := CodeReloc{SymMap: make(map[string]int), GCObjs: make(map[string]uintptr), FileMap: make(map[string]int)}
-	reloc.Mod.pclntable = append(reloc.Mod.pclntable, moduleHead...)
+	reloc.Mod.pclntable = append(reloc.Mod.pclntable, x86moduleHead...)
 	var objsymmap = make(map[string]objSym)
 	for i, file := range files {
 		f, err := os.Open(file)
@@ -59,6 +66,9 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	if reloc.Arch == "arm" || reloc.Arch == "arm64" {
+		copy(reloc.Mod.pclntable, armmoduleHead)
 	}
 	return &reloc, nil
 }
