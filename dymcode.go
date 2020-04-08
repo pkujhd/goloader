@@ -124,14 +124,12 @@ var (
 	modules     = make(map[interface{}]bool)
 	modulesLock sync.Mutex
 	moduleHead       = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
-	mov32bit         = [8]byte{0x00, 0x00, 0x80, 0xD2, 0x00, 0x00, 0xA0, 0xF2}
+	mov32bit         = []byte{0x00, 0x00, 0x80, 0xD2, 0x00, 0x00, 0xA0, 0xF2}
 	armcode          = []byte{0x04, 0xF0, 0x1F, 0xE5}
 	arm64code        = []byte{0x43, 0x00, 0x00, 0x58, 0x60, 0x00, 0x1F, 0xD6}
 	x86code          = []byte{0xff, 0x25, 0x00, 0x00, 0x00, 0x00}
 	movcode     byte = 0x8b
 	leacode     byte = 0x8d
-	cmplcode    byte = 0x83
-	jmpcode     byte = 0xe9
 )
 
 func addSymMap(symMap map[string]int, symArray *[]SymData, rsym *SymData) int {
@@ -331,13 +329,13 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 						addrBase = seg.codeBase
 						relocByte = code.Code
 					}
-					rb := relocByte[loc.Offset-2:]
 					offset := seg.symAddrs[loc.SymOff] - (addrBase + loc.Offset + loc.Size) + loc.Add
 					if offset > 0xFFFFFFFF || offset < -0x8000000 {
 						if seg.offset+8 > seg.maxCodeLen {
 							sprintf(&seg.err, "len overflow! sym:", sym.Name, "\n")
-						} else if loc.Type == R_CALL || rb[0] == leacode || rb[0] == movcode || rb[0] == cmplcode || rb[1] == jmpcode {
+						} else {
 							offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
+							rb := relocByte[loc.Offset-2:]
 							if loc.Type == R_CALL {
 								copy(seg.codeByte[seg.offset:], x86code)
 								seg.offset += len(x86code)
@@ -351,9 +349,6 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 								binary.LittleEndian.PutUint32(seg.codeByte[seg.offset:], uint32(seg.symAddrs[loc.SymOff]+loc.Add))
 							}
 							seg.offset += PtrSize
-						} else {
-							sprintf(&seg.err, "offset overflow! sym:", sym.Name, "\n")
-							binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 						}
 					} else {
 						binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
