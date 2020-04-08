@@ -330,7 +330,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 						relocByte = code.Code
 					}
 					offset := seg.symAddrs[loc.SymOff] - (addrBase + loc.Offset + loc.Size) + loc.Add
-					if offset > 0xFFFFFFFF || offset < -0x8000000 {
+					if offset > 0x7FFFFFFF || offset < -0x8000000 {
 						if seg.offset+8 > seg.maxCodeLen {
 							sprintf(&seg.err, "len overflow! sym:", sym.Name, "\n")
 						} else {
