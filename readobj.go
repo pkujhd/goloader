@@ -13,13 +13,13 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 		pkgpath = &defaultPkgPath
 	}
 	obj, err := goobj.Parse(f, *pkgpath)
+	if err != nil {
+		return fmt.Errorf("read error: %v", err)
+	}
 	if len(reloc.Arch) != 0 && reloc.Arch != obj.Arch {
 		return fmt.Errorf("read obj error: Arch %s != Arch %s", reloc.Arch, obj.Arch)
 	}
 	reloc.Arch = obj.Arch
-	if err != nil {
-		return fmt.Errorf("read error: %v", err)
-	}
 	for _, sym := range obj.Syms {
 		objsymmap[sym.Name] = objSym{
 			sym:  sym,
