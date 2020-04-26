@@ -5,7 +5,6 @@ import (
 	"cmd/objfile/goobj"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"strconv"
@@ -220,7 +219,6 @@ func relocADRP(mCode []byte, pc int, symAddr int, symName string) {
 		binary.LittleEndian.PutUint32(mCode[4:], movhigh)
 		return
 	}
-	fmt.Println("pageOff<0:", pageOff < 0)
 	// 2bit + 19bit + low(12bit) = 33bit
 	pageAnd := (uint32((pageOff>>12)&3) << 29) | (uint32((pageOff>>15)&0x7ffff) << 5)
 
@@ -387,7 +385,13 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 							seg.offset += PtrSize
 						}
 					} else {
-						putUint24(code.Code[loc.Offset:], uint32(offset))
+						val := binary.LittleEndian.Uint32(code.Code[loc.Offset : loc.Offset+4])
+						if loc.Type == R_CALLARM {
+							val |= uint32(offset) & 0x00FFFFFF
+						} else {
+							val |= uint32(offset) & 0x03FFFFFF
+						}
+						binary.LittleEndian.PutUint32(code.Code[loc.Offset:], val)
 					}
 				case R_ADDRARM64:
 					if curSym.Kind != STEXT {
