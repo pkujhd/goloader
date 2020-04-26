@@ -363,24 +363,19 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 					var add = loc.Add
 					var pcOff = 0
 					if loc.Type == R_CALLARM {
-						add = loc.Add & 0xFFFFFF
-						if add > 256 {
-							add = 0
-						} else {
-							add += 2
-						}
+						add = int(signext24(int64(loc.Add&0xFFFFFF)) * 4)
 						pcOff = 8
 					}
-					offset := (seg.symAddrs[loc.SymOff] - (seg.codeBase + loc.Offset + pcOff) + add) / 4
+					offset := (seg.symAddrs[loc.SymOff] + add - (seg.codeBase + loc.Offset)) / 4
 					if offset > 0x7FFFFF || offset < -0x800000 {
-						if seg.offset+4 > seg.maxCodeLen {
+						if seg.offset+PtrSize > seg.maxCodeLen {
 							sprintf(&seg.err, "len overflow! sym:", sym.Name, "\n")
 						} else {
-							align := seg.offset % 4
-							if align != 0 {
-								seg.offset += (4 - align)
+							seg.offset += (PtrSize - seg.offset%PtrSize)
+							if loc.Type == R_CALLARM {
+								add = int(signext24(int64(loc.Add&0xFFFFFF)+2) * 4)
 							}
-							putUint24(code.Code[loc.Offset:], uint32(seg.offset-(loc.Offset+pcOff))/4)
+							putUint24(code.Code[loc.Offset:], uint32(seg.offset-pcOff-loc.Offset)/4)
 							if loc.Type == R_CALLARM64 {
 								copy(seg.codeByte[seg.offset:], arm64code)
 								seg.offset += len(arm64code)
@@ -388,7 +383,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 								copy(seg.codeByte[seg.offset:], armcode)
 								seg.offset += len(armcode)
 							}
-							*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(seg.symAddrs[loc.SymOff] + add*4)
+							*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(seg.symAddrs[loc.SymOff] + add)
 							seg.offset += PtrSize
 						}
 					} else {
