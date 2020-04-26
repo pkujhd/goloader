@@ -201,35 +201,25 @@ func relocSym(reloc *CodeReloc, symName string, objsymmap map[string]objSym) int
 	return reloc.SymMap[symName]
 }
 
-func relocADRP(mCode []byte, pc int, symAddr int, symName string) {
-	pcPage := pc - pc&0xfff
-	lowOff := symAddr & 0xfff
-	symPage := symAddr - lowOff
-	pageOff := symPage - pcPage
-	if pageOff > 0x7FFFFFFF || pageOff < -0x80000000 {
-		// fmt.Println("adrp overflow!", symName, symAddr, symAddr < (1<<31))
+func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr int, symName string) {
+	offset := int64(symAddr) + int64(loc.Add) - ((int64(seg.codeBase) + int64(loc.Offset)) &^ 0xfff)
+	//overflow
+	if offset > 0xFFFFFFFF || offset <= -0x100000000 {
 		movlow := binary.LittleEndian.Uint32(mov32bit[:4])
 		movhigh := binary.LittleEndian.Uint32(mov32bit[4:])
-		adrp := binary.LittleEndian.Uint32(mCode)
-		symAddrUint32 := uint32(symAddr)
-		movlow = (((adrp & 0x1f) | movlow) | ((symAddrUint32 & 0xffff) << 5))
-		movhigh = (((adrp & 0x1f) | movhigh) | ((symAddrUint32 & 0xffff0000) >> 16 << 5))
-		// fmt.Println(adrp, movlow, movhigh)
+		addr := binary.LittleEndian.Uint32(mCode)
+		movlow = (((addr & 0x1f) | movlow) | ((uint32(symAddr) & 0xffff) << 5))
+		movhigh = (((addr & 0x1f) | movhigh) | ((uint32(symAddr) & 0xffff0000) >> 16 << 5))
 		binary.LittleEndian.PutUint32(mCode, movlow)
 		binary.LittleEndian.PutUint32(mCode[4:], movhigh)
-		return
+	} else {
+		// 2bit + 19bit + low(12bit) = 33bit
+		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7ffff) << 5)
+		high := (uint32(offset&0xfff) << 10)
+		value := binary.LittleEndian.Uint64(mCode)
+		value = (uint64(uint32(value>>32)|high) << 32) | uint64(uint32(value&0xFFFFFFFF)|low)
+		binary.LittleEndian.PutUint64(mCode, value)
 	}
-	// 2bit + 19bit + low(12bit) = 33bit
-	pageAnd := (uint32((pageOff>>12)&3) << 29) | (uint32((pageOff>>15)&0x7ffff) << 5)
-
-	adrp := binary.LittleEndian.Uint32(mCode)
-	adrp = adrp | pageAnd
-	binary.LittleEndian.PutUint32(mCode, adrp)
-
-	lowOff = lowOff << 10
-	adrpAdd := binary.LittleEndian.Uint32(mCode[4:])
-	adrpAdd = adrpAdd | uint32(lowOff)
-	binary.LittleEndian.PutUint32(mCode[4:], adrpAdd)
 }
 
 func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
@@ -303,7 +293,7 @@ func relocateItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 					binary.LittleEndian.PutUint32(seg.codeByte[it.Offset:], uint32(offset))
 				}
 			case R_ADDRARM64:
-				relocADRP(seg.codeByte[it.Offset:], seg.codeBase+it.Offset, it.ptr, it.inter.typ.Name())
+				relocateADRP(seg.codeByte[it.Offset:], it.Reloc, seg, it.ptr, it.inter.typ.Name())
 			case R_ADDR:
 				offset := it.ptr + it.Add
 				*(*uintptr)(unsafe.Pointer(&(seg.codeByte[it.Offset:][0]))) = uintptr(offset)
@@ -397,7 +387,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 					if curSym.Kind != STEXT {
 						sprintf(&seg.err, "not in code?\n")
 					}
-					relocADRP(code.Code[loc.Offset:], seg.codeBase+loc.Offset, seg.symAddrs[loc.SymOff], sym.Name)
+					relocateADRP(code.Code[loc.Offset:], loc, seg, seg.symAddrs[loc.SymOff], sym.Name)
 				case R_ADDR:
 					var relocByte = code.Data
 					if curSym.Kind == STEXT {
