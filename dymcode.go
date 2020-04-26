@@ -305,7 +305,12 @@ func relocateItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 					binary.LittleEndian.PutUint32(seg.codeByte[it.Offset:], uint32(offset))
 				}
 			case R_ADDRARM64:
-				relocADRP(seg.codeByte[it.Offset:], seg.codeBase+it.Offset, it.ptr, "unknown")
+				relocADRP(seg.codeByte[it.Offset:], seg.codeBase+it.Offset, it.ptr, it.inter.typ.Name())
+			case R_ADDR:
+				offset := it.ptr + it.Add
+				*(*uintptr)(unsafe.Pointer(&(seg.codeByte[it.Offset:][0]))) = uintptr(offset)
+			default:
+				sprintf(&seg.err, "unknown relocateItab type:", strconv.Itoa(it.Type), "Name:", it.inter.typ.Name(), "\n")
 			}
 		}
 	}
