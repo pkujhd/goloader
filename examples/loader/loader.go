@@ -68,12 +68,17 @@ func main() {
 	w := sync.WaitGroup{}
 	rw := sync.RWMutex{}
 	goloader.RegTypes(symPtr, &w, w.Wait, &rw)
-	symPtr["os.Stdout"] = *(*uintptr)(unsafe.Pointer(&os.Stdout))
 
 	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {
 		fmt.Println(err)
 		return
+	}
+	//in arm loc.Type is R_ADDR, in amd64 loc.Type is R_PCREL
+	if reloc.Arch == "arm" || reloc.Arch == "arm64" {
+		symPtr["os.Stdout"] = uintptr(unsafe.Pointer(&os.Stdout))
+	} else {
+		symPtr["os.Stdout"] = *(*uintptr)(unsafe.Pointer(&os.Stdout))
 	}
 
 	var mmapByte []byte
