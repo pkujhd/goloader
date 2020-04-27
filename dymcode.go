@@ -127,7 +127,6 @@ var (
 	leacode       byte = 0x8d
 	x86moduleHead      = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
 	armmoduleHead      = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
-	mov32bit           = []byte{0x00, 0x00, 0x80, 0xD2, 0x00, 0x00, 0xA0, 0xF2}
 	armcode            = []byte{0x04, 0xF0, 0x1F, 0xE5}
 	arm64code          = []byte{0x43, 0x00, 0x00, 0x58, 0x60, 0x00, 0x1F, 0xD6}
 	x86code            = []byte{0xff, 0x25, 0x00, 0x00, 0x00, 0x00}
@@ -206,13 +205,15 @@ func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr int, symName st
 	offset := int64(symAddr) + int64(loc.Add) - ((int64(seg.codeBase) + int64(loc.Offset)) &^ 0xfff)
 	//overflow
 	if offset > 0xFFFFFFFF || offset <= -0x100000000 {
-		movlow := binary.LittleEndian.Uint32(mov32bit[:4])
-		movhigh := binary.LittleEndian.Uint32(mov32bit[4:])
+		//low:	MOV reg imm
+		//high: MOVK reg imm LSL#16
+		value := uint64(0xF2A00000D2800000)
 		addr := binary.LittleEndian.Uint32(mCode)
-		movlow = (((addr & 0x1f) | movlow) | ((uint32(symAddr) & 0xffff) << 5))
-		movhigh = (((addr & 0x1f) | movhigh) | ((uint32(symAddr) & 0xffff0000) >> 16 << 5))
-		binary.LittleEndian.PutUint32(mCode, movlow)
-		binary.LittleEndian.PutUint32(mCode[4:], movhigh)
+		low := uint32(value & 0xFFFFFFFF)
+		high := uint32(value >> 32)
+		low = ((addr & 0x1f) | low) | ((uint32(symAddr) & 0xffff) << 5)
+		high = ((addr & 0x1f) | high) | (uint32(symAddr) >> 16 << 5)
+		binary.LittleEndian.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
 	} else {
 		// 2bit + 19bit + low(12bit) = 33bit
 		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7ffff) << 5)
