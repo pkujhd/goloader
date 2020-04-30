@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"sync"
 )
 
 type Vertex struct {
@@ -67,6 +68,8 @@ func main() {
 	}
 
 	{
+
+		wg := new(sync.WaitGroup)
 		whatAmI := func(i interface{}) {
 			switch t := i.(type) {
 			case bool:
@@ -76,10 +79,15 @@ func main() {
 			default:
 				fmt.Printf("Don't know type %T\n", t)
 			}
+			wg.Done()
 		}
+		wg.Add(1)
 		go whatAmI(true)
+		wg.Add(1)
 		go whatAmI(1)
+		wg.Add(1)
 		whatAmI("hey")
+		wg.Wait()
 	}
 
 	recoverTest()
