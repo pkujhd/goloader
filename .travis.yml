@@ -14,6 +14,7 @@ compiler: go
 os: 
   - linux
   - osx
+  - windows
 
 arch:
   - amd64
