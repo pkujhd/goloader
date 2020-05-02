@@ -7,19 +7,6 @@ import (
 	"cmd/objfile/goobj"
 )
 
-// layout of Itab known to compilers
-// allocated in non-garbage-collected memory
-// Needs to be in sync with
-// ../cmd/compile/internal/gc/reflect.go:/^func.dumptypestructs.
-type itab struct {
-	inter  *interfacetype
-	_type  *_type
-	link   *itab
-	bad    int32
-	inhash int32      // has this itab been added to hash?
-	fun    [1]uintptr // variable sized
-}
-
 // PCDATA and FUNCDATA table indexes.
 //
 // See funcdata.h and ../cmd/internal/obj/funcdata.go.

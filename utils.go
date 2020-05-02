@@ -40,3 +40,9 @@ func copy2Slice(dst []byte, src unsafe.Pointer, size int) {
 	}
 	copy(dst, *(*[]byte)(unsafe.Pointer(&s)))
 }
+
+//go:nosplit
+//go:noinline
+func Loadp(ptr unsafe.Pointer) unsafe.Pointer {
+	return *(*unsafe.Pointer)(ptr)
+}

@@ -5,18 +5,6 @@ package goloader
 
 import "cmd/objfile/goobj"
 
-// layout of Itab known to compilers
-// allocated in non-garbage-collected memory
-// Needs to be in sync with
-// ../cmd/compile/internal/gc/reflect.go:/^func.dumptypestructs.
-type itab struct {
-	inter *interfacetype
-	_type *_type
-	hash  uint32 // copy of _type.hash. Used for type switches.
-	_     [4]byte
-	fun   [1]uintptr // variable sized. fun[0]==0 means _type does not implement inter.
-}
-
 // PCDATA and FUNCDATA table indexes.
 //
 // See funcdata.h and ../cmd/internal/obj/funcdata.go.

@@ -535,6 +535,9 @@ func Load(code *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
 }
 
 func (cm *CodeModule) Unload() {
+	for i := 0; i < len(cm.itabs); i++ {
+		eraseiface(cm.itabs[i].inter, cm.itabs[i]._type)
+	}
 	runtime.GC()
 	modulesLock.Lock()
 	removeModule(cm.Module)
