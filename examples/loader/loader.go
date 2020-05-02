@@ -75,7 +75,7 @@ func main() {
 		return
 	}
 	//in arm loc.Type is R_ADDR, in amd64 loc.Type is R_PCREL
-	if reloc.Arch == "arm" || reloc.Arch == "arm64" {
+	if reloc.Arch == "arm" || reloc.Arch == "arm64" || reloc.Arch == "386" {
 		symPtr["os.Stdout"] = uintptr(unsafe.Pointer(&os.Stdout))
 	} else {
 		symPtr["os.Stdout"] = *(*uintptr)(unsafe.Pointer(&os.Stdout))
