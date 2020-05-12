@@ -18,7 +18,14 @@ type PrintInf interface {
 	Print()
 }
 
+func LoaderString(value interface{}) bool {
+	fmt.Println("LoaderString:", fmt.Sprint(value))
+	return false
+}
+
 func main() {
+	LoaderString(1)
+	LoaderString(0)
 
 	var (
 		v1 = Vertex{1, 2}

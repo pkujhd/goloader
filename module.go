@@ -12,6 +12,7 @@ import (
 var firstmoduledata moduledata
 
 const PtrSize = 4 << (^uintptr(0) >> 63)
+const IntSize = int(unsafe.Sizeof(int(0)))
 const _funcSize = int(unsafe.Sizeof(_func{}))
 
 type functab struct {
