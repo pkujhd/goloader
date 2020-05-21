@@ -5,6 +5,7 @@ import (
 	"cmd/objfile/goobj"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"strconv"
@@ -126,11 +127,22 @@ var (
 	modulesLock   sync.Mutex
 	movcode       byte = 0x8b
 	leacode       byte = 0x8d
+	cmplcode      byte = 0x83
 	x86moduleHead      = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
 	armmoduleHead      = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
 	armcode            = []byte{0x04, 0xF0, 0x1F, 0xE5}
 	arm64code          = []byte{0x49, 0x00, 0x00, 0x58, 0x20, 0x01, 0x1F, 0xD6}
-	x86code            = []byte{0xff, 0x25, 0x00, 0x00, 0x00, 0x00}
+	// JMPL *ADDRESS
+	x86amd64JMPLcode = []byte{0xff, 0x25, 0x00, 0x00, 0x00, 0x00}
+	// PUSH EAX
+	// PUSH EBX
+	// MOVE EAX xxx
+	// MOVE EBX [EAX]
+	// TEST EBX EBX
+	// POP EBX
+	// POP EAX
+	// JMPL *ADDRESS
+	x86amd64replaceCMPLcode = []byte{0x50, 0x53, 0x48, 0x8b, 0x05, 0x0f, 0x00, 0x00, 0x00, 0x48, 0x8b, 0x18, 0x48, 0x83, 0xfb, 0x00, 0x5b, 0x58, 0xff, 0x25, 0x08, 0x00, 0x00, 0x00}
 )
 
 func addSymMap(symMap map[string]int, symArray *[]SymData, rsym *SymData) int {
@@ -343,22 +355,37 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 					offset := addr - (addrBase + loc.Offset + loc.Size) + loc.Add
 
 					if offset > 0x7FFFFFFF || offset < -0x8000000 {
-						if seg.offset+8 > seg.maxLength {
+						if seg.offset+PtrSize > seg.maxLength {
 							sprintf(&seg.err, "len overflow! sym:", sym.Name, "\n")
 						} else {
 							offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
-							rb := relocByte[loc.Offset-2:]
+							bytes := relocByte[loc.Offset-2:]
+							address := uintptr(addr)
 							if loc.Type == R_CALL {
-								copy(seg.codeByte[seg.offset:], x86code)
-								seg.offset += len(x86code)
-							} else if rb[0] == leacode {
-								rb[0] = movcode
-							}
-							binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
-							if uint64(addr+loc.Add) > 0xFFFFFFFF {
-								binary.LittleEndian.PutUint64(seg.codeByte[seg.offset:], uint64(addr+loc.Add))
+								address = uintptr(addr + loc.Add)
+								copy(seg.codeByte[seg.offset:], x86amd64JMPLcode)
+								seg.offset += len(x86amd64JMPLcode)
+							} else if bytes[0] == leacode || bytes[0] == movcode {
+								bytes[0] = movcode
+							} else if bytes[0] == cmplcode && loc.Size > Uint32Size {
+								copy(bytes, x86amd64JMPLcode)
 							} else {
-								binary.LittleEndian.PutUint32(seg.codeByte[seg.offset:], uint32(addr+loc.Add))
+								sprintf(&seg.err, "not support code!", fmt.Sprintf("%v", relocByte[loc.Offset-2:loc.Offset]))
+							}
+
+							binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
+							if bytes[0] == cmplcode {
+								putAddress(seg.codeByte[seg.offset:], uint64(seg.codeBase+seg.offset+PtrSize))
+								seg.offset += PtrSize
+								copy(seg.codeByte[seg.offset:], x86amd64replaceCMPLcode)
+								seg.offset += len(x86amd64replaceCMPLcode)
+								putAddress(seg.codeByte[seg.offset:], uint64(address))
+								seg.offset += PtrSize
+								address = uintptr(addrBase + loc.Offset + loc.Size - loc.Add)
+								putAddress(seg.codeByte[seg.offset:], uint64(address))
+								seg.offset += PtrSize
+							} else {
+								putAddress(seg.codeByte[seg.offset:], uint64(address))
 							}
 							seg.offset += PtrSize
 						}

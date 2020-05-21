@@ -2,6 +2,7 @@ package goloader
 
 import (
 	"bytes"
+	"encoding/binary"
 	"unsafe"
 )
 
@@ -19,6 +20,14 @@ func putUint24(b []byte, v uint32) {
 	b[0] = byte(v)
 	b[1] = byte(v >> 8)
 	b[2] = byte(v >> 16)
+}
+
+func putAddress(b []byte, addr uint64) {
+	if PtrSize == Uint32Size {
+		binary.LittleEndian.PutUint32(b, uint32(addr))
+	} else {
+		binary.LittleEndian.PutUint64(b, uint64(addr))
+	}
 }
 
 // sign extend a 24-bit integer
