@@ -361,20 +361,22 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 							offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
 							bytes := relocByte[loc.Offset-2:]
 							address := uintptr(addr)
+							cmplstatus := false
 							if loc.Type == R_CALL {
 								address = uintptr(addr + loc.Add)
 								copy(seg.codeByte[seg.offset:], x86amd64JMPLcode)
 								seg.offset += len(x86amd64JMPLcode)
 							} else if bytes[0] == leacode || bytes[0] == movcode {
 								bytes[0] = movcode
-							} else if bytes[0] == cmplcode && loc.Size > Uint32Size {
+							} else if bytes[0] == cmplcode && loc.Size >= Uint32Size {
+								cmplstatus = true
 								copy(bytes, x86amd64JMPLcode)
 							} else {
-								sprintf(&seg.err, "not support code!", fmt.Sprintf("%v", relocByte[loc.Offset-2:loc.Offset]))
+								sprintf(&seg.err, "not support code!", fmt.Sprintf("%v", relocByte[loc.Offset-2:loc.Offset]), "\n")
 							}
 
 							binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
-							if bytes[0] == cmplcode {
+							if cmplstatus {
 								putAddress(seg.codeByte[seg.offset:], uint64(seg.codeBase+seg.offset+PtrSize))
 								seg.offset += PtrSize
 								copy(seg.codeByte[seg.offset:], x86amd64replaceCMPLcode)
@@ -386,8 +388,9 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 								seg.offset += PtrSize
 							} else {
 								putAddress(seg.codeByte[seg.offset:], uint64(address))
+								seg.offset += PtrSize
 							}
-							seg.offset += PtrSize
+
 						}
 					} else {
 						binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
