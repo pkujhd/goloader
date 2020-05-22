@@ -136,9 +136,9 @@ var (
 	x86amd64JMPLcode = []byte{0xff, 0x25, 0x00, 0x00, 0x00, 0x00}
 	// PUSH EAX
 	// PUSH EBX
-	// MOVE EAX xxx
+	// MOVE EAX x
 	// MOVE EBX [EAX]
-	// TEST EBX EBX
+	// CMPL EBX x(8bits)
 	// POP EBX
 	// POP EAX
 	// JMPL *ADDRESS
@@ -380,6 +380,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 								putAddress(seg.codeByte[seg.offset:], uint64(seg.codeBase+seg.offset+PtrSize))
 								seg.offset += PtrSize
 								copy(seg.codeByte[seg.offset:], x86amd64replaceCMPLcode)
+								seg.codeByte[seg.offset+0xf] = relocByte[loc.Offset+loc.Size]
 								seg.offset += len(x86amd64replaceCMPLcode)
 								putAddress(seg.codeByte[seg.offset:], uint64(address))
 								seg.offset += PtrSize
