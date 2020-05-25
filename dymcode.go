@@ -84,6 +84,11 @@ type objSym struct {
 	file *os.File
 }
 
+type symInfo struct {
+	ptr  uintptr
+	size uintptr
+}
+
 type segment struct {
 	codeBase   int
 	dataBase   int
@@ -120,6 +125,9 @@ var (
 	// POP EAX
 	// JMPL *ADDRESS
 	x86amd64replaceCMPLcode = []byte{0x50, 0x53, 0x48, 0x8b, 0x05, 0x0f, 0x00, 0x00, 0x00, 0x48, 0x8b, 0x18, 0x48, 0x83, 0xfb, 0x00, 0x5b, 0x58, 0xff, 0x25, 0x08, 0x00, 0x00, 0x00}
+	//MOVE RxX x
+	//JMPL *ADDRESS
+	x86amd64replaceMOVQcode = []byte{0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x25, 0x00, 0x00, 0x00, 0x00}
 )
 
 func addSymMap(symMap map[string]int, symArray *[]SymData, rsym *SymData) int {
@@ -283,9 +291,21 @@ func relocateItab(code *CodeReloc, codeModule *CodeModule, seg *segment) {
 				if offset > 0x7FFFFFFF || offset < -0x80000000 {
 					offset = (seg.codeBase + seg.offset) - pc + it.Add
 					binary.LittleEndian.PutUint32(seg.codeByte[it.Offset:], uint32(offset))
-					seg.codeByte[it.Offset-2:][0] = movcode
-					*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(it.ptr)
-					seg.offset += PtrSize
+					if seg.codeByte[it.Offset-2] == movcode {
+						//!!!TRICK
+						//because struct itab doesn't change after it adds into itab list, so
+						//copy itab data instead of jump code
+						size := int(unsafe.Sizeof(itab{}))
+						copy2Slice(seg.codeByte[seg.offset:], unsafe.Pointer(uintptr(it.ptr)), size)
+						seg.offset += size
+					} else if seg.codeByte[it.Offset-2] == leacode {
+						seg.codeByte[it.Offset-2:][0] = movcode
+						*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(it.ptr)
+						seg.offset += PtrSize
+					} else {
+						sprintf(&seg.err, "relocateItab: not support code!", fmt.Sprintf("%v", seg.codeByte[it.Offset-2:it.Offset]), "\n")
+					}
+
 				} else {
 					binary.LittleEndian.PutUint32(seg.codeByte[it.Offset:], uint32(offset))
 				}
@@ -331,29 +351,31 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 					}
 					offset := addr - (addrBase + loc.Offset + loc.Size) + loc.Add
 
-					if offset > 0x7FFFFFFF || offset < -0x8000000 {
+					if offset > 0x7FFFFFFF || offset < -0x80000000 {
 						if seg.offset+PtrSize > seg.maxLength {
 							sprintf(&seg.err, "len overflow! sym:", sym.Name, "\n")
 						} else {
 							offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
 							bytes := relocByte[loc.Offset-2:]
 							address := uintptr(addr)
-							cmplstatus := false
+							opcode := relocByte[loc.Offset-2]
+							reginfo := byte(0x00)
 							if loc.Type == R_CALL {
 								address = uintptr(addr + loc.Add)
 								copy(seg.codeByte[seg.offset:], x86amd64JMPLcode)
 								seg.offset += len(x86amd64JMPLcode)
-							} else if bytes[0] == leacode || bytes[0] == movcode {
+							} else if opcode == leacode {
 								bytes[0] = movcode
-							} else if bytes[0] == cmplcode && loc.Size >= Uint32Size {
-								cmplstatus = true
+							} else if opcode == movcode && loc.Size >= Uint32Size {
+								reginfo = ((relocByte[loc.Offset-1] >> 3) & 0x7) | 0xb8
+								copy(bytes, x86amd64JMPLcode)
+							} else if opcode == cmplcode && loc.Size >= Uint32Size {
 								copy(bytes, x86amd64JMPLcode)
 							} else {
 								sprintf(&seg.err, "not support code!", fmt.Sprintf("%v", relocByte[loc.Offset-2:loc.Offset]), "\n")
 							}
-
 							binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
-							if cmplstatus {
+							if opcode == cmplcode {
 								putAddress(seg.codeByte[seg.offset:], uint64(seg.codeBase+seg.offset+PtrSize))
 								seg.offset += PtrSize
 								copy(seg.codeByte[seg.offset:], x86amd64replaceCMPLcode)
@@ -361,6 +383,17 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 								seg.offset += len(x86amd64replaceCMPLcode)
 								putAddress(seg.codeByte[seg.offset:], uint64(address))
 								seg.offset += PtrSize
+								address = uintptr(addrBase + loc.Offset + loc.Size - loc.Add)
+								putAddress(seg.codeByte[seg.offset:], uint64(address))
+								seg.offset += PtrSize
+							} else if opcode == movcode {
+								putAddress(seg.codeByte[seg.offset:], uint64(seg.codeBase+seg.offset+PtrSize))
+								seg.offset += PtrSize
+								copy(seg.codeByte[seg.offset:], x86amd64replaceMOVQcode)
+								seg.codeByte[seg.offset+1] = reginfo
+								address = *(*uintptr)(unsafe.Pointer(address))
+								putAddress(seg.codeByte[seg.offset+2:], uint64(address))
+								seg.offset += len(x86amd64replaceMOVQcode)
 								address = uintptr(addrBase + loc.Offset + loc.Size - loc.Add)
 								putAddress(seg.codeByte[seg.offset:], uint64(address))
 								seg.offset += PtrSize
