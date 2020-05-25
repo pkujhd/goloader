@@ -74,12 +74,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	//in arm loc.Type is R_ADDR, in amd64 loc.Type is R_PCREL
-	if reloc.Arch == "arm" || reloc.Arch == "arm64" || reloc.Arch == "386" {
-		symPtr["os.Stdout"] = uintptr(unsafe.Pointer(&os.Stdout))
-	} else {
-		symPtr["os.Stdout"] = *(*uintptr)(unsafe.Pointer(&os.Stdout))
-	}
+	symPtr["os.Stdout"] = uintptr(unsafe.Pointer(&os.Stdout))
 
 	var mmapByte []byte
 	for i := 0; i < *times; i++ {
