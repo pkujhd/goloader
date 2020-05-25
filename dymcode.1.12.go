@@ -18,6 +18,39 @@ const (
 	R_METHODOFF = 24
 )
 
+// copy from $GOROOT/src/cmd/internal/objabi/symkind.go
+const (
+	// An otherwise invalid zero value for the type
+	Sxxx = iota
+	// Executable instructions
+	STEXT
+	// Read only static data
+	SRODATA
+	// Static data that does not contain any pointers
+	SNOPTRDATA
+	// Static data
+	SDATA
+	// Statically data that is initially all 0s
+	SBSS
+	// Statically data that is initially all 0s and does not contain pointers
+	SNOPTRBSS
+	// Thread-local data that is initially all 0s
+	STLSBSS
+	// Debugging data
+	SDWARFINFO
+	SDWARFRANGE
+	SDWARFLOC
+	SDWARFMISC
+	// ABI alias. An ABI alias symbol is an empty symbol with a
+	// single relocation with 0 size that references the native
+	// function implementation symbol.
+	//
+	// TODO(austin): Remove this and all uses once the compiler
+	// generates real ABI wrappers rather than symbol aliases.
+	SABIALIAS
+	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
+)
+
 func addStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
 	_addStackObject(code, fi, seg, symPtr)
 }

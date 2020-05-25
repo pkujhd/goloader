@@ -1,5 +1,5 @@
 // +build go1.8
-// +build !go1.12,!go1.13,!go1.14,!go1.15
+// +build !go1.9,!go1.10,!go1.11,!go1.12,!go1.13,!go1.14,!go1.15
 
 package goloader
 
@@ -16,6 +16,55 @@ const (
 	// *rtype, and may be set to zero by the linker if it determines the method
 	// text is unreachable by the linked program.
 	R_METHODOFF = 24
+)
+
+const (
+	Sxxx = iota
+	STEXT
+	SELFRXSECT
+	STYPE
+	SSTRING
+	SGOSTRING
+	SGOFUNC
+	SGCBITS
+	SRODATA
+	SFUNCTAB
+	SELFROSECT
+	SMACHOPLT
+	STYPERELRO
+	SSTRINGRELRO
+	SGOSTRINGRELRO
+	SGOFUNCRELRO
+	SGCBITSRELRO
+	SRODATARELRO
+	SFUNCTABRELRO
+	STYPELINK
+	SITABLINK
+	SSYMTAB
+	SPCLNTAB
+	SELFSECT
+	SMACHO
+	SMACHOGOT
+	SWINDOWS
+	SELFGOT
+	SNOPTRDATA
+	SINITARR
+	SDATA
+	SBSS
+	SNOPTRBSS
+	STLSBSS
+	SXREF
+	SMACHOSYMSTR
+	SMACHOSYMTAB
+	SMACHOINDIRECTPLT
+	SMACHOINDIRECTGOT
+	SFILE
+	SFILEPATH
+	SCONST
+	SDYNIMPORT
+	SHOSTOBJ
+	SDWARFSECT
+	SDWARFINFO
 )
 
 func addStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
