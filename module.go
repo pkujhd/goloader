@@ -15,6 +15,9 @@ const PtrSize = 4 << (^uintptr(0) >> 63)
 const Uint32Size = int(unsafe.Sizeof(uint32(0)))
 const IntSize = int(unsafe.Sizeof(int(0)))
 const _funcSize = int(unsafe.Sizeof(_func{}))
+const itabSize = int(unsafe.Sizeof(itab{}))
+const _INVALID_HANDLE_VALUE = ^uintptr(0)
+const INVALID_OFFSET = int(-1)
 
 type functab struct {
 	entry   uintptr
@@ -179,7 +182,8 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 				module.stkmaps = append(module.stkmaps, b)
 				reloc.GCObjs[data.Sym.Name] = offset
 			} else if len(data.Sym.Name) == 0 {
-				offset = 0xFFFFFFFF
+				offset = uintptr(len(module.stkmaps))
+				module.stkmaps = append(module.stkmaps, nil)
 			} else {
 				fmt.Println("unknown gcobj:", data.Sym.Name)
 			}

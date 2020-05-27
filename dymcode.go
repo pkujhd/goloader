@@ -484,7 +484,7 @@ func addFuncTab(module *moduledata, i, pclnOff int, code *CodeReloc, seg *segmen
 	var funcdata = make([]uintptr, len(fi.funcdata))
 	copy(funcdata, fi.funcdata)
 	for i, v := range fi.funcdata {
-		if v != 0xFFFFFFFF {
+		if code.Mod.stkmaps[v] != nil {
 			funcdata[i] = (uintptr)(unsafe.Pointer(&(code.Mod.stkmaps[v][0])))
 		} else {
 			funcdata[i] = (uintptr)(0)
