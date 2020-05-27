@@ -45,7 +45,7 @@ func (t *_type) typeOff(off typeOff) *_type
 func (n name) name() (s string)
 
 //go:linkname getitab runtime.getitab
-func getitab(inter *interfacetype, typ *_type, canfail bool) int
+func getitab(inter *interfacetype, typ *_type, canfail bool) *itab
 
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
@@ -113,35 +113,4 @@ func regTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
 		symFullName = typePrefix + symName
 	}
 	symPtr[symFullName] = ptr
-}
-
-func addIFaceSubFuncType(funcTypeMap map[string]*int, typemap map[typeOff]uintptr,
-	inter *interfacetype, typ *_type, dataBase int) {
-	pkgPath := inter.typ.PkgPath()
-	lastSlash := strings.LastIndexByte(pkgPath, '/')
-
-	var head = pkgPath
-	if lastSlash > -1 {
-		head = pkgPath[lastSlash+1:]
-	}
-	ni := len(inter.mhdr)
-	x := typ.uncommon()
-	xmhdr := (*[1 << 16]method)(add(unsafe.Pointer(x), uintptr(x.moff)))[:ni]
-	for k := 0; k < ni; k++ {
-		i := &inter.mhdr[k]
-		itype := inter.typ.typeOff(i.ityp)
-		name := itype.Name()
-		if name[0] == '*' {
-			name = name[1:]
-		}
-		name = strings.Replace(name, head+".", pkgPath+".", -1)
-		name = "type." + name
-		if symAddrPtr, ok := funcTypeMap[name]; ok {
-			itypePtr := int(uintptr(unsafe.Pointer(itype)))
-			*symAddrPtr = itypePtr
-			typemap[typeOff(itypePtr-dataBase)] = uintptr(itypePtr)
-		}
-		xmhdr[k].mtyp = typeOff((uintptr)((unsafe.Pointer)(itype)) - (uintptr)(dataBase))
-	}
-
 }
