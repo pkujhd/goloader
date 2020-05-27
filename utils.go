@@ -1,7 +1,6 @@
 package goloader
 
 import (
-	"bytes"
 	"encoding/binary"
 	"unsafe"
 )
@@ -33,12 +32,6 @@ func putAddress(b []byte, addr uint64) {
 // sign extend a 24-bit integer
 func signext24(x int64) int32 {
 	return (int32(x) << 8) >> 8
-}
-
-func sprintf(buf *bytes.Buffer, str ...string) {
-	for _, s := range str {
-		buf.WriteString(s)
-	}
 }
 
 func copy2Slice(dst []byte, src unsafe.Pointer, size int) {

@@ -3,6 +3,8 @@
 
 package goloader
 
+import "fmt"
+
 const (
 	R_PCREL = 16
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
@@ -70,7 +72,7 @@ func addDeferReturn(code *CodeReloc, fi *funcInfoData, seg *segment) {
 				case "arm", "arm64":
 					fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					sprintf(&seg.err, "not support arch:", code.Arch, "\n")
+					seg.errors += fmt.Sprintf("not support arch:%s\n", code.Arch)
 				}
 				break
 			}

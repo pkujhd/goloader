@@ -1,14 +1,12 @@
 package goloader
 
 import (
-	"bytes"
 	"cmd/objfile/goobj"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
@@ -92,7 +90,7 @@ type segment struct {
 	offset    int
 	symAddrs  []uintptr
 	codeByte  []byte
-	err       bytes.Buffer
+	errors    string
 }
 
 var (
@@ -226,7 +224,7 @@ func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 				seg.symAddrs[i] = ptr
 			} else {
 				seg.symAddrs[i] = _INVALID_HANDLE_VALUE
-				sprintf(&seg.err, "unresolve external:", sym.Name, "\n")
+				seg.errors += fmt.Sprintf("unresolve external:%s\n", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
 			RegTLS(symPtr, sym.Offset)
@@ -283,7 +281,7 @@ func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
 							*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(unsafe.Pointer(iter.ptr))
 							seg.offset += PtrSize
 						} else {
-							sprintf(&seg.err, "relocateItab: not support code!", fmt.Sprintf("%v", seg.codeByte[iter.Offset-2:iter.Offset]), "\n")
+							seg.errors += fmt.Sprintf("relocateItab: not support code:%v!\n", seg.codeByte[iter.Offset-2:iter.Offset])
 						}
 
 					} else {
@@ -294,7 +292,7 @@ func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
 				case R_ADDR:
 					*(*uintptr)(unsafe.Pointer(&(seg.codeByte[iter.Offset:][0]))) = uintptr(int(address) + iter.Add)
 				default:
-					sprintf(&seg.err, "unknown relocateItab type:", strconv.Itoa(iter.Type), "Name:", itabName, "\n")
+					seg.errors += fmt.Sprintf("unknown relocateItab type:%d Name:%s\n", iter.Type, itabName)
 				}
 			}
 		}
@@ -311,7 +309,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 				if loc.Size <= IntSize {
 					addr = uintptr(seg.codeBase + seg.codeLen + seg.dataLen)
 				} else {
-					sprintf(&seg.err, "Symbol:", sym.Name, "size:", strconv.Itoa(loc.Size), ">IntSize:", strconv.Itoa(IntSize), "\n")
+					seg.errors += fmt.Sprintf("Symbol:%s size:%d>IntSize:%d\n", sym.Name, loc.Size, IntSize)
 				}
 			}
 			if addr == _INVALID_HANDLE_VALUE {
@@ -333,7 +331,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 
 					if offset > 0x7FFFFFFF || offset < -0x80000000 {
 						if seg.offset+PtrSize > seg.maxLength {
-							sprintf(&seg.err, "len overflow! sym:", sym.Name, "\n")
+							seg.errors += fmt.Sprintf("len overflow! sym:%s\n", sym.Name)
 						} else {
 							offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
 							bytes := relocByte[loc.Offset-2:]
@@ -352,7 +350,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 							} else if opcode == cmplcode && loc.Size >= Uint32Size {
 								copy(bytes, x86amd64JMPLcode)
 							} else {
-								sprintf(&seg.err, "not support code!", fmt.Sprintf("%v", relocByte[loc.Offset-2:loc.Offset]), "\n")
+								seg.errors += fmt.Sprintf("not support code:%v!\n", relocByte[loc.Offset-2:loc.Offset])
 							}
 							binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 							if opcode == cmplcode {
@@ -396,7 +394,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 					offset := (int(addr) + add - (seg.codeBase + loc.Offset)) / 4
 					if offset > 0x7FFFFF || offset < -0x800000 {
 						if seg.offset+PtrSize > seg.maxLength {
-							sprintf(&seg.err, "len overflow! sym:", sym.Name, "\n")
+							seg.errors += fmt.Sprintf("len overflow! sym:%s\n", sym.Name)
 						} else {
 							seg.offset += (PtrSize - seg.offset%PtrSize)
 							if loc.Type == R_CALLARM {
@@ -424,7 +422,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 					}
 				case R_ADDRARM64:
 					if curSym.Kind != STEXT {
-						sprintf(&seg.err, "impossible!", sym.Name, "locate not in code segment!\n")
+						seg.errors += fmt.Sprintf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
 					}
 					relocateADRP(seg.codeByte[loc.Offset:], loc, seg, addr, sym.Name)
 				case R_ADDR:
@@ -438,12 +436,12 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 
 				case R_ADDROFF, R_WEAKADDROFF, R_METHODOFF:
 					if curSym.Kind == STEXT {
-						sprintf(&seg.err, "impossible!", sym.Name, " locate on code segment!\n")
+						seg.errors += fmt.Sprintf("impossible!Sym:%s locate on code segment!\n", sym.Name)
 					}
 					offset := int(addr) - seg.codeBase + loc.Add
 					binary.LittleEndian.PutUint32(seg.codeByte[seg.codeLen+loc.Offset:], uint32(offset))
 				default:
-					sprintf(&seg.err, "unknown reloc type:", strconv.Itoa(loc.Type), " sym:", sym.Name, "\n")
+					seg.errors += fmt.Sprintf("unknown reloc type:%d sym:%s\n", loc.Type, sym.Name)
 				}
 			}
 
@@ -563,8 +561,8 @@ func Load(code *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
 	buildModule(code, symPtr, &codeModule, &seg)
 	relocateItab(code, &codeModule, &seg)
 
-	if seg.err.Len() > 0 {
-		return &codeModule, errors.New(seg.err.String())
+	if len(seg.errors) > 0 {
+		return &codeModule, errors.New(seg.errors)
 	}
 	return &codeModule, nil
 }

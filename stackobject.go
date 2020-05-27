@@ -5,7 +5,7 @@ package goloader
 
 import (
 	"encoding/binary"
-	"strconv"
+	"fmt"
 	"unsafe"
 )
 
@@ -45,7 +45,7 @@ func _addStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map
 				}
 			}
 			if !ok {
-				sprintf(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
+				seg.errors += fmt.Sprintf("unresolve external Var! name:%s index:%d\n", fi.name, i)
 			} else {
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
