@@ -90,18 +90,17 @@ type symInfo struct {
 }
 
 type segment struct {
-	codeBase   int
-	dataBase   int
-	dataLen    int
-	codeLen    int
-	maxLength  int
-	offset     int
-	symAddrs   []int
-	itabMap    map[string]int
-	funcType   map[string]*int
-	codeByte   []byte
-	typeSymPtr map[string]uintptr
-	err        bytes.Buffer
+	codeBase  int
+	dataBase  int
+	dataLen   int
+	codeLen   int
+	maxLength int
+	offset    int
+	symAddrs  []int
+	itabMap   map[string]int
+	funcType  map[string]*int
+	codeByte  []byte
+	err       bytes.Buffer
 }
 
 var (
@@ -256,8 +255,6 @@ func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 			if strings.HasPrefix(sym.Name, "type.") {
 				if ptr, ok := symPtr[sym.Name]; ok {
 					seg.symAddrs[i] = int(ptr)
-				} else {
-					seg.typeSymPtr[sym.Name] = (uintptr)(seg.symAddrs[i])
 				}
 			}
 		}
@@ -574,7 +571,6 @@ func Load(code *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
 	seg.symAddrs = make([]int, len(code.Syms))
 	seg.funcType = make(map[string]*int)
 	seg.itabMap = make(map[string]int)
-	seg.typeSymPtr = make(map[string]uintptr)
 	seg.offset = seg.codeLen + seg.dataLen
 	//static_tmp is 0, golang compile not allocate memory.
 	seg.offset += IntSize

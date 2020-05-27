@@ -40,7 +40,9 @@ func _addStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map
 			}
 			ptr, ok := symPtr[name]
 			if !ok {
-				ptr, ok = seg.typeSymPtr[name]
+				if _, ok = code.SymMap[name]; ok {
+					ptr = uintptr(seg.symAddrs[code.SymMap[name]])
+				}
 			}
 			if !ok {
 				sprintf(&seg.err, "unresolve external:", strconv.Itoa(i), " ", fi.name, "\n")
