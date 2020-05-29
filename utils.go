@@ -8,12 +8,6 @@ import (
 //go:linkname add runtime.add
 func add(p unsafe.Pointer, x uintptr) unsafe.Pointer
 
-func assert(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 func putUint24(b []byte, v uint32) {
 	_ = b[2] // early bounds check to guarantee safety of writes below
 	b[0] = byte(v)
@@ -34,9 +28,9 @@ func signext24(x int64) int32 {
 	return (int32(x) << 8) >> 8
 }
 
-func copy2Slice(dst []byte, src unsafe.Pointer, size int) {
+func copy2Slice(dst []byte, src uintptr, size int) {
 	var s = sliceHeader{
-		Data: (uintptr)(src),
+		Data: src,
 		Len:  size,
 		Cap:  size,
 	}

@@ -57,7 +57,11 @@ func main() {
 	}
 
 	symPtr := make(map[string]uintptr)
-	goloader.RegSymbol(symPtr)
+	err := goloader.RegSymbol(symPtr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	goloader.RegTypes(symPtr, time.Duration(0), time.Unix(0, 0))
 	goloader.RegTypes(symPtr, runtime.LockOSThread)

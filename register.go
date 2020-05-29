@@ -67,12 +67,16 @@ func regBasicSymbol(symPtr map[string]uintptr) {
 	RegTypes(symPtr, []bool{}, []string{}, []unsafe.Pointer{}, []uintptr{})
 }
 
-func RegSymbol(symPtr map[string]uintptr) {
+func RegSymbol(symPtr map[string]uintptr) error {
 	regBasicSymbol(symPtr)
-	ex, err := os.Executable()
-	assert(err)
-	f, err := objfile.Open(ex)
-	assert(err)
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	f, err := objfile.Open(exe)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
 	syms, err := f.Symbols()
@@ -93,6 +97,7 @@ func RegSymbol(symPtr map[string]uintptr) {
 			RegItab(symPtr, sym.Name, uintptr(sym.Addr))
 		}
 	}
+	return nil
 }
 
 func RegItab(symPtr map[string]uintptr, name string, addr uintptr) {

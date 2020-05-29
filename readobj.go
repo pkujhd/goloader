@@ -28,10 +28,16 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 	}
 	for _, sym := range obj.Syms {
 		if sym.Kind == STEXT && sym.DupOK == false {
-			relocSym(reloc, sym.Name, objsymmap)
+			_, err := relocSym(reloc, sym.Name, objsymmap)
+			if err != nil {
+				return err
+			}
 		} else if sym.Kind == SRODATA {
 			if strings.HasPrefix(sym.Name, "type.") {
-				relocSym(reloc, sym.Name, objsymmap)
+				_, err := relocSym(reloc, sym.Name, objsymmap)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
