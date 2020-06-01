@@ -63,11 +63,10 @@ type CodeReloc struct {
 type CodeModule struct {
 	Syms       map[string]uintptr
 	CodeByte   []byte
-	Module     interface{}
+	Module     *moduledata
 	pcfuncdata []findfuncbucket
 	stkmaps    [][]byte
 	itabs      map[string]*itabSym
-	typemap    map[typeOff]uintptr
 }
 
 type itabSym struct {
@@ -259,9 +258,10 @@ func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
 			mhdr := iter.inter.mhdr
 			xmhdr := (*[1 << 16]method)(add(unsafe.Pointer(x), uintptr(x.moff)))[:len(mhdr)]
 			for k := 0; k < len(iter.inter.mhdr); k++ {
-				itypePtr := int(uintptr(unsafe.Pointer(iter.inter.typ.typeOff(iter.inter.mhdr[k].ityp))))
-				module.typemap[typeOff(itypePtr-seg.codeBase)] = uintptr(itypePtr)
-				xmhdr[k].mtyp = typeOff((uintptr)((unsafe.Pointer)(iter.inter.typ.typeOff(mhdr[k].ityp))) - (uintptr)(seg.codeBase))
+				itype := uintptr(unsafe.Pointer(iter.inter.typ.typeOff(mhdr[k].ityp)))
+				typeoff := typeOff(itype - uintptr(seg.codeBase))
+				module.Module.typemap[typeoff] = uintptr(itype)
+				xmhdr[k].mtyp = typeoff
 			}
 			iter.ptr = getitab(iter.inter, iter.typ, false)
 			address := uintptr(unsafe.Pointer(iter.ptr))
@@ -503,9 +503,9 @@ func buildModule(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 	module.minpc = uintptr(seg.codeBase)
 	module.maxpc = uintptr(seg.dataBase)
 	module.filetab = code.Mod.filetab
-	module.typemap = codeModule.typemap
+	module.typemap = make(map[typeOff]uintptr)
 	module.types = uintptr(seg.codeBase)
-	module.etypes = uintptr(seg.codeBase + seg.codeLen + seg.dataLen)
+	module.etypes = uintptr(seg.codeBase + seg.maxLength)
 	module.text = uintptr(seg.codeBase)
 	module.etext = uintptr(seg.codeBase + len(code.Code))
 	codeModule.pcfuncdata = code.Mod.pcfunc // hold reference
@@ -542,9 +542,8 @@ func Load(code *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
 	seg.codeByte = codeByte
 
 	var codeModule = CodeModule{
-		Syms:    make(map[string]uintptr),
-		itabs:   make(map[string]*itabSym),
-		typemap: make(map[typeOff]uintptr),
+		Syms:  make(map[string]uintptr),
+		itabs: make(map[string]*itabSym),
 	}
 
 	seg.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
