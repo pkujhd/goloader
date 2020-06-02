@@ -4,7 +4,6 @@ import (
 	"cmd/objfile/goobj"
 	"fmt"
 	"os"
-	"strings"
 )
 
 func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath *string) error {
@@ -31,13 +30,6 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 			_, err := relocSym(reloc, sym.Name, objsymmap)
 			if err != nil {
 				return err
-			}
-		} else if sym.Kind == SRODATA {
-			if strings.HasPrefix(sym.Name, "type.") {
-				_, err := relocSym(reloc, sym.Name, objsymmap)
-				if err != nil {
-					return err
-				}
 			}
 		}
 	}

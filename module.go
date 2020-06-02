@@ -163,11 +163,11 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	fs.ReadAt(fb, curSym.Func.PCLine.Offset)
 	module.pclntable = append(module.pclntable, fb...)
 
-	var fInfo funcInfoData
+	fInfo := funcInfoData{}
 	fInfo._func = init_func(curSym, reloc.SymMap[symName], nameOff, spOff, pcfileOff, pclnOff)
 	for _, data := range curSym.Func.PCData {
 		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
-		var b = make([]byte, data.Size)
+		b := make([]byte, data.Size)
 		fs.ReadAt(b, data.Offset)
 		module.pclntable = append(module.pclntable, b...)
 	}
@@ -203,6 +203,12 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	})
 
 	module.funcinfo = append(module.funcinfo, fInfo)
+
+	for _, data := range curSym.Func.FuncData {
+		if _, ok := objsymmap[data.Sym.Name]; ok {
+			relocSym(reloc, data.Sym.Name, objsymmap)
+		}
+	}
 }
 
 func addModule(codeModule *CodeModule, aModule *moduledata) {
