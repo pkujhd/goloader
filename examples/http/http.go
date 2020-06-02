@@ -1,6 +1,9 @@
 package main
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 type SimpleHanle struct{}
 
@@ -15,5 +18,6 @@ func main() {
 	sh := &SimpleHanle{}
 	mux := http.NewServeMux()
 	mux.Handle("/", sh)
+	fmt.Println("start listen:9090")
 	panic(http.ListenAndServe(":9090", mux))
 }

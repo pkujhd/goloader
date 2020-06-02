@@ -42,10 +42,13 @@ func (t *_type) nameOff(off nameOff) name
 func (t *_type) typeOff(off typeOff) *_type
 
 //go:linkname name.name runtime.name.name
-func (n name) name() (s string)
+func (n name) name() string
 
 //go:linkname getitab runtime.getitab
 func getitab(inter *interfacetype, typ *_type, canfail bool) *itab
+
+//go:linkname (*uncommonType).methods reflect.(*uncommonType).methods
+func (t *uncommonType) methods() []method
 
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
@@ -55,62 +58,37 @@ func (t *_type) PkgPath() string {
 	return t.nameOff(ut.pkgPath).name()
 }
 
-func (t *_type) Name() string {
-	return t.nameOff(t.str).name()
-}
-
-func (t *_type) Type() reflect.Type {
-	var obj interface{} = reflect.TypeOf(0)
-	(*interfaceHeader)(unsafe.Pointer(&obj)).word = unsafe.Pointer(t)
-	typ := obj.(reflect.Type)
-	return typ
-}
-
-func GetFunctionName(i interface{}) string {
-	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
-}
-
 func RegTypes(symPtr map[string]uintptr, interfaces ...interface{}) {
-	for _, ins := range interfaces {
-		v := reflect.ValueOf(ins)
-		regTypeInfo(symPtr, v)
+	for _, inter := range interfaces {
+		v := reflect.ValueOf(inter)
+		registerTypeInfo(symPtr, v)
 		if v.Kind() == reflect.Ptr {
-			v = v.Elem()
-			regTypeInfo(symPtr, v)
+			registerTypeInfo(symPtr, v.Elem())
 		}
 	}
 }
 
-func regTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
-	ins := v.Interface()
-	header := (*interfaceHeader)(unsafe.Pointer(&ins))
+func registerTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
+	inter := v.Interface()
+	header := (*interfaceHeader)(unsafe.Pointer(&inter))
 
-	var ptr uintptr
-	var typePrefix string
-	var symName string
-	pptr := (uintptr)(header.word)
-	if v.Kind() == reflect.Func && pptr != 0 {
-		ptr = *(*uintptr)(header.word)
-		symName = GetFunctionName(ins)
+	if v.Kind() == reflect.Func && uintptr(header.word) != 0 {
+		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = *(*uintptr)(header.word)
 	} else {
-		ptr = uintptr(header.typ)
-		typePrefix = "type."
-		symName = v.Type().String()
+		name := "type."
+		symname := v.Type().String()
+		if v.Type().Kind() == reflect.Ptr {
+			name += symname[:1]
+			symname = symname[1:]
+		}
+		pkgPath := (*_type)(header.typ).PkgPath()
+		lastSlash := strings.LastIndexByte(pkgPath, '/')
+		if lastSlash > -1 {
+			name += pkgPath[:lastSlash+1] + symname
+		} else {
+			name += symname
+		}
+		symPtr[name] = uintptr(header.typ)
 	}
 
-	if symName[0] == '*' {
-		typePrefix += "*"
-		symName = symName[1:]
-	}
-
-	pkgPath := (*_type)(header.typ).PkgPath()
-
-	var symFullName string
-	lastSlash := strings.LastIndexByte(pkgPath, '/')
-	if lastSlash > -1 {
-		symFullName = typePrefix + pkgPath[:lastSlash] + "/" + symName
-	} else {
-		symFullName = typePrefix + symName
-	}
-	symPtr[symFullName] = ptr
 }

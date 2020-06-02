@@ -254,14 +254,10 @@ func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
 		if inter != _INVALID_HANDLE_VALUE && typ != _INVALID_HANDLE_VALUE {
 			*(*uintptr)(unsafe.Pointer(&(iter.inter))) = inter
 			*(*uintptr)(unsafe.Pointer(&(iter.typ))) = typ
-			x := iter.typ.uncommon()
-			mhdr := iter.inter.mhdr
-			xmhdr := (*[1 << 16]method)(add(unsafe.Pointer(x), uintptr(x.moff)))[:len(mhdr)]
-			for k := 0; k < len(iter.inter.mhdr); k++ {
-				itype := uintptr(unsafe.Pointer(iter.inter.typ.typeOff(mhdr[k].ityp)))
-				typeoff := typeOff(itype - uintptr(seg.codeBase))
-				module.Module.typemap[typeoff] = uintptr(itype)
-				xmhdr[k].mtyp = typeoff
+			methods := iter.typ.uncommon().methods()
+			for k := 0; k < len(iter.inter.mhdr) && k < len(methods); k++ {
+				itype := uintptr(unsafe.Pointer(iter.inter.typ.typeOff(iter.inter.mhdr[k].ityp)))
+				module.Module.typemap[methods[k].mtyp] = itype
 			}
 			iter.ptr = getitab(iter.inter, iter.typ, false)
 			address := uintptr(unsafe.Pointer(iter.ptr))
