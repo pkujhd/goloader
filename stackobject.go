@@ -21,7 +21,7 @@ type stackObjectRecord struct {
 	typ *_type
 }
 
-func _addStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
+func _addStackObject(code *CodeReloc, fi *funcData, seg *segment, symPtr map[string]uintptr) {
 	if len(fi.funcdata) > _FUNCDATA_StackObjects && code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]] != nil {
 		b := code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]]
 		n := *(*int)(unsafe.Pointer(&b[0]))

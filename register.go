@@ -9,11 +9,6 @@ import (
 	"unsafe"
 )
 
-const (
-	TLSNAME        = "(TLS)"
-	R_CALLIND_NAME = "R_CALLIND"
-)
-
 // See reflect/value.go emptyInterface
 type interfaceHeader struct {
 	typ  unsafe.Pointer
@@ -56,7 +51,7 @@ func regBasicSymbol(symPtr map[string]uintptr) {
 	RegTypes(symPtr, &float32_0, &float64_0, &complex64_0, &complex128_0)
 
 	bool_true := true
-	string_empty := ""
+	string_empty := EMPTY_STRING
 	unsafe_pointer := unsafe.Pointer(&int_0)
 	uintptr_ := uintptr(0)
 	RegTypes(symPtr, &bool_true, &string_empty, unsafe_pointer, uintptr_)
@@ -82,18 +77,18 @@ func RegSymbol(symPtr map[string]uintptr) error {
 	syms, err := f.Symbols()
 	codeType := 'T'
 	for _, sym := range syms {
-		if sym.Name == "runtime.init" && sym.Code == 't' {
+		if sym.Name == RUNTIME_INIT && sym.Code == 't' {
 			codeType = 't'
 			break
 		}
 	}
 	for _, sym := range syms {
-		if sym.Code == codeType && !strings.HasPrefix(sym.Name, "type..") {
+		if sym.Code == codeType && !strings.HasPrefix(sym.Name, TYPE_DOUBLE_DOT_PREFIX) {
 			symPtr[sym.Name] = uintptr(sym.Addr)
-		} else if strings.HasPrefix(sym.Name, "runtime.") {
+		} else if strings.HasPrefix(sym.Name, RUNTIME_PREFIX) {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
-		if strings.HasPrefix(sym.Name, "go.itab") {
+		if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
 			RegItab(symPtr, sym.Name, uintptr(sym.Addr))
 		}
 	}
@@ -102,40 +97,34 @@ func RegSymbol(symPtr map[string]uintptr) error {
 
 func RegItab(symPtr map[string]uintptr, name string, addr uintptr) {
 	symPtr[name] = uintptr(addr)
-	bs := strings.TrimLeft(name, "go.itab.")
-	bss := strings.Split(bs, ",")
-	var slice = sliceHeader{addr, len(bss), len(bss)}
+	bss := strings.Split(strings.TrimLeft(name, ITAB_PREFIX), ",")
+	slice := sliceHeader{addr, len(bss), len(bss)}
 	ptrs := *(*[]unsafe.Pointer)(unsafe.Pointer(&slice))
 	for i, ptr := range ptrs {
-		typeName := bss[len(bss)-i-1]
-		if typeName[0] == '*' {
-			var obj interface{} = reflect.TypeOf(0)
+		tname := bss[len(bss)-i-1]
+		if tname[0] == '*' {
+			obj := reflect.TypeOf(0)
 			(*interfaceHeader)(unsafe.Pointer(&obj)).word = ptr
-			typ := obj.(reflect.Type).Elem()
-			obj = typ
-			typePtr := uintptr((*interfaceHeader)(unsafe.Pointer(&obj)).word)
-			symPtr["type."+typeName[1:]] = typePtr
+			obj = obj.(reflect.Type).Elem()
+			symPtr[TYPE_PREFIX+tname[1:]] = uintptr((*interfaceHeader)(unsafe.Pointer(&obj)).word)
 		}
-		symPtr["type."+typeName] = uintptr(ptr)
+		symPtr[TYPE_PREFIX+tname] = uintptr(ptr)
 	}
 }
 
 func RegTLS(symPtr map[string]uintptr, offset int) {
 	var ptr interface{} = RegSymbol
-	var slice = sliceHeader{*(*uintptr)((*interfaceHeader)(unsafe.Pointer(&ptr)).word), offset + 4, offset + 4}
-	var bytes = *(*[]byte)(unsafe.Pointer(&slice))
-	var tlsValue = uintptr(binary.LittleEndian.Uint32(bytes[offset:]))
-	symPtr[TLSNAME] = tlsValue
+	slice := sliceHeader{*(*uintptr)((*interfaceHeader)(unsafe.Pointer(&ptr)).word), offset + 4, offset + 4}
+	bytes := *(*[]byte)(unsafe.Pointer(&slice))
+	symPtr[TLSNAME] = uintptr(binary.LittleEndian.Uint32(bytes[offset:]))
 }
 
 func RegType(symPtr map[string]uintptr, name string, typ interface{}) {
-	aHeader := (*interfaceHeader)(unsafe.Pointer(&typ))
-	symPtr[name] = uintptr(aHeader.typ)
+	symPtr[name] = uintptr((*interfaceHeader)(unsafe.Pointer(&typ)).typ)
 }
 
 func RegFunc(symPtr map[string]uintptr, name string, f interface{}) {
-	var ptr = getFuncPtr(f)
-	symPtr[name] = ptr
+	symPtr[name] = getFuncPtr(f)
 }
 
 func getFuncPtr(f interface{}) uintptr {

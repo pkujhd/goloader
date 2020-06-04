@@ -86,10 +86,6 @@ type _func struct {
 }
 
 func init_func(curSym *goobj.Sym, curSymOffset, nameOff, spOff, pcfileOff, pclnOff int) _func {
-	var file string
-	if curSym.Func != nil && len(curSym.Func.File) > 0 {
-		file = strings.TrimLeft(curSym.Func.File[0], "gofile..")
-	}
 	fdata := _func{
 		entry:     uintptr(curSymOffset),
 		nameoff:   int32(nameOff),
@@ -98,7 +94,7 @@ func init_func(curSym *goobj.Sym, curSymOffset, nameOff, spOff, pcfileOff, pclnO
 		pcfile:    int32(pcfileOff),
 		pcln:      int32(pclnOff),
 		npcdata:   int32(len(curSym.Func.PCData)),
-		funcID:    funcID(objabi.GetFuncID(curSym.Name, file)),
+		funcID:    funcID(objabi.GetFuncID(curSym.Name, strings.TrimLeft(curSym.Func.File[0], FILE_SYM_PREFIX))),
 		nfuncdata: uint8(len(curSym.Func.FuncData)),
 	}
 	return fdata

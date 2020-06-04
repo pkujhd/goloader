@@ -15,6 +15,20 @@ func putUint24(b []byte, v uint32) {
 	b[2] = byte(v >> 16)
 }
 
+func alignof(i int, align int) int {
+	if i%align != 0 {
+		i = i + (align - i%align)
+	}
+	return i
+}
+
+func bytearrayAlign(b *[]byte, align int) {
+	length := len(*b)
+	if length%align != 0 {
+		*b = append(*b, make([]byte, align-length%align)...)
+	}
+}
+
 func putAddress(b []byte, addr uint64) {
 	if PtrSize == Uint32Size {
 		binary.LittleEndian.PutUint32(b, uint32(addr))

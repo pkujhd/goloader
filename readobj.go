@@ -7,8 +7,8 @@ import (
 )
 
 func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath *string) error {
-	if pkgpath == nil || *pkgpath == "" {
-		var defaultPkgPath = "main"
+	if pkgpath == nil || *pkgpath == EMPTY_STRING {
+		defaultPkgPath := DEFAULT_PKGPATH
 		pkgpath = &defaultPkgPath
 	}
 	obj, err := goobj.Parse(f, *pkgpath)
@@ -44,7 +44,7 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 	if err != nil {
 		return nil, err
 	}
-	if reloc.Arch == "arm" || reloc.Arch == "arm64" {
+	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
 		copy(reloc.Mod.pclntable, armmoduleHead)
 	}
 	return &reloc, err
@@ -65,7 +65,7 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 			return nil, err
 		}
 	}
-	if reloc.Arch == "arm" || reloc.Arch == "arm64" {
+	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
 		copy(reloc.Mod.pclntable, armmoduleHead)
 	}
 	return &reloc, nil

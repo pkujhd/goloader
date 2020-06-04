@@ -67,8 +67,8 @@ const (
 	SDWARFINFO
 )
 
-func addStackObject(code *CodeReloc, fi *funcInfoData, seg *segment, symPtr map[string]uintptr) {
+func addStackObject(code *CodeReloc, fi *funcData, seg *segment, symPtr map[string]uintptr) {
 }
 
-func addDeferReturn(code *CodeReloc, fi *funcInfoData, seg *segment) {
+func addDeferReturn(code *CodeReloc, fi *funcData, seg *segment) {
 }

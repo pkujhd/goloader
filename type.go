@@ -53,7 +53,7 @@ func (t *uncommonType) methods() []method
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
 	if ut == nil {
-		return ""
+		return EMPTY_STRING
 	}
 	return t.nameOff(ut.pkgPath).name()
 }
@@ -75,7 +75,7 @@ func registerTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
 	if v.Kind() == reflect.Func && uintptr(header.word) != 0 {
 		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = *(*uintptr)(header.word)
 	} else {
-		name := "type."
+		name := TYPE_PREFIX
 		symname := v.Type().String()
 		if v.Type().Kind() == reflect.Ptr {
 			name += symname[:1]
