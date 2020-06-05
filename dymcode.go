@@ -208,7 +208,7 @@ func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 				seg.errors += fmt.Sprintf("unresolve external:%s\n", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
-			RegTLS(symPtr, sym.Offset)
+			regTLS(symPtr, sym.Offset)
 		} else if sym.Kind == STEXT {
 			seg.symAddrs[i] = uintptr(code.Syms[i].Offset + seg.codeBase)
 			codeModule.Syms[sym.Name] = uintptr(seg.symAddrs[i])
@@ -257,7 +257,7 @@ func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
 							seg.offset += ItabSize
 						} else if seg.codeByte[iter.Offset-2] == x86amd64LEAcode {
 							seg.codeByte[iter.Offset-2:][0] = x86amd64MOVcode
-							*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = address
+							putAddress(seg.codeByte[seg.offset:], uint64(address))
 							seg.offset += PtrSize
 						} else {
 							seg.errors += fmt.Sprintf("relocateItab: not support code:%v!\n", seg.codeByte[iter.Offset-2:iter.Offset])
@@ -268,7 +268,7 @@ func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
 				case R_ADDRARM64:
 					relocateADRP(seg.codeByte[iter.Offset:], iter.Reloc, seg, address, itabName)
 				case R_ADDR:
-					*(*uintptr)(unsafe.Pointer(&(seg.codeByte[iter.Offset:][0]))) = uintptr(int(address) + iter.Add)
+					putAddress(seg.codeByte[iter.Offset:], uint64(int(address)+iter.Add))
 				default:
 					seg.errors += fmt.Sprintf("unknown relocateItab type:%d Name:%s\n", iter.Type, itabName)
 				}
@@ -384,7 +384,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 								copy(seg.codeByte[seg.offset:], armcode)
 								seg.offset += len(armcode)
 							}
-							*(*uintptr)(unsafe.Pointer(&(seg.codeByte[seg.offset:][0]))) = uintptr(int(addr) + add)
+							putAddress(seg.codeByte[seg.offset:], uint64(int(addr)+add))
 							seg.offset += PtrSize
 						}
 					} else {
@@ -407,7 +407,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 						relocByte = seg.codeByte
 					}
 					address := uintptr(int(addr) + loc.Add)
-					*(*uintptr)(unsafe.Pointer(&(relocByte[loc.Offset:][0]))) = uintptr(address)
+					putAddress(relocByte[loc.Offset:], uint64(address))
 				case R_CALLIND:
 
 				case R_ADDROFF, R_WEAKADDROFF, R_METHODOFF:

@@ -2,7 +2,6 @@ package goloader
 
 import (
 	"cmd/objfile/objfile"
-	"encoding/binary"
 	"os"
 	"reflect"
 	"strings"
@@ -10,7 +9,7 @@ import (
 )
 
 // See reflect/value.go emptyInterface
-type interfaceHeader struct {
+type emptyInterface struct {
 	typ  unsafe.Pointer
 	word unsafe.Pointer
 }
@@ -89,13 +88,13 @@ func RegSymbol(symPtr map[string]uintptr) error {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 		if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
-			RegItab(symPtr, sym.Name, uintptr(sym.Addr))
+			regItab(symPtr, sym.Name, uintptr(sym.Addr))
 		}
 	}
 	return nil
 }
 
-func RegItab(symPtr map[string]uintptr, name string, addr uintptr) {
+func regItab(symPtr map[string]uintptr, name string, addr uintptr) {
 	symPtr[name] = uintptr(addr)
 	bss := strings.Split(strings.TrimLeft(name, ITAB_PREFIX), ",")
 	slice := sliceHeader{addr, len(bss), len(bss)}
@@ -104,29 +103,27 @@ func RegItab(symPtr map[string]uintptr, name string, addr uintptr) {
 		tname := bss[len(bss)-i-1]
 		if tname[0] == '*' {
 			obj := reflect.TypeOf(0)
-			(*interfaceHeader)(unsafe.Pointer(&obj)).word = ptr
+			(*emptyInterface)(unsafe.Pointer(&obj)).word = ptr
 			obj = obj.(reflect.Type).Elem()
-			symPtr[TYPE_PREFIX+tname[1:]] = uintptr((*interfaceHeader)(unsafe.Pointer(&obj)).word)
+			symPtr[TYPE_PREFIX+tname[1:]] = uintptr((*emptyInterface)(unsafe.Pointer(&obj)).word)
 		}
 		symPtr[TYPE_PREFIX+tname] = uintptr(ptr)
 	}
 }
 
-func RegTLS(symPtr map[string]uintptr, offset int) {
-	var ptr interface{} = RegSymbol
-	slice := sliceHeader{*(*uintptr)((*interfaceHeader)(unsafe.Pointer(&ptr)).word), offset + 4, offset + 4}
-	bytes := *(*[]byte)(unsafe.Pointer(&slice))
-	symPtr[TLSNAME] = uintptr(binary.LittleEndian.Uint32(bytes[offset:]))
+func regTLS(symPtr map[string]uintptr, offset int) {
+	//FUNCTION HEADER
+	//asm:		MOVQ (TLS), CX
+	//bytes:	0x488b0c2500000000
+	funcptr := getFunctionPtr(regTLS)
+	tlsptr := *(*uint32)(adduintptr(funcptr, offset))
+	symPtr[TLSNAME] = uintptr(tlsptr)
 }
 
-func RegType(symPtr map[string]uintptr, name string, typ interface{}) {
-	symPtr[name] = uintptr((*interfaceHeader)(unsafe.Pointer(&typ)).typ)
+func regFunc(symPtr map[string]uintptr, name string, function interface{}) {
+	symPtr[name] = getFunctionPtr(function)
 }
 
-func RegFunc(symPtr map[string]uintptr, name string, f interface{}) {
-	symPtr[name] = getFuncPtr(f)
-}
-
-func getFuncPtr(f interface{}) uintptr {
-	return *(*uintptr)((*interfaceHeader)(unsafe.Pointer(&f)).word)
+func getFunctionPtr(function interface{}) uintptr {
+	return *(*uintptr)((*emptyInterface)(unsafe.Pointer(&function)).word)
 }

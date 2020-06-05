@@ -39,7 +39,7 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 func ReadObj(f *os.File) (*CodeReloc, error) {
 	reloc := CodeReloc{SymMap: make(map[string]int), GCObjs: make(map[string]uintptr), FileMap: make(map[string]int)}
 	reloc.Mod.pclntable = append(reloc.Mod.pclntable, x86moduleHead...)
-	var objsymmap = make(map[string]objSym)
+	objsymmap := make(map[string]objSym)
 	err := readObj(f, &reloc, objsymmap, nil)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 	reloc := CodeReloc{SymMap: make(map[string]int), GCObjs: make(map[string]uintptr), FileMap: make(map[string]int)}
 	reloc.Mod.pclntable = append(reloc.Mod.pclntable, x86moduleHead...)
-	var objsymmap = make(map[string]objSym)
+	objsymmap := make(map[string]objSym)
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {

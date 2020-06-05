@@ -8,6 +8,9 @@ import (
 //go:linkname add runtime.add
 func add(p unsafe.Pointer, x uintptr) unsafe.Pointer
 
+//go:linkname adduintptr runtime.add
+func adduintptr(p uintptr, x int) unsafe.Pointer
+
 func putUint24(b []byte, v uint32) {
 	_ = b[2] // early bounds check to guarantee safety of writes below
 	b[0] = byte(v)
@@ -53,6 +56,7 @@ func copy2Slice(dst []byte, src uintptr, size int) {
 
 //go:nosplit
 //go:noinline
-func Loadp(ptr unsafe.Pointer) unsafe.Pointer {
+//see runtime.internal.atomic.Loadp
+func loadp(ptr unsafe.Pointer) unsafe.Pointer {
 	return *(*unsafe.Pointer)(ptr)
 }

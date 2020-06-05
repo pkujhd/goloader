@@ -47,7 +47,7 @@ func eraseiface(inter *interfacetype, typ *_type) bool {
 		// Use atomic read here so if we see m != nil, we also see
 		// the initializations of the fields of m.
 		// m := *p
-		m := (*itab)(Loadp(unsafe.Pointer(p)))
+		m := (*itab)(loadp(unsafe.Pointer(p)))
 		if m == nil {
 			return false
 		}

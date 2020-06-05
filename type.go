@@ -61,19 +61,17 @@ func (t *_type) PkgPath() string {
 func RegTypes(symPtr map[string]uintptr, interfaces ...interface{}) {
 	for _, inter := range interfaces {
 		v := reflect.ValueOf(inter)
-		registerTypeInfo(symPtr, v)
+		regType(symPtr, v)
 		if v.Kind() == reflect.Ptr {
-			registerTypeInfo(symPtr, v.Elem())
+			regType(symPtr, v.Elem())
 		}
 	}
 }
 
-func registerTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
+func regType(symPtr map[string]uintptr, v reflect.Value) {
 	inter := v.Interface()
-	header := (*interfaceHeader)(unsafe.Pointer(&inter))
-
-	if v.Kind() == reflect.Func && uintptr(header.word) != 0 {
-		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = *(*uintptr)(header.word)
+	if v.Kind() == reflect.Func && getFunctionPtr(inter) != 0 {
+		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = getFunctionPtr(inter)
 	} else {
 		name := TYPE_PREFIX
 		symname := v.Type().String()
@@ -81,6 +79,7 @@ func registerTypeInfo(symPtr map[string]uintptr, v reflect.Value) {
 			name += symname[:1]
 			symname = symname[1:]
 		}
+		header := (*emptyInterface)(unsafe.Pointer(&inter))
 		pkgPath := (*_type)(header.typ).PkgPath()
 		lastSlash := strings.LastIndexByte(pkgPath, '/')
 		if lastSlash > -1 {

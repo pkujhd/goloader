@@ -37,7 +37,7 @@ func eraseiface(inter *interfacetype, typ *_type) bool {
 	defer unlock(&ifaceLock)
 	h := itabhash(inter, typ)
 	var m, last *itab = nil, nil
-	for m = (*itab)(Loadp(unsafe.Pointer(&hash[h]))); m != nil; m = m.link {
+	for m = (*itab)(loadp(unsafe.Pointer(&hash[h]))); m != nil; m = m.link {
 		if m.inter == inter && m._type == typ {
 			if last == nil {
 				atomicstorep(unsafe.Pointer(&hash[h]), unsafe.Pointer(nil))
