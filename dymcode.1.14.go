@@ -56,23 +56,24 @@ const (
 
 )
 
-func addStackObject(code *CodeReloc, fi *funcData, seg *segment, symPtr map[string]uintptr) {
-	_addStackObject(code, fi, seg, symPtr)
+func addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment, symPtr map[string]uintptr) {
+	_addStackObject(codereloc, funcdata, seg, symPtr)
 }
 
-func addDeferReturn(code *CodeReloc, fi *funcData, seg *segment) {
-	if len(fi.funcdata) > _FUNCDATA_OpenCodedDeferInfo && fi.funcdata[_FUNCDATA_OpenCodedDeferInfo] != 0xFFFFFFFF {
-		sym := code.SymMap[fi.name]
+func addDeferReturn(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
+	if len(funcdata.Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo &&
+		codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_OpenCodedDeferInfo].Sym.Name] != nil {
+		sym := codereloc.SymMap[funcdata.Name]
 		for _, r := range sym.Reloc {
-			if r.Sym == code.SymMap[RUNTIME_DEFERRETURN] {
+			if r.Sym == codereloc.SymMap[RUNTIME_DEFERRETURN] {
 				//../cmd/link/internal/ld/pcln.go:pclntab
-				switch code.Arch {
+				switch codereloc.Arch {
 				case ARCH_386, ARCH_AMD64:
-					fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
+					funcdata.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
 				case ARCH_ARM32, ARCH_ARM64:
-					fi.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
+					funcdata.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					seg.errors += fmt.Sprintf("not support arch:%s\n", code.Arch)
+					seg.errors += fmt.Sprintf("not support arch:%s\n", codereloc.Arch)
 				}
 				break
 			}

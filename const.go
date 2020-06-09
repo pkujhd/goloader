@@ -9,6 +9,7 @@ const (
 	IntSize              = int(unsafe.Sizeof(int(0)))
 	_FuncSize            = int(unsafe.Sizeof(_func{}))
 	ItabSize             = int(unsafe.Sizeof(itab{}))
+	FindFuncBucketSize   = int(unsafe.Sizeof(findfuncbucket{}))
 	INVALID_HANDLE_VALUE = ^uintptr(0)
 	INVALID_OFFSET       = int(-1)
 )

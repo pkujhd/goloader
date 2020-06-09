@@ -86,17 +86,17 @@ type _func struct {
 	nfuncdata uint8
 }
 
-func init_func(curSym *goobj.Sym, curSymOffset, nameOff, spOff, pcfileOff, pclnOff int) _func {
+func init_func(symbol *goobj.Sym, symOff, nameOff, spOff, pcfileOff, pclnOff int) _func {
 	fdata := _func{
-		entry:     uintptr(curSymOffset),
+		entry:     uintptr(symOff),
 		nameoff:   int32(nameOff),
-		args:      int32(curSym.Func.Args),
+		args:      int32(symbol.Func.Args),
 		pcsp:      int32(spOff),
 		pcfile:    int32(pcfileOff),
 		pcln:      int32(pclnOff),
-		npcdata:   int32(len(curSym.Func.PCData)),
-		funcID:    funcID(objabi.GetFuncID(curSym.Name, strings.TrimLeft(curSym.Func.File[0], FILE_SYM_PREFIX))),
-		nfuncdata: uint8(len(curSym.Func.FuncData)),
+		npcdata:   int32(len(symbol.Func.PCData)),
+		funcID:    funcID(objabi.GetFuncID(symbol.Name, strings.TrimLeft(symbol.Func.File[0], FILE_SYM_PREFIX))),
+		nfuncdata: uint8(len(symbol.Func.FuncData)),
 	}
 	return fdata
 }

@@ -59,28 +59,15 @@ type bitvector struct {
 	bytedata *uint8
 }
 
-type funcData struct {
-	_func
-	pcdata      []uint32
-	funcdata    []uintptr
-	stkobjReloc []goobj.Reloc
-	Var         []goobj.Var
-	name        string
-}
-
 type stackmap struct {
 	n        int32   // number of bitmaps
 	nbit     int32   // number of bits in each bitmap
 	bytedata [1]byte // bitmaps, each starting on a byte boundary
 }
 
-type Module struct {
-	pclntable []byte
-	pcfunc    []findfuncbucket
-	funcinfo  []funcData
-	ftab      []functab // entry need reloc
-	filetab   []uint32
-	stkmaps   [][]byte
+type funcInfo struct {
+	*_func
+	datap *moduledata
 }
 
 const minfunc = 16                 // minimum function size
@@ -102,15 +89,25 @@ func funcname(f funcInfo) string
 //go:linkname moduledataverify1 runtime.moduledataverify1
 func moduledataverify1(datap *moduledata)
 
-type funcInfo struct {
-	*_func
-	datap *moduledata
+//ourself defined struct
+type funcData struct {
+	_func
+	Func        *goobj.Func
+	stkobjReloc []goobj.Reloc
+	Name        string
+}
+
+type Module struct {
+	pclntable []byte
+	pcfunc    []findfuncbucket
+	funcdata  []funcData
+	filetab   []uint32
 }
 
 func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym, curCodeLen int) (err error) {
 	module := &reloc.Mod
 	fs := readAtSeeker{ReadSeeker: objsymmap[symName].file}
-	curSym := objsymmap[symName].sym
+	symbol := objsymmap[symName].sym
 
 	x := curCodeLen
 	b := x / pcbucketsize
@@ -120,73 +117,64 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 			idx: uint32(256 * len(module.pcfunc))})
 	}
 	bucket := &module.pcfunc[b]
-	bucket.subbuckets[i] = byte(len(module.ftab) - int(bucket.idx))
+	bucket.subbuckets[i] = byte(len(module.funcdata) - int(bucket.idx))
 
 	pcFileHead := make([]byte, 32)
 	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(module.filetab))<<1)
-	for _, fileName := range curSym.Func.File {
+	for _, fileName := range symbol.Func.File {
 		fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
-		if off, ok := reloc.FileMap[fileName]; !ok {
+		if offset, ok := reloc.FileMap[fileName]; !ok {
 			module.filetab = append(module.filetab, (uint32)(len(module.pclntable)))
 			reloc.FileMap[fileName] = len(module.pclntable)
 			module.pclntable = append(module.pclntable, []byte(fileName)...)
 			module.pclntable = append(module.pclntable, ZERO_BYTE)
 		} else {
-			module.filetab = append(module.filetab, uint32(off))
+			module.filetab = append(module.filetab, uint32(offset))
 		}
 	}
 
 	nameOff := len(module.pclntable)
-	module.pclntable = append(module.pclntable, []byte(curSym.Name)...)
-	module.pclntable = append(module.pclntable, byte(0x00))
+	module.pclntable = append(module.pclntable, []byte(symbol.Name)...)
+	module.pclntable = append(module.pclntable, ZERO_BYTE)
 
 	pcspOff := len(module.pclntable)
-	fs.ReadAtWithSize(&(module.pclntable), curSym.Func.PCSP.Size, curSym.Func.PCSP.Offset)
+	fs.ReadAtWithSize(&(module.pclntable), symbol.Func.PCSP.Size, symbol.Func.PCSP.Offset)
 
 	pcfileOff := len(module.pclntable)
 	module.pclntable = append(module.pclntable, pcFileHead[:pcFileHeadSize-1]...)
-	fs.ReadAtWithSize(&(module.pclntable), curSym.Func.PCFile.Size, curSym.Func.PCFile.Offset)
+	fs.ReadAtWithSize(&(module.pclntable), symbol.Func.PCFile.Size, symbol.Func.PCFile.Offset)
 
 	pclnOff := len(module.pclntable)
-	fs.ReadAtWithSize(&(module.pclntable), curSym.Func.PCLine.Size, curSym.Func.PCLine.Offset)
+	fs.ReadAtWithSize(&(module.pclntable), symbol.Func.PCLine.Size, symbol.Func.PCLine.Offset)
 
-	fInfo := funcData{}
-	fInfo._func = init_func(curSym, reloc.SymMap[symName].Offset, nameOff, pcspOff, pcfileOff, pclnOff)
-	for _, data := range curSym.Func.PCData {
-		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
+	funcdata := funcData{}
+	funcdata._func = init_func(symbol, reloc.SymMap[symName].Offset, nameOff, pcspOff, pcfileOff, pclnOff)
+	for _, data := range symbol.Func.PCData {
 		fs.ReadAtWithSize(&(module.pclntable), data.Size, data.Offset)
 	}
 
-	for _, data := range curSym.Func.FuncData {
-		offset := INVALID_HANDLE_VALUE
-		if off, ok := reloc.GCObjs[data.Sym.Name]; !ok {
-			offset = uintptr(len(module.stkmaps))
+	for _, data := range symbol.Func.FuncData {
+		if _, ok := reloc.stkmaps[data.Sym.Name]; !ok {
 			if gcobj, ok := objsymmap[data.Sym.Name]; ok {
-				module.stkmaps = append(module.stkmaps, make([]byte, gcobj.sym.Data.Size))
+				reloc.stkmaps[data.Sym.Name] = make([]byte, gcobj.sym.Data.Size)
 				fd := readAtSeeker{ReadSeeker: gcobj.file}
-				fd.ReadAt(module.stkmaps[offset], gcobj.sym.Data.Offset)
-				reloc.GCObjs[data.Sym.Name] = offset
+				fd.ReadAt(reloc.stkmaps[data.Sym.Name], gcobj.sym.Data.Offset)
 			} else if len(data.Sym.Name) == 0 {
-				module.stkmaps = append(module.stkmaps, nil)
+				reloc.stkmaps[data.Sym.Name] = nil
 			} else {
 				err = errors.New("unknown gcobj:" + data.Sym.Name)
 			}
-		} else {
-			offset = off
 		}
 		if strings.Contains(data.Sym.Name, STKOBJ_SUFFIX) {
-			fInfo.stkobjReloc = objsymmap[data.Sym.Name].sym.Reloc
+			funcdata.stkobjReloc = objsymmap[data.Sym.Name].sym.Reloc
 		}
-		fInfo.funcdata = append(fInfo.funcdata, offset)
 	}
-	fInfo.Var = curSym.Func.Var
-	fInfo.name = curSym.Name
+	funcdata.Func = symbol.Func
+	funcdata.Name = symbol.Name
 
-	module.ftab = append(module.ftab, functab{})
+	module.funcdata = append(module.funcdata, funcdata)
 
-	module.funcinfo = append(module.funcinfo, fInfo)
-
-	for _, data := range curSym.Func.FuncData {
+	for _, data := range symbol.Func.FuncData {
 		if _, ok := objsymmap[data.Sym.Name]; ok {
 			relocSym(reloc, data.Sym.Name, objsymmap)
 		}

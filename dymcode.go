@@ -54,18 +54,17 @@ type CodeReloc struct {
 	Data    []byte
 	Mod     Module
 	SymMap  map[string]*SymData
-	GCObjs  map[string]uintptr
+	stkmaps map[string][]byte
 	FileMap map[string]int
 	Arch    string
 }
 
 type CodeModule struct {
-	Syms       map[string]uintptr
-	CodeByte   []byte
-	Module     *moduledata
-	pcfuncdata []findfuncbucket
-	stkmaps    [][]byte
-	itabs      map[string]*itabSym
+	Syms     map[string]uintptr
+	CodeByte []byte
+	Module   *moduledata
+	stkmaps  map[string][]byte
+	itabs    map[string]*itabSym
 }
 
 type itabSym struct {
@@ -409,66 +408,66 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 	}
 }
 
-func addFuncTab(module *moduledata, i, offset int, code *CodeReloc, seg *segment, symPtr map[string]uintptr) int {
-	module.ftab[i].entry = uintptr(seg.symAddrs[code.Mod.funcinfo[i].name])
+func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, seg *segment, symPtr map[string]uintptr) {
+	module.ftab[i].entry = uintptr(seg.symAddrs[codereloc.Mod.funcdata[i].Name])
 
-	offset = alignof(offset, PtrSize)
+	offset := alignof(*pclnOff, PtrSize)
 	module.ftab[i].funcoff = uintptr(offset)
-	fi := code.Mod.funcinfo[i]
-	fi.entry = module.ftab[i].entry
+	funcdata := codereloc.Mod.funcdata[i]
+	funcdata.entry = module.ftab[i].entry
 
-	funcdata := make([]uintptr, len(fi.funcdata))
-	copy(funcdata, fi.funcdata)
-	for i, v := range fi.funcdata {
-		if code.Mod.stkmaps[v] != nil {
-			funcdata[i] = (uintptr)(unsafe.Pointer(&(code.Mod.stkmaps[v][0])))
+	data := make([]uintptr, len(funcdata.Func.FuncData))
+	for k, symbol := range funcdata.Func.FuncData {
+		if codereloc.stkmaps[symbol.Sym.Name] != nil {
+			data[k] = (uintptr)(unsafe.Pointer(&(codereloc.stkmaps[symbol.Sym.Name][0])))
 		} else {
-			funcdata[i] = (uintptr)(0)
+			data[k] = (uintptr)(0)
 		}
 	}
 
-	addStackObject(code, &fi, seg, symPtr)
-	addDeferReturn(code, &fi, seg)
+	addStackObject(codereloc, &funcdata, seg, symPtr)
+	addDeferReturn(codereloc, &funcdata, seg)
 
-	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&fi._func)), _FuncSize)
+	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata._func)), _FuncSize)
 	offset += _FuncSize
 
-	if len(fi.pcdata) > 0 {
-		size := int(int32(unsafe.Sizeof(fi.pcdata[0])) * fi.npcdata)
-		copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&fi.pcdata[0])), size)
-		offset += size
+	pcln := uint32(funcdata.pcln) + uint32(funcdata.Func.PCLine.Size)
+	for k := 0; k < len(funcdata.Func.PCData); k++ {
+		binary.LittleEndian.PutUint32(module.pclntable[offset:], pcln)
+		pcln += uint32(funcdata.Func.PCData[k].Size)
+		offset += Uint32Size
 	}
 
 	offset = alignof(offset, PtrSize)
-	funcDataSize := int(PtrSize * fi.nfuncdata)
-	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata[0])), funcDataSize)
+	funcDataSize := int(PtrSize * funcdata.nfuncdata)
+	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&data[0])), funcDataSize)
 	offset += funcDataSize
 
-	return offset
+	*pclnOff = offset
 }
 
-func buildModule(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
+func buildModule(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
 	var module moduledata
-	module.ftab = make([]functab, len(code.Mod.ftab))
-	copy(module.ftab, code.Mod.ftab)
-	pclnOff := len(code.Mod.pclntable)
-	module.pclntable = make([]byte, len(code.Mod.pclntable)+
-		(_FuncSize+128)*len(code.Mod.ftab))
-	copy(module.pclntable, code.Mod.pclntable)
-	module.findfunctab = (uintptr)(unsafe.Pointer(&code.Mod.pcfunc[0]))
+	module.ftab = make([]functab, len(codereloc.Mod.funcdata))
+	pclnOff := len(codereloc.Mod.pclntable)
+	module.pclntable = make([]byte, 4*len(codereloc.Mod.pclntable))
+	copy(module.pclntable, codereloc.Mod.pclntable)
 	module.minpc = uintptr(seg.codeBase)
 	module.maxpc = uintptr(seg.dataBase)
-	module.filetab = code.Mod.filetab
+	module.filetab = codereloc.Mod.filetab
 	module.typemap = make(map[typeOff]uintptr)
 	module.types = uintptr(seg.codeBase)
 	module.etypes = uintptr(seg.codeBase + seg.maxLength)
 	module.text = uintptr(seg.codeBase)
-	module.etext = uintptr(seg.codeBase + len(code.Code))
-	codeModule.pcfuncdata = code.Mod.pcfunc // hold reference
-	codeModule.stkmaps = code.Mod.stkmaps
+	module.etext = uintptr(seg.codeBase + len(codereloc.Code))
+	codeModule.stkmaps = codereloc.stkmaps // hold reference
 	for i := range module.ftab {
-		pclnOff = addFuncTab(&module, i, pclnOff, code, seg, symPtr)
+		addFuncTab(&module, i, &pclnOff, codereloc, seg, symPtr)
 	}
+	pclnOff = alignof(pclnOff, PtrSize)
+	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[pclnOff]))
+	copy2Slice(module.pclntable[pclnOff:], module.findfunctab, len(codereloc.Mod.pcfunc)*FindFuncBucketSize)
+	pclnOff += len(codereloc.Mod.pcfunc) * FindFuncBucketSize
 	module.pclntable = module.pclntable[:pclnOff]
 	module.ftab = append(module.ftab, functab{})
 	for i := len(module.ftab) - 1; i > 0; i-- {

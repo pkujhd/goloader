@@ -51,9 +51,9 @@ const (
 	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
 )
 
-func addStackObject(code *CodeReloc, fi *funcData, seg *segment, symPtr map[string]uintptr) {
-	_addStackObject(code, fi, seg, symPtr)
+func addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment, symPtr map[string]uintptr) {
+	_addStackObject(codereloc, funcdata, seg, symPtr)
 }
 
-func addDeferReturn(code *CodeReloc, fi *funcData, seg *segment) {
+func addDeferReturn(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 }

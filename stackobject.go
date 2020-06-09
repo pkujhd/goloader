@@ -21,22 +21,23 @@ type stackObjectRecord struct {
 	typ *_type
 }
 
-func _addStackObject(code *CodeReloc, fi *funcData, seg *segment, symPtr map[string]uintptr) {
-	if len(fi.funcdata) > _FUNCDATA_StackObjects && code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]] != nil {
-		b := code.Mod.stkmaps[fi.funcdata[_FUNCDATA_StackObjects]]
+func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment, symPtr map[string]uintptr) {
+	if len(funcdata.Func.FuncData) > _FUNCDATA_StackObjects &&
+		codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name] != nil {
+		b := codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name]
 		n := *(*int)(unsafe.Pointer(&b[0]))
 		p := unsafe.Pointer(&b[PtrSize])
 		for i := 0; i < n; i++ {
 			obj := *(*stackObjectRecord)(p)
-			var name string
-			for _, v := range fi.Var {
+			name := EMPTY_STRING
+			for _, v := range funcdata.Func.Var {
 				if v.Offset == (int64)(obj.off) {
 					name = v.Type.Name
 					break
 				}
 			}
 			if len(name) == 0 {
-				name = fi.stkobjReloc[i].Sym.Name
+				name = funcdata.stkobjReloc[i].Sym.Name
 			}
 			ptr, ok := symPtr[name]
 			if !ok {
@@ -45,7 +46,7 @@ func _addStackObject(code *CodeReloc, fi *funcData, seg *segment, symPtr map[str
 				}
 			}
 			if !ok {
-				seg.errors += fmt.Sprintf("unresolve external Var! name:%s index:%d\n", fi.name, i)
+				seg.errors += fmt.Sprintf("unresolve external Var! name:%s index:%d\n", funcdata.Name, i)
 			} else {
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
