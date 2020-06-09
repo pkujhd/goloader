@@ -271,11 +271,9 @@ func relocateCALL(addr uintptr, loc Reloc, seg *segment, sym *SymData, relocByte
 		offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
 		copy(seg.codeByte[seg.offset:], x86amd64JMPLcode)
 		seg.offset += len(x86amd64JMPLcode)
-		binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
-		putAddressAddOffset(seg.codeByte, &seg.offset, uint64(addr))
-	} else {
-		binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
+		putAddressAddOffset(seg.codeByte, &seg.offset, uint64(addr)+uint64(loc.Add))
 	}
+	binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 }
 
 func relocatePCREL(addr uintptr, loc Reloc, seg *segment, sym *SymData, relocByte []byte, addrBase int) {
@@ -289,13 +287,14 @@ func relocatePCREL(addr uintptr, loc Reloc, seg *segment, sym *SymData, relocByt
 			bytes[0] = x86amd64MOVcode
 		} else if opcode == x86amd64MOVcode && loc.Size >= Uint32Size {
 			regsiter = ((relocByte[loc.Offset-1] >> 3) & 0x7) | 0xb8
+			copy(bytes, x86amd64JMPLcode)
 		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
+			copy(bytes, x86amd64JMPLcode)
 		} else {
 			seg.errors += fmt.Sprintf("not support code:%v!\n", relocByte[loc.Offset-2:loc.Offset])
 		}
 		binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		if opcode == x86amd64CMPLcode || opcode == x86amd64MOVcode {
-			copy(bytes, x86amd64JMPLcode)
 			putAddressAddOffset(seg.codeByte, &seg.offset, uint64(seg.codeBase+seg.offset+PtrSize))
 			if opcode == x86amd64CMPLcode {
 				copy(seg.codeByte[seg.offset:], x86amd64replaceCMPLcode)
