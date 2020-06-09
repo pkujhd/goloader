@@ -32,6 +32,15 @@ func bytearrayAlign(b *[]byte, align int) {
 	}
 }
 
+func putAddressAddOffset(b []byte, offset *int, addr uint64) {
+	if PtrSize == Uint32Size {
+		binary.LittleEndian.PutUint32(b[*offset:], uint32(addr))
+	} else {
+		binary.LittleEndian.PutUint64(b[*offset:], uint64(addr))
+	}
+	*offset = *offset + PtrSize
+}
+
 func putAddress(b []byte, addr uint64) {
 	if PtrSize == Uint32Size {
 		binary.LittleEndian.PutUint32(b, uint32(addr))

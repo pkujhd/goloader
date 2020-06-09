@@ -95,7 +95,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 }
 
 func regItab(symPtr map[string]uintptr, name string, addr uintptr) {
-	symPtr[name] = uintptr(addr)
+	symPtr[name] = addr
 	bss := strings.Split(strings.TrimLeft(name, ITAB_PREFIX), ",")
 	slice := sliceHeader{addr, len(bss), len(bss)}
 	ptrs := *(*[]unsafe.Pointer)(unsafe.Pointer(&slice))
@@ -113,6 +113,7 @@ func regItab(symPtr map[string]uintptr, name string, addr uintptr) {
 
 func regTLS(symPtr map[string]uintptr, offset int) {
 	//FUNCTION HEADER
+	//x86/amd64
 	//asm:		MOVQ (TLS), CX
 	//bytes:	0x488b0c2500000000
 	funcptr := getFunctionPtr(regTLS)
