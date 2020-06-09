@@ -40,8 +40,8 @@ func _addStackObject(code *CodeReloc, fi *funcData, seg *segment, symPtr map[str
 			}
 			ptr, ok := symPtr[name]
 			if !ok {
-				if _, ok = code.SymMap[name]; ok {
-					ptr = uintptr(seg.symAddrs[code.SymMap[name]])
+				if _, ok = seg.symAddrs[name]; ok {
+					ptr = uintptr(seg.symAddrs[name])
 				}
 			}
 			if !ok {

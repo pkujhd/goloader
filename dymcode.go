@@ -41,7 +41,7 @@ type SymData struct {
 
 type Reloc struct {
 	Offset   int
-	SymOff   int
+	Sym      *SymData
 	Size     int
 	Type     int
 	Add      int
@@ -53,8 +53,7 @@ type CodeReloc struct {
 	Code    []byte
 	Data    []byte
 	Mod     Module
-	Syms    []*SymData
-	SymMap  map[string]int
+	SymMap  map[string]*SymData
 	GCObjs  map[string]uintptr
 	FileMap map[string]int
 	Arch    string
@@ -89,7 +88,7 @@ type segment struct {
 	codeLen   int
 	maxLength int
 	offset    int
-	symAddrs  []uintptr
+	symAddrs  map[string]uintptr
 	errors    string
 }
 
@@ -100,37 +99,27 @@ var (
 	armmoduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
 )
 
-func addSymMap(symMap map[string]int, symArray *[]*SymData, rsym *SymData) int {
-	if offset, ok := symMap[rsym.Name]; !ok {
-		symMap[rsym.Name] = len(*symArray)
-		*symArray = append(*symArray, rsym)
-	} else {
-		(*symArray)[offset] = rsym
+func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*SymData, error) {
+	if symbol, ok := codereloc.SymMap[name]; ok {
+		return symbol, nil
 	}
-	return symMap[rsym.Name]
-}
-
-func relocSym(codereloc *CodeReloc, symName string, objsymmap map[string]objSym) (int, error) {
-	if offset, ok := codereloc.SymMap[symName]; ok {
-		return offset, nil
-	}
-	objsym := objsymmap[symName]
+	objsym := objsymmap[name]
 	rsym := SymData{Name: objsym.sym.Name, Kind: int(objsym.sym.Kind)}
-	addSymMap(codereloc.SymMap, &codereloc.Syms, &rsym)
+	codereloc.SymMap[rsym.Name] = &rsym
 
 	code := make([]byte, objsym.sym.Data.Size)
 	_, err := objsym.file.ReadAt(code, objsym.sym.Data.Offset)
 	if err != nil {
-		return INVALID_OFFSET, err
+		return nil, err
 	}
 	switch rsym.Kind {
 	case STEXT:
 		rsym.Offset = len(codereloc.Code)
 		codereloc.Code = append(codereloc.Code, code...)
 		bytearrayAlign(&codereloc.Code, PtrSize)
-		err := readFuncData(codereloc, symName, objsymmap, rsym.Offset)
+		err := readFuncData(codereloc, name, objsymmap, rsym.Offset)
 		if err != nil {
-			return INVALID_OFFSET, err
+			return nil, err
 		}
 	default:
 		rsym.Offset = len(codereloc.Data)
@@ -139,11 +128,11 @@ func relocSym(codereloc *CodeReloc, symName string, objsymmap map[string]objSym)
 	}
 
 	for _, loc := range objsym.sym.Reloc {
-		symOff := INVALID_OFFSET
+		symbol := (*SymData)(nil)
 		if s, ok := objsymmap[loc.Sym.Name]; ok {
-			symOff, err = relocSym(codereloc, s.sym.Name, objsymmap)
+			symbol, err = relocSym(codereloc, s.sym.Name, objsymmap)
 			if err != nil {
-				return INVALID_OFFSET, err
+				return nil, err
 			}
 		} else {
 			sym := SymData{Name: loc.Sym.Name, Offset: INVALID_OFFSET}
@@ -161,18 +150,19 @@ func relocSym(codereloc *CodeReloc, symName string, objsymmap map[string]objSym)
 				codereloc.Data = append(codereloc.Data, path...)
 				codereloc.Data = append(codereloc.Data, ZERO_BYTE)
 			}
-			symOff = addSymMap(codereloc.SymMap, &codereloc.Syms, &sym)
+			codereloc.SymMap[sym.Name] = &sym
+			symbol = &sym
 		}
-		rsym.Reloc = append(rsym.Reloc, Reloc{Offset: int(loc.Offset) + rsym.Offset, SymOff: symOff, Type: int(loc.Type), Size: int(loc.Size), Add: int(loc.Add), DataSize: -1})
+		rsym.Reloc = append(rsym.Reloc, Reloc{Offset: int(loc.Offset) + rsym.Offset, Sym: symbol, Type: int(loc.Type), Size: int(loc.Size), Add: int(loc.Add), DataSize: -1})
 		if s, ok := objsymmap[loc.Sym.Name]; ok {
 			if s.sym.Data.Size == 0 && loc.Size > 0 {
 				rsym.Reloc[len(rsym.Reloc)-1].DataSize = s.sym.Data.Size
 			}
 		}
 	}
-	codereloc.Syms[codereloc.SymMap[symName]].Reloc = rsym.Reloc
+	codereloc.SymMap[name].Reloc = rsym.Reloc
 
-	return codereloc.SymMap[symName], nil
+	return codereloc.SymMap[name], nil
 }
 
 func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr, symName string) {
@@ -199,28 +189,28 @@ func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr, symNam
 }
 
 func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
-	for i, sym := range code.Syms {
+	for name, sym := range code.SymMap {
 		if sym.Offset == INVALID_OFFSET {
 			if ptr, ok := symPtr[sym.Name]; ok {
-				seg.symAddrs[i] = ptr
+				seg.symAddrs[name] = ptr
 			} else {
-				seg.symAddrs[i] = INVALID_HANDLE_VALUE
+				seg.symAddrs[name] = INVALID_HANDLE_VALUE
 				seg.errors += fmt.Sprintf("unresolve external:%s\n", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
 			regTLS(symPtr, sym.Offset)
 		} else if sym.Kind == STEXT {
-			seg.symAddrs[i] = uintptr(code.Syms[i].Offset + seg.codeBase)
-			codeModule.Syms[sym.Name] = uintptr(seg.symAddrs[i])
+			seg.symAddrs[name] = uintptr(code.SymMap[name].Offset + seg.codeBase)
+			codeModule.Syms[sym.Name] = uintptr(seg.symAddrs[name])
 		} else if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
 			if ptr, ok := symPtr[sym.Name]; ok {
-				seg.symAddrs[i] = ptr
+				seg.symAddrs[name] = ptr
 			}
 		} else {
-			seg.symAddrs[i] = uintptr(code.Syms[i].Offset + seg.dataBase)
+			seg.symAddrs[name] = uintptr(code.SymMap[name].Offset + seg.dataBase)
 			if strings.HasPrefix(sym.Name, TYPE_PREFIX) {
 				if ptr, ok := symPtr[sym.Name]; ok {
-					seg.symAddrs[i] = ptr
+					seg.symAddrs[name] = ptr
 				}
 			}
 		}
@@ -229,9 +219,9 @@ func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 
 func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
 	for itabName, iter := range module.itabs {
-		sym := code.Syms[code.SymMap[itabName]]
-		inter := seg.symAddrs[sym.Reloc[0].SymOff]
-		typ := seg.symAddrs[sym.Reloc[1].SymOff]
+		sym := code.SymMap[itabName]
+		inter := seg.symAddrs[sym.Reloc[0].Sym.Name]
+		typ := seg.symAddrs[sym.Reloc[1].Sym.Name]
 		if inter != INVALID_HANDLE_VALUE && typ != INVALID_HANDLE_VALUE {
 			*(*uintptr)(unsafe.Pointer(&(iter.inter))) = inter
 			*(*uintptr)(unsafe.Pointer(&(iter.typ))) = typ
@@ -362,10 +352,10 @@ func relocteCALLARM(addr uintptr, loc Reloc, seg *segment, sym *SymData) {
 }
 
 func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
-	for _, symbol := range code.Syms {
+	for _, symbol := range code.SymMap {
 		for _, loc := range symbol.Reloc {
-			addr := seg.symAddrs[loc.SymOff]
-			sym := code.Syms[loc.SymOff]
+			addr := seg.symAddrs[loc.Sym.Name]
+			sym := loc.Sym
 			relocByte := seg.codeByte[seg.codeLen:]
 			addrBase := seg.dataBase
 			if symbol.Kind == STEXT {
@@ -420,7 +410,7 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 }
 
 func addFuncTab(module *moduledata, i, offset int, code *CodeReloc, seg *segment, symPtr map[string]uintptr) int {
-	module.ftab[i].entry = uintptr(seg.symAddrs[int(code.Mod.ftab[i].entry)])
+	module.ftab[i].entry = uintptr(seg.symAddrs[code.Mod.funcinfo[i].name])
 
 	offset = alignof(offset, PtrSize)
 	module.ftab[i].funcoff = uintptr(offset)
@@ -514,7 +504,7 @@ func Load(code *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
 
 	seg.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
 	seg.dataBase = seg.codeBase + len(code.Code)
-	seg.symAddrs = make([]uintptr, len(code.Syms))
+	seg.symAddrs = make(map[string]uintptr)
 	seg.offset = seg.codeLen + seg.dataLen
 	//static_tmp is 0, golang compile not allocate memory.
 	seg.offset += IntSize

@@ -151,7 +151,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	fs.ReadAtWithSize(&(module.pclntable), curSym.Func.PCLine.Size, curSym.Func.PCLine.Offset)
 
 	fInfo := funcData{}
-	fInfo._func = init_func(curSym, reloc.SymMap[symName], nameOff, pcspOff, pcfileOff, pclnOff)
+	fInfo._func = init_func(curSym, reloc.SymMap[symName].Offset, nameOff, pcspOff, pcfileOff, pclnOff)
 	for _, data := range curSym.Func.PCData {
 		fInfo.pcdata = append(fInfo.pcdata, uint32(len(module.pclntable)))
 		fs.ReadAtWithSize(&(module.pclntable), data.Size, data.Offset)
@@ -182,9 +182,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	fInfo.Var = curSym.Func.Var
 	fInfo.name = curSym.Name
 
-	module.ftab = append(module.ftab, functab{
-		entry: uintptr(reloc.SymMap[symName]),
-	})
+	module.ftab = append(module.ftab, functab{})
 
 	module.funcinfo = append(module.funcinfo, fInfo)
 
