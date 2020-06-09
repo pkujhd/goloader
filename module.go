@@ -128,6 +128,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 		fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
 		if off, ok := reloc.FileMap[fileName]; !ok {
 			module.filetab = append(module.filetab, (uint32)(len(module.pclntable)))
+			reloc.FileMap[fileName] = len(module.pclntable)
 			module.pclntable = append(module.pclntable, []byte(fileName)...)
 			module.pclntable = append(module.pclntable, ZERO_BYTE)
 		} else {
