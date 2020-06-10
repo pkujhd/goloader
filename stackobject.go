@@ -39,10 +39,9 @@ func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 			if len(name) == 0 {
 				name = funcdata.stkobjReloc[i].Sym.Name
 			}
-			if _, ok := seg.symAddrs[name]; !ok {
+			if ptr, ok := seg.symbolMap[name]; !ok {
 				seg.errors += fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s\n", funcdata.Name, i, name)
 			} else {
-				ptr := uintptr(seg.symAddrs[name])
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
 					binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))

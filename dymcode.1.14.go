@@ -61,8 +61,7 @@ func addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 }
 
 func addDeferReturn(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
-	if len(funcdata.Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo &&
-		codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_OpenCodedDeferInfo].Sym.Name] != nil {
+	if len(funcdata.Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
 		sym := codereloc.symMap[funcdata.Name]
 		for _, r := range sym.Reloc {
 			if r.Sym == codereloc.symMap[RUNTIME_DEFERRETURN] {

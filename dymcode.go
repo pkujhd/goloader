@@ -87,7 +87,7 @@ type segment struct {
 	codeLen   int
 	maxLength int
 	offset    int
-	symAddrs  map[string]uintptr
+	symbolMap map[string]uintptr
 	errors    string
 }
 
@@ -187,29 +187,29 @@ func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr, symNam
 	}
 }
 
-func addSymAddrs(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
+func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
 	for name, sym := range codereloc.symMap {
 		if sym.Offset == INVALID_OFFSET {
 			if ptr, ok := symPtr[sym.Name]; ok {
-				seg.symAddrs[name] = ptr
+				seg.symbolMap[name] = ptr
 			} else {
-				seg.symAddrs[name] = INVALID_HANDLE_VALUE
+				seg.symbolMap[name] = INVALID_HANDLE_VALUE
 				seg.errors += fmt.Sprintf("unresolve external:%s\n", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
-			regTLS(symPtr, sym.Offset)
+			regTLS(seg.symbolMap, sym.Offset)
 		} else if sym.Kind == STEXT {
-			seg.symAddrs[name] = uintptr(codereloc.symMap[name].Offset + seg.codeBase)
-			codeModule.Syms[sym.Name] = uintptr(seg.symAddrs[name])
+			seg.symbolMap[name] = uintptr(codereloc.symMap[name].Offset + seg.codeBase)
+			codeModule.Syms[sym.Name] = uintptr(seg.symbolMap[name])
 		} else if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
 			if ptr, ok := symPtr[sym.Name]; ok {
-				seg.symAddrs[name] = ptr
+				seg.symbolMap[name] = ptr
 			}
 		} else {
-			seg.symAddrs[name] = uintptr(codereloc.symMap[name].Offset + seg.dataBase)
+			seg.symbolMap[name] = uintptr(codereloc.symMap[name].Offset + seg.dataBase)
 			if strings.HasPrefix(sym.Name, TYPE_PREFIX) {
 				if ptr, ok := symPtr[sym.Name]; ok {
-					seg.symAddrs[name] = ptr
+					seg.symbolMap[name] = ptr
 				}
 			}
 		}
@@ -219,8 +219,8 @@ func addSymAddrs(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *Co
 func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
 	for itabName, iter := range codeModule.itabs {
 		symbol := codereloc.symMap[itabName]
-		inter := seg.symAddrs[symbol.Reloc[0].Sym.Name]
-		typ := seg.symAddrs[symbol.Reloc[1].Sym.Name]
+		inter := seg.symbolMap[symbol.Reloc[0].Sym.Name]
+		typ := seg.symbolMap[symbol.Reloc[1].Sym.Name]
 		if inter != INVALID_HANDLE_VALUE && typ != INVALID_HANDLE_VALUE {
 			*(*uintptr)(unsafe.Pointer(&(iter.inter))) = inter
 			*(*uintptr)(unsafe.Pointer(&(iter.typ))) = typ
@@ -349,10 +349,10 @@ func relocteCALLARM(addr uintptr, loc Reloc, seg *segment, sym *SymData) {
 	}
 }
 
-func relocate(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
+func relocate(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
 	for _, symbol := range codereloc.symMap {
 		for _, loc := range symbol.Reloc {
-			addr := seg.symAddrs[loc.Sym.Name]
+			addr := seg.symbolMap[loc.Sym.Name]
 			sym := loc.Sym
 			relocByte := seg.codeByte[seg.codeLen:]
 			addrBase := seg.dataBase
@@ -375,7 +375,7 @@ func relocate(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeM
 			} else {
 				switch loc.Type {
 				case R_TLS_LE:
-					binary.LittleEndian.PutUint32(seg.codeByte[loc.Offset:], uint32(symPtr[TLSNAME]))
+					binary.LittleEndian.PutUint32(seg.codeByte[loc.Offset:], uint32(seg.symbolMap[TLSNAME]))
 				case R_CALL:
 					relocateCALL(addr, loc, seg, sym, relocByte, addrBase)
 				case R_PCREL:
@@ -407,8 +407,8 @@ func relocate(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeM
 	}
 }
 
-func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, seg *segment, symPtr map[string]uintptr) {
-	module.ftab[i].entry = uintptr(seg.symAddrs[codereloc.funcdata[i].Name])
+func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, seg *segment) {
+	module.ftab[i].entry = uintptr(seg.symbolMap[codereloc.funcdata[i].Name])
 
 	offset := alignof(*pclnOff, PtrSize)
 	module.ftab[i].funcoff = uintptr(offset)
@@ -445,7 +445,7 @@ func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, s
 	*pclnOff = offset
 }
 
-func buildModule(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
+func buildModule(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
 	module := moduledata{}
 	module.ftab = make([]functab, len(codereloc.funcdata))
 	pclnOff := len(codereloc.pclntable)
@@ -461,7 +461,7 @@ func buildModule(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *Co
 	module.etext = uintptr(seg.codeBase + len(codereloc.code))
 	codeModule.stkmaps = codereloc.stkmaps // hold reference
 	for i := range module.ftab {
-		addFuncTab(&module, i, &pclnOff, codereloc, seg, symPtr)
+		addFuncTab(&module, i, &pclnOff, codereloc, seg)
 	}
 	pclnOff = alignof(pclnOff, PtrSize)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[pclnOff]))
@@ -485,7 +485,7 @@ func buildModule(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *Co
 }
 
 func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
-	seg := segment{symAddrs: make(map[string]uintptr)}
+	seg := segment{symbolMap: make(map[string]uintptr)}
 	seg.codeLen = len(codereloc.code)
 	seg.dataLen = len(codereloc.data)
 	seg.maxLength = (seg.codeLen + seg.dataLen) * 2
@@ -508,9 +508,9 @@ func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) 
 	copy(seg.codeByte, codereloc.code)
 	copy(seg.codeByte[seg.codeLen:], codereloc.data)
 
-	addSymAddrs(codereloc, symPtr, &codeModule, &seg)
-	relocate(codereloc, symPtr, &codeModule, &seg)
-	buildModule(codereloc, symPtr, &codeModule, &seg)
+	addSymbolMap(codereloc, symPtr, &codeModule, &seg)
+	relocate(codereloc, &codeModule, &seg)
+	buildModule(codereloc, &codeModule, &seg)
 	relocateItab(codereloc, &codeModule, &seg)
 
 	if len(seg.errors) > 0 {
