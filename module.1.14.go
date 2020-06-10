@@ -91,9 +91,9 @@ type _func struct {
 	nfuncdata uint8   // must be last
 }
 
-func init_func(symbol *goobj.Sym, symOff, nameOff, spOff, pcfileOff, pclnOff int) _func {
+func init_func(symbol *goobj.Sym, nameOff, spOff, pcfileOff, pclnOff int) _func {
 	fdata := _func{
-		entry:       uintptr(symOff),
+		entry:       uintptr(0),
 		nameoff:     int32(nameOff),
 		args:        int32(symbol.Func.Args),
 		deferreturn: uint32(0),

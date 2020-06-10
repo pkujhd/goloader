@@ -59,23 +59,24 @@ const (
 
 )
 
-func addStackObject(codereloc *CodeReloc, funcdata *funcData, symbolMap map[string]uintptr) (err error) {
-	return _addStackObject(codereloc, funcdata, symbolMap)
+func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
+	return _addStackObject(codereloc, funcname, symbolMap)
 }
 
-func addDeferReturn(codereloc *CodeReloc, funcdata *funcData) (err error) {
-	if len(funcdata.Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
-		sym := codereloc.symMap[funcdata.Name]
+func addDeferReturn(codereloc *CodeReloc, _func *_func, funcname string) (err error) {
+	Func := codereloc.symMap[funcname].Func
+	if Func != nil && len(Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
+		sym := codereloc.symMap[funcname]
 		for _, r := range sym.Reloc {
 			if r.Sym == codereloc.symMap[RUNTIME_DEFERRETURN] {
 				//../cmd/link/internal/ld/pcln.go:pclntab
 				switch codereloc.Arch {
 				case ARCH_386, ARCH_AMD64:
-					funcdata.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
+					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
 				case ARCH_ARM32, ARCH_ARM64:
-					funcdata.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
+					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					err = errors.New(fmt.Sprintf("not support arch:%s\n", codereloc.Arch))
+					err = errors.New(fmt.Sprintf("not support arch:%s", codereloc.Arch))
 				}
 				break
 			}

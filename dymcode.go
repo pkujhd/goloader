@@ -37,6 +37,7 @@ type Sym struct {
 	Name   string
 	Kind   int
 	Offset int
+	Func   *goobj.Func
 	Reloc  []Reloc
 }
 
@@ -50,6 +51,7 @@ type Reloc struct {
 	DataSize int64
 }
 
+// ourself defined struct
 // code segment
 type segment struct {
 	codeByte  []byte
@@ -62,13 +64,16 @@ type segment struct {
 }
 
 type CodeReloc struct {
-	module
-	code    []byte
-	data    []byte
-	symMap  map[string]*Sym
-	stkmaps map[string][]byte
-	fileMap map[string]int
-	Arch    string
+	code      []byte
+	data      []byte
+	symMap    map[string]*Sym
+	stkmaps   map[string][]byte
+	fileMap   map[string]int
+	filetab   []uint32
+	pclntable []byte
+	pcfunc    []findfuncbucket
+	_func     []_func
+	Arch      string
 }
 
 type CodeModule struct {
@@ -103,7 +108,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 		return symbol, nil
 	}
 	objsym := objSymMap[name]
-	rsym := Sym{Name: objsym.sym.Name, Kind: int(objsym.sym.Kind)}
+	rsym := Sym{Name: objsym.sym.Name, Kind: int(objsym.sym.Kind), Func: nil}
 	codereloc.symMap[rsym.Name] = &rsym
 
 	code := make([]byte, objsym.sym.Data.Size)
@@ -116,7 +121,8 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 		rsym.Offset = len(codereloc.code)
 		codereloc.code = append(codereloc.code, code...)
 		bytearrayAlign(&codereloc.code, PtrSize)
-		err := readFuncData(codereloc, name, objSymMap, rsym.Offset)
+		rsym.Func = objsym.sym.Func
+		err := readFuncData(codereloc, objsym, objSymMap, rsym.Offset)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +202,7 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 				symbolMap[name] = ptr
 			} else {
 				symbolMap[name] = INVALID_HANDLE_VALUE
-				err = errors.New(fmt.Sprintf("unresolve external:%s\n", sym.Name))
+				err = errors.New(fmt.Sprintf("unresolve external:%s", sym.Name))
 			}
 		} else if sym.Name == TLSNAME {
 			regTLS(symbolMap, sym.Offset)
@@ -252,7 +258,7 @@ func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[st
 							segment.codeByte[iter.Offset-2:][0] = x86amd64MOVcode
 							putAddressAddOffset(segment.codeByte, &segment.offset, uint64(address))
 						} else {
-							err = errors.New(fmt.Sprintf("relocateItab: not support code:%v!\n", segment.codeByte[iter.Offset-2:iter.Offset]))
+							err = errors.New(fmt.Sprintf("relocateItab: not support code:%v!", segment.codeByte[iter.Offset-2:iter.Offset]))
 						}
 					} else {
 						binary.LittleEndian.PutUint32(segment.codeByte[iter.Offset:], uint32(offset))
@@ -262,7 +268,7 @@ func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[st
 				case R_ADDR:
 					putAddress(segment.codeByte[iter.Offset:], uint64(int(address)+iter.Add))
 				default:
-					err = errors.New(fmt.Sprintf("unknown relocateItab type:%d Name:%s\n", iter.Type, itabName))
+					err = errors.New(fmt.Sprintf("unknown relocateItab type:%d Name:%s", iter.Type, itabName))
 				}
 			}
 		}
@@ -296,7 +302,7 @@ func relocatePCREL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, 
 		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
 			copy(bytes, x86amd64JMPLcode)
 		} else {
-			err = errors.New(fmt.Sprintf("not support code:%v!\n", relocByte[loc.Offset-2:loc.Offset]))
+			err = errors.New(fmt.Sprintf("not support code:%v!", relocByte[loc.Offset-2:loc.Offset]))
 		}
 		binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		if opcode == x86amd64CMPLcode || opcode == x86amd64MOVcode {
@@ -372,7 +378,7 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 				if loc.Size <= IntSize {
 					addr = uintptr(segment.codeBase + segment.codeLen + segment.dataLen)
 				} else {
-					err = errors.New(fmt.Sprintf("Symbol:%s size:%d>IntSize:%d\n", sym.Name, loc.Size, IntSize))
+					err = errors.New(fmt.Sprintf("Symbol:%s size:%d>IntSize:%d", sym.Name, loc.Size, IntSize))
 				}
 			}
 			if addr == INVALID_HANDLE_VALUE {
@@ -391,7 +397,7 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 					relocteCALLARM(addr, loc, segment)
 				case R_ADDRARM64:
 					if symbol.Kind != STEXT {
-						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate not in code segment!\n", sym.Name))
+						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate not in code segment!", sym.Name))
 					}
 					relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
 				case R_ADDR:
@@ -401,12 +407,12 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 					//nothing todo
 				case R_ADDROFF, R_WEAKADDROFF, R_METHODOFF:
 					if symbol.Kind == STEXT {
-						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate on code segment!\n", sym.Name))
+						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate on code segment!", sym.Name))
 					}
 					offset := int(addr) - segment.codeBase + loc.Add
 					binary.LittleEndian.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
 				default:
-					err = errors.New(fmt.Sprintf("unknown reloc type:%d sym:%s\n", loc.Type, sym.Name))
+					err = errors.New(fmt.Sprintf("unknown reloc type:%d sym:%s", loc.Type, sym.Name))
 				}
 			}
 
@@ -416,15 +422,17 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 }
 
 func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeReloc, symbolMap map[string]uintptr) (err error) {
-	module.ftab[index].entry = uintptr(symbolMap[codereloc.funcdata[index].Name])
+	funcname := gostringnocopy(&codereloc.pclntable[codereloc._func[index].nameoff])
+	Func := codereloc.symMap[funcname].Func
+	module.ftab[index].entry = uintptr(symbolMap[funcname])
 
 	offset := alignof(*pclnOff, PtrSize)
 	module.ftab[index].funcoff = uintptr(offset)
-	funcdata := codereloc.funcdata[index]
-	funcdata.entry = module.ftab[index].entry
+	_func := codereloc._func[index]
+	_func.entry = module.ftab[index].entry
 
-	data := make([]uintptr, len(funcdata.Func.FuncData))
-	for k, symbol := range funcdata.Func.FuncData {
+	data := make([]uintptr, len(Func.FuncData))
+	for k, symbol := range Func.FuncData {
 		if codereloc.stkmaps[symbol.Sym.Name] != nil {
 			data[k] = (uintptr)(unsafe.Pointer(&(codereloc.stkmaps[symbol.Sym.Name][0])))
 		} else {
@@ -432,25 +440,25 @@ func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeRelo
 		}
 	}
 
-	if err = addStackObject(codereloc, &funcdata, symbolMap); err != nil {
+	if err = addStackObject(codereloc, funcname, symbolMap); err != nil {
 		return err
 	}
-	if err = addDeferReturn(codereloc, &funcdata); err != nil {
+	if err = addDeferReturn(codereloc, &_func, funcname); err != nil {
 		return err
 	}
 
-	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata._func)), _FuncSize)
+	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&_func)), _FuncSize)
 	offset += _FuncSize
 
-	pcln := uint32(funcdata.pcln) + uint32(funcdata.Func.PCLine.Size)
-	for k := 0; k < len(funcdata.Func.PCData); k++ {
+	pcln := uint32(_func.pcln) + uint32(Func.PCLine.Size)
+	for k := 0; k < len(Func.PCData); k++ {
 		binary.LittleEndian.PutUint32(module.pclntable[offset:], pcln)
-		pcln += uint32(funcdata.Func.PCData[k].Size)
+		pcln += uint32(Func.PCData[k].Size)
 		offset += Uint32Size
 	}
 
 	offset = alignof(offset, PtrSize)
-	funcDataSize := int(PtrSize * funcdata.nfuncdata)
+	funcDataSize := int(PtrSize * _func.nfuncdata)
 	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&data[0])), funcDataSize)
 	offset += funcDataSize
 
@@ -461,7 +469,7 @@ func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeRelo
 func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	module := moduledata{}
-	module.ftab = make([]functab, len(codereloc.funcdata))
+	module.ftab = make([]functab, len(codereloc._func))
 	pclnOff := len(codereloc.pclntable)
 	module.pclntable = make([]byte, 4*len(codereloc.pclntable))
 	copy(module.pclntable, codereloc.pclntable)
@@ -522,7 +530,8 @@ func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModu
 	copy(codeModule.codeByte, codereloc.code)
 	copy(codeModule.codeByte[codeModule.codeLen:], codereloc.data)
 
-	if symbolMap, err := addSymbolMap(codereloc, symPtr, codeModule); err == nil {
+	var symbolMap map[string]uintptr
+	if symbolMap, err = addSymbolMap(codereloc, symPtr, codeModule); err == nil {
 		if err = relocate(codereloc, codeModule, symbolMap); err == nil {
 			if err = buildModule(codereloc, codeModule, symbolMap); err == nil {
 				if err = relocateItab(codereloc, codeModule, symbolMap); err == nil {

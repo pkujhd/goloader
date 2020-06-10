@@ -1,7 +1,6 @@
 package goloader
 
 import (
-	"cmd/objfile/goobj"
 	"encoding/binary"
 	"errors"
 	"strings"
@@ -86,97 +85,77 @@ func funcdata(f funcInfo, i int32) unsafe.Pointer
 //go:linkname funcname runtime.funcname
 func funcname(f funcInfo) string
 
+//go:linkname gostringnocopy runtime.gostringnocopy
+func gostringnocopy(str *byte) string
+
 //go:linkname moduledataverify1 runtime.moduledataverify1
 func moduledataverify1(datap *moduledata)
 
-//ourself defined struct
-type funcData struct {
-	_func
-	Func        *goobj.Func
-	stkobjReloc []goobj.Reloc
-	Name        string
-}
-
-type module struct {
-	pclntable []byte
-	pcfunc    []findfuncbucket
-	funcdata  []funcData
-	filetab   []uint32
-}
-
-func readFuncData(reloc *CodeReloc, symName string, objSymMap map[string]objSym, codeLen int) (err error) {
-	module := &reloc.module
-	fd := readAtSeeker{ReadSeeker: objSymMap[symName].file}
-	symbol := objSymMap[symName].sym
+func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objSym, codeLen int) (err error) {
+	fd := readAtSeeker{ReadSeeker: objsym.file}
+	symbol := objsym.sym
 
 	x := codeLen
 	b := x / pcbucketsize
 	i := x % pcbucketsize / (pcbucketsize / nsub)
-	for lb := b - len(module.pcfunc); lb >= 0; lb-- {
-		module.pcfunc = append(module.pcfunc, findfuncbucket{
-			idx: uint32(256 * len(module.pcfunc))})
+	for lb := b - len(codeReloc.pcfunc); lb >= 0; lb-- {
+		codeReloc.pcfunc = append(codeReloc.pcfunc, findfuncbucket{
+			idx: uint32(256 * len(codeReloc.pcfunc))})
 	}
-	bucket := &module.pcfunc[b]
-	bucket.subbuckets[i] = byte(len(module.funcdata) - int(bucket.idx))
+	bucket := &codeReloc.pcfunc[b]
+	bucket.subbuckets[i] = byte(len(codeReloc._func) - int(bucket.idx))
 
 	pcFileHead := make([]byte, 32)
-	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(module.filetab))<<1)
+	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(codeReloc.filetab))<<1)
 	for _, fileName := range symbol.Func.File {
 		fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
-		if offset, ok := reloc.fileMap[fileName]; !ok {
-			module.filetab = append(module.filetab, (uint32)(len(module.pclntable)))
-			reloc.fileMap[fileName] = len(module.pclntable)
-			module.pclntable = append(module.pclntable, []byte(fileName)...)
-			module.pclntable = append(module.pclntable, ZERO_BYTE)
+		if offset, ok := codeReloc.fileMap[fileName]; !ok {
+			codeReloc.filetab = append(codeReloc.filetab, (uint32)(len(codeReloc.pclntable)))
+			codeReloc.fileMap[fileName] = len(codeReloc.pclntable)
+			codeReloc.pclntable = append(codeReloc.pclntable, []byte(fileName)...)
+			codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
 		} else {
-			module.filetab = append(module.filetab, uint32(offset))
+			codeReloc.filetab = append(codeReloc.filetab, uint32(offset))
 		}
 	}
 
-	nameOff := len(module.pclntable)
-	module.pclntable = append(module.pclntable, []byte(symbol.Name)...)
-	module.pclntable = append(module.pclntable, ZERO_BYTE)
+	nameOff := len(codeReloc.pclntable)
+	codeReloc.pclntable = append(codeReloc.pclntable, []byte(symbol.Name)...)
+	codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
 
-	pcspOff := len(module.pclntable)
-	fd.ReadAtWithSize(&(module.pclntable), symbol.Func.PCSP.Size, symbol.Func.PCSP.Offset)
+	pcspOff := len(codeReloc.pclntable)
+	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCSP.Size, symbol.Func.PCSP.Offset)
 
-	pcfileOff := len(module.pclntable)
-	module.pclntable = append(module.pclntable, pcFileHead[:pcFileHeadSize-1]...)
-	fd.ReadAtWithSize(&(module.pclntable), symbol.Func.PCFile.Size, symbol.Func.PCFile.Offset)
+	pcfileOff := len(codeReloc.pclntable)
+	codeReloc.pclntable = append(codeReloc.pclntable, pcFileHead[:pcFileHeadSize-1]...)
+	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCFile.Size, symbol.Func.PCFile.Offset)
 
-	pclnOff := len(module.pclntable)
-	fd.ReadAtWithSize(&(module.pclntable), symbol.Func.PCLine.Size, symbol.Func.PCLine.Offset)
+	pclnOff := len(codeReloc.pclntable)
+	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCLine.Size, symbol.Func.PCLine.Offset)
 
-	funcdata := funcData{}
-	funcdata._func = init_func(symbol, reloc.symMap[symName].Offset, nameOff, pcspOff, pcfileOff, pclnOff)
+	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff)
 	for _, data := range symbol.Func.PCData {
-		fd.ReadAtWithSize(&(module.pclntable), data.Size, data.Offset)
+		fd.ReadAtWithSize(&(codeReloc.pclntable), data.Size, data.Offset)
 	}
 
 	for _, data := range symbol.Func.FuncData {
-		if _, ok := reloc.stkmaps[data.Sym.Name]; !ok {
+		if _, ok := codeReloc.stkmaps[data.Sym.Name]; !ok {
 			if gcobj, ok := objSymMap[data.Sym.Name]; ok {
-				reloc.stkmaps[data.Sym.Name] = make([]byte, gcobj.sym.Data.Size)
+				codeReloc.stkmaps[data.Sym.Name] = make([]byte, gcobj.sym.Data.Size)
 				fd := readAtSeeker{ReadSeeker: gcobj.file}
-				fd.ReadAt(reloc.stkmaps[data.Sym.Name], gcobj.sym.Data.Offset)
+				fd.ReadAt(codeReloc.stkmaps[data.Sym.Name], gcobj.sym.Data.Offset)
 			} else if len(data.Sym.Name) == 0 {
-				reloc.stkmaps[data.Sym.Name] = nil
+				codeReloc.stkmaps[data.Sym.Name] = nil
 			} else {
 				err = errors.New("unknown gcobj:" + data.Sym.Name)
 			}
 		}
-		if strings.Contains(data.Sym.Name, STKOBJ_SUFFIX) {
-			funcdata.stkobjReloc = objSymMap[data.Sym.Name].sym.Reloc
-		}
 	}
-	funcdata.Func = symbol.Func
-	funcdata.Name = symbol.Name
-
-	module.funcdata = append(module.funcdata, funcdata)
+	codeReloc._func = append(codeReloc._func, _func)
 
 	for _, data := range symbol.Func.FuncData {
 		if _, ok := objSymMap[data.Sym.Name]; ok {
-			relocSym(reloc, data.Sym.Name, objSymMap)
+			relocSym(codeReloc, data.Sym.Name, objSymMap)
 		}
 	}
 	return

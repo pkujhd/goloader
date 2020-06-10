@@ -22,26 +22,30 @@ type stackObjectRecord struct {
 	typ *_type
 }
 
-func _addStackObject(codereloc *CodeReloc, funcdata *funcData, symbolMap map[string]uintptr) (err error) {
-	if len(funcdata.Func.FuncData) > _FUNCDATA_StackObjects &&
-		codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name] != nil {
-		b := codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name]
+func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
+	Func := codereloc.symMap[funcname].Func
+	if Func != nil && len(Func.FuncData) > _FUNCDATA_StackObjects &&
+		codereloc.stkmaps[Func.FuncData[_FUNCDATA_StackObjects].Sym.Name] != nil {
+		b := codereloc.stkmaps[Func.FuncData[_FUNCDATA_StackObjects].Sym.Name]
 		n := *(*int)(unsafe.Pointer(&b[0]))
 		p := unsafe.Pointer(&b[PtrSize])
 		for i := 0; i < n; i++ {
 			obj := *(*stackObjectRecord)(p)
 			name := EMPTY_STRING
-			for _, v := range funcdata.Func.Var {
+			for _, v := range Func.Var {
 				if v.Offset == (int64)(obj.off) {
 					name = v.Type.Name
 					break
 				}
 			}
 			if len(name) == 0 {
-				name = funcdata.stkobjReloc[i].Sym.Name
+				stkobjName := funcname + STKOBJ_SUFFIX
+				if symbol := codereloc.symMap[stkobjName]; symbol != nil {
+					name = symbol.Reloc[i].Sym.Name
+				}
 			}
 			if ptr, ok := symbolMap[name]; !ok {
-				err = errors.New(fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s\n", funcdata.Name, i, name))
+				err = errors.New(fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name))
 			} else {
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
