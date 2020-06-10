@@ -424,7 +424,7 @@ func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, s
 		}
 	}
 
-	addStackObject(codereloc, &funcdata, seg, symPtr)
+	addStackObject(codereloc, &funcdata, seg)
 	addDeferReturn(codereloc, &funcdata, seg)
 
 	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata._func)), _FuncSize)

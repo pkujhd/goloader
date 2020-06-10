@@ -21,7 +21,7 @@ type stackObjectRecord struct {
 	typ *_type
 }
 
-func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment, symPtr map[string]uintptr) {
+func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 	if len(funcdata.Func.FuncData) > _FUNCDATA_StackObjects &&
 		codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name] != nil {
 		b := codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name]
@@ -39,15 +39,10 @@ func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment, sym
 			if len(name) == 0 {
 				name = funcdata.stkobjReloc[i].Sym.Name
 			}
-			ptr, ok := symPtr[name]
-			if !ok {
-				if _, ok = seg.symAddrs[name]; ok {
-					ptr = uintptr(seg.symAddrs[name])
-				}
-			}
-			if !ok {
-				seg.errors += fmt.Sprintf("unresolve external Var! name:%s index:%d\n", funcdata.Name, i)
+			if _, ok := seg.symAddrs[name]; !ok {
+				seg.errors += fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s\n", funcdata.Name, i, name)
 			} else {
+				ptr := uintptr(seg.symAddrs[name])
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
 					binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))
