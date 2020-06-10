@@ -50,19 +50,19 @@ type Reloc struct {
 
 // CodeReloc dispatch and load CodeReloc struct via network is OK
 type CodeReloc struct {
-	Code    []byte
-	Data    []byte
-	Mod     Module
-	SymMap  map[string]*SymData
+	module
+	code    []byte
+	data    []byte
+	symMap  map[string]*SymData
 	stkmaps map[string][]byte
-	FileMap map[string]int
+	fileMap map[string]int
 	Arch    string
 }
 
 type CodeModule struct {
 	Syms     map[string]uintptr
-	CodeByte []byte
-	Module   *moduledata
+	codeByte []byte
+	module   *moduledata
 	stkmaps  map[string][]byte
 	itabs    map[string]*itabSym
 }
@@ -99,12 +99,12 @@ var (
 )
 
 func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*SymData, error) {
-	if symbol, ok := codereloc.SymMap[name]; ok {
+	if symbol, ok := codereloc.symMap[name]; ok {
 		return symbol, nil
 	}
 	objsym := objsymmap[name]
 	rsym := SymData{Name: objsym.sym.Name, Kind: int(objsym.sym.Kind)}
-	codereloc.SymMap[rsym.Name] = &rsym
+	codereloc.symMap[rsym.Name] = &rsym
 
 	code := make([]byte, objsym.sym.Data.Size)
 	_, err := objsym.file.ReadAt(code, objsym.sym.Data.Offset)
@@ -113,17 +113,17 @@ func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*
 	}
 	switch rsym.Kind {
 	case STEXT:
-		rsym.Offset = len(codereloc.Code)
-		codereloc.Code = append(codereloc.Code, code...)
-		bytearrayAlign(&codereloc.Code, PtrSize)
+		rsym.Offset = len(codereloc.code)
+		codereloc.code = append(codereloc.code, code...)
+		bytearrayAlign(&codereloc.code, PtrSize)
 		err := readFuncData(codereloc, name, objsymmap, rsym.Offset)
 		if err != nil {
 			return nil, err
 		}
 	default:
-		rsym.Offset = len(codereloc.Data)
-		codereloc.Data = append(codereloc.Data, code...)
-		bytearrayAlign(&codereloc.Data, PtrSize)
+		rsym.Offset = len(codereloc.data)
+		codereloc.data = append(codereloc.data, code...)
+		bytearrayAlign(&codereloc.data, PtrSize)
 	}
 
 	for _, loc := range objsym.sym.Reloc {
@@ -145,11 +145,11 @@ func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*
 			}
 			if strings.HasPrefix(sym.Name, TYPE_IMPORTPATH_PREFIX) {
 				path := strings.Trim(strings.TrimLeft(sym.Name, TYPE_IMPORTPATH_PREFIX), ".")
-				sym.Offset = len(codereloc.Data)
-				codereloc.Data = append(codereloc.Data, path...)
-				codereloc.Data = append(codereloc.Data, ZERO_BYTE)
+				sym.Offset = len(codereloc.data)
+				codereloc.data = append(codereloc.data, path...)
+				codereloc.data = append(codereloc.data, ZERO_BYTE)
 			}
-			codereloc.SymMap[sym.Name] = &sym
+			codereloc.symMap[sym.Name] = &sym
 			symbol = &sym
 		}
 		rsym.Reloc = append(rsym.Reloc, Reloc{Offset: int(loc.Offset) + rsym.Offset, Sym: symbol, Type: int(loc.Type), Size: int(loc.Size), Add: int(loc.Add), DataSize: -1})
@@ -159,9 +159,9 @@ func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*
 			}
 		}
 	}
-	codereloc.SymMap[name].Reloc = rsym.Reloc
+	codereloc.symMap[name].Reloc = rsym.Reloc
 
-	return codereloc.SymMap[name], nil
+	return codereloc.symMap[name], nil
 }
 
 func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr, symName string) {
@@ -187,8 +187,8 @@ func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr, symNam
 	}
 }
 
-func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
-	for name, sym := range code.SymMap {
+func addSymAddrs(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
+	for name, sym := range codereloc.symMap {
 		if sym.Offset == INVALID_OFFSET {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				seg.symAddrs[name] = ptr
@@ -199,14 +199,14 @@ func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 		} else if sym.Name == TLSNAME {
 			regTLS(symPtr, sym.Offset)
 		} else if sym.Kind == STEXT {
-			seg.symAddrs[name] = uintptr(code.SymMap[name].Offset + seg.codeBase)
+			seg.symAddrs[name] = uintptr(codereloc.symMap[name].Offset + seg.codeBase)
 			codeModule.Syms[sym.Name] = uintptr(seg.symAddrs[name])
 		} else if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				seg.symAddrs[name] = ptr
 			}
 		} else {
-			seg.symAddrs[name] = uintptr(code.SymMap[name].Offset + seg.dataBase)
+			seg.symAddrs[name] = uintptr(codereloc.symMap[name].Offset + seg.dataBase)
 			if strings.HasPrefix(sym.Name, TYPE_PREFIX) {
 				if ptr, ok := symPtr[sym.Name]; ok {
 					seg.symAddrs[name] = ptr
@@ -216,18 +216,18 @@ func addSymAddrs(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeMod
 	}
 }
 
-func relocateItab(code *CodeReloc, module *CodeModule, seg *segment) {
-	for itabName, iter := range module.itabs {
-		sym := code.SymMap[itabName]
-		inter := seg.symAddrs[sym.Reloc[0].Sym.Name]
-		typ := seg.symAddrs[sym.Reloc[1].Sym.Name]
+func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
+	for itabName, iter := range codeModule.itabs {
+		symbol := codereloc.symMap[itabName]
+		inter := seg.symAddrs[symbol.Reloc[0].Sym.Name]
+		typ := seg.symAddrs[symbol.Reloc[1].Sym.Name]
 		if inter != INVALID_HANDLE_VALUE && typ != INVALID_HANDLE_VALUE {
 			*(*uintptr)(unsafe.Pointer(&(iter.inter))) = inter
 			*(*uintptr)(unsafe.Pointer(&(iter.typ))) = typ
 			methods := iter.typ.uncommon().methods()
 			for k := 0; k < len(iter.inter.mhdr) && k < len(methods); k++ {
 				itype := uintptr(unsafe.Pointer(iter.inter.typ.typeOff(iter.inter.mhdr[k].ityp)))
-				module.Module.typemap[methods[k].mtyp] = itype
+				codeModule.module.typemap[methods[k].mtyp] = itype
 			}
 			iter.ptr = getitab(iter.inter, iter.typ, false)
 			address := uintptr(unsafe.Pointer(iter.ptr))
@@ -349,8 +349,8 @@ func relocteCALLARM(addr uintptr, loc Reloc, seg *segment, sym *SymData) {
 	}
 }
 
-func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
-	for _, symbol := range code.SymMap {
+func relocate(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
+	for _, symbol := range codereloc.symMap {
 		for _, loc := range symbol.Reloc {
 			addr := seg.symAddrs[loc.Sym.Name]
 			sym := loc.Sym
@@ -408,11 +408,11 @@ func relocate(code *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule
 }
 
 func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, seg *segment, symPtr map[string]uintptr) {
-	module.ftab[i].entry = uintptr(seg.symAddrs[codereloc.Mod.funcdata[i].Name])
+	module.ftab[i].entry = uintptr(seg.symAddrs[codereloc.funcdata[i].Name])
 
 	offset := alignof(*pclnOff, PtrSize)
 	module.ftab[i].funcoff = uintptr(offset)
-	funcdata := codereloc.Mod.funcdata[i]
+	funcdata := codereloc.funcdata[i]
 	funcdata.entry = module.ftab[i].entry
 
 	data := make([]uintptr, len(funcdata.Func.FuncData))
@@ -446,27 +446,27 @@ func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, s
 }
 
 func buildModule(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
-	var module moduledata
-	module.ftab = make([]functab, len(codereloc.Mod.funcdata))
-	pclnOff := len(codereloc.Mod.pclntable)
-	module.pclntable = make([]byte, 4*len(codereloc.Mod.pclntable))
-	copy(module.pclntable, codereloc.Mod.pclntable)
+	module := moduledata{}
+	module.ftab = make([]functab, len(codereloc.funcdata))
+	pclnOff := len(codereloc.pclntable)
+	module.pclntable = make([]byte, 4*len(codereloc.pclntable))
+	copy(module.pclntable, codereloc.pclntable)
 	module.minpc = uintptr(seg.codeBase)
 	module.maxpc = uintptr(seg.dataBase)
-	module.filetab = codereloc.Mod.filetab
+	module.filetab = codereloc.filetab
 	module.typemap = make(map[typeOff]uintptr)
 	module.types = uintptr(seg.codeBase)
 	module.etypes = uintptr(seg.codeBase + seg.maxLength)
 	module.text = uintptr(seg.codeBase)
-	module.etext = uintptr(seg.codeBase + len(codereloc.Code))
+	module.etext = uintptr(seg.codeBase + len(codereloc.code))
 	codeModule.stkmaps = codereloc.stkmaps // hold reference
 	for i := range module.ftab {
 		addFuncTab(&module, i, &pclnOff, codereloc, seg, symPtr)
 	}
 	pclnOff = alignof(pclnOff, PtrSize)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[pclnOff]))
-	copy2Slice(module.pclntable[pclnOff:], module.findfunctab, len(codereloc.Mod.pcfunc)*FindFuncBucketSize)
-	pclnOff += len(codereloc.Mod.pcfunc) * FindFuncBucketSize
+	copy2Slice(module.pclntable[pclnOff:], module.findfunctab, len(codereloc.pcfunc)*FindFuncBucketSize)
+	pclnOff += len(codereloc.pcfunc) * FindFuncBucketSize
 	module.pclntable = module.pclntable[:pclnOff]
 	module.ftab = append(module.ftab, functab{})
 	for i := len(module.ftab) - 1; i > 0; i-- {
@@ -481,13 +481,13 @@ func buildModule(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *Co
 	modulesLock.Unlock()
 	moduledataverify1(&module)
 
-	codeModule.CodeByte = seg.codeByte
+	codeModule.codeByte = seg.codeByte
 }
 
-func Load(code *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
-	var seg segment
-	seg.codeLen = len(code.Code)
-	seg.dataLen = len(code.Data)
+func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
+	seg := segment{symAddrs: make(map[string]uintptr)}
+	seg.codeLen = len(codereloc.code)
+	seg.dataLen = len(codereloc.data)
 	seg.maxLength = (seg.codeLen + seg.dataLen) * 2
 	codeByte, err := Mmap(seg.maxLength)
 	if err != nil {
@@ -495,24 +495,23 @@ func Load(code *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
 	}
 	seg.codeByte = codeByte
 
-	var codeModule = CodeModule{
+	codeModule := CodeModule{
 		Syms:  make(map[string]uintptr),
 		itabs: make(map[string]*itabSym),
 	}
 
 	seg.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	seg.dataBase = seg.codeBase + len(code.Code)
-	seg.symAddrs = make(map[string]uintptr)
+	seg.dataBase = seg.codeBase + len(codereloc.code)
 	seg.offset = seg.codeLen + seg.dataLen
 	//static_tmp is 0, golang compile not allocate memory.
 	seg.offset += IntSize
-	copy(seg.codeByte, code.Code)
-	copy(seg.codeByte[seg.codeLen:], code.Data)
+	copy(seg.codeByte, codereloc.code)
+	copy(seg.codeByte[seg.codeLen:], codereloc.data)
 
-	addSymAddrs(code, symPtr, &codeModule, &seg)
-	relocate(code, symPtr, &codeModule, &seg)
-	buildModule(code, symPtr, &codeModule, &seg)
-	relocateItab(code, &codeModule, &seg)
+	addSymAddrs(codereloc, symPtr, &codeModule, &seg)
+	relocate(codereloc, symPtr, &codeModule, &seg)
+	buildModule(codereloc, symPtr, &codeModule, &seg)
+	relocateItab(codereloc, &codeModule, &seg)
 
 	if len(seg.errors) > 0 {
 		return &codeModule, errors.New(seg.errors)
@@ -528,7 +527,7 @@ func (cm *CodeModule) Unload() {
 	}
 	runtime.GC()
 	modulesLock.Lock()
-	removeModule(cm.Module)
+	removeModule(cm.module)
 	modulesLock.Unlock()
-	Munmap(cm.CodeByte)
+	Munmap(cm.codeByte)
 }

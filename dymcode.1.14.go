@@ -63,9 +63,9 @@ func addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment, symP
 func addDeferReturn(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 	if len(funcdata.Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo &&
 		codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_OpenCodedDeferInfo].Sym.Name] != nil {
-		sym := codereloc.SymMap[funcdata.Name]
+		sym := codereloc.symMap[funcdata.Name]
 		for _, r := range sym.Reloc {
-			if r.Sym == codereloc.SymMap[RUNTIME_DEFERRETURN] {
+			if r.Sym == codereloc.symMap[RUNTIME_DEFERRETURN] {
 				//../cmd/link/internal/ld/pcln.go:pclntab
 				switch codereloc.Arch {
 				case ARCH_386, ARCH_AMD64:

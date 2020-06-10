@@ -37,22 +37,22 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 }
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
-	reloc := CodeReloc{SymMap: make(map[string]*SymData), stkmaps: make(map[string][]byte), FileMap: make(map[string]int)}
-	reloc.Mod.pclntable = append(reloc.Mod.pclntable, x86moduleHead...)
+	reloc := CodeReloc{symMap: make(map[string]*SymData), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
 	objsymmap := make(map[string]objSym)
 	err := readObj(f, &reloc, objsymmap, nil)
 	if err != nil {
 		return nil, err
 	}
 	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
-		copy(reloc.Mod.pclntable, armmoduleHead)
+		copy(reloc.pclntable, armmoduleHead)
 	}
 	return &reloc, err
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	reloc := CodeReloc{SymMap: make(map[string]*SymData), stkmaps: make(map[string][]byte), FileMap: make(map[string]int)}
-	reloc.Mod.pclntable = append(reloc.Mod.pclntable, x86moduleHead...)
+	reloc := CodeReloc{symMap: make(map[string]*SymData), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
 	objsymmap := make(map[string]objSym)
 	for i, file := range files {
 		f, err := os.Open(file)
@@ -66,7 +66,7 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 		}
 	}
 	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
-		copy(reloc.Mod.pclntable, armmoduleHead)
+		copy(reloc.pclntable, armmoduleHead)
 	}
 	return &reloc, nil
 }

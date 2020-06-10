@@ -97,19 +97,19 @@ type funcData struct {
 	Name        string
 }
 
-type Module struct {
+type module struct {
 	pclntable []byte
 	pcfunc    []findfuncbucket
 	funcdata  []funcData
 	filetab   []uint32
 }
 
-func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym, curCodeLen int) (err error) {
-	module := &reloc.Mod
-	fs := readAtSeeker{ReadSeeker: objsymmap[symName].file}
+func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym, codeLen int) (err error) {
+	module := &reloc.module
+	fd := readAtSeeker{ReadSeeker: objsymmap[symName].file}
 	symbol := objsymmap[symName].sym
 
-	x := curCodeLen
+	x := codeLen
 	b := x / pcbucketsize
 	i := x % pcbucketsize / (pcbucketsize / nsub)
 	for lb := b - len(module.pcfunc); lb >= 0; lb-- {
@@ -123,9 +123,9 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(module.filetab))<<1)
 	for _, fileName := range symbol.Func.File {
 		fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
-		if offset, ok := reloc.FileMap[fileName]; !ok {
+		if offset, ok := reloc.fileMap[fileName]; !ok {
 			module.filetab = append(module.filetab, (uint32)(len(module.pclntable)))
-			reloc.FileMap[fileName] = len(module.pclntable)
+			reloc.fileMap[fileName] = len(module.pclntable)
 			module.pclntable = append(module.pclntable, []byte(fileName)...)
 			module.pclntable = append(module.pclntable, ZERO_BYTE)
 		} else {
@@ -138,19 +138,19 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	module.pclntable = append(module.pclntable, ZERO_BYTE)
 
 	pcspOff := len(module.pclntable)
-	fs.ReadAtWithSize(&(module.pclntable), symbol.Func.PCSP.Size, symbol.Func.PCSP.Offset)
+	fd.ReadAtWithSize(&(module.pclntable), symbol.Func.PCSP.Size, symbol.Func.PCSP.Offset)
 
 	pcfileOff := len(module.pclntable)
 	module.pclntable = append(module.pclntable, pcFileHead[:pcFileHeadSize-1]...)
-	fs.ReadAtWithSize(&(module.pclntable), symbol.Func.PCFile.Size, symbol.Func.PCFile.Offset)
+	fd.ReadAtWithSize(&(module.pclntable), symbol.Func.PCFile.Size, symbol.Func.PCFile.Offset)
 
 	pclnOff := len(module.pclntable)
-	fs.ReadAtWithSize(&(module.pclntable), symbol.Func.PCLine.Size, symbol.Func.PCLine.Offset)
+	fd.ReadAtWithSize(&(module.pclntable), symbol.Func.PCLine.Size, symbol.Func.PCLine.Offset)
 
 	funcdata := funcData{}
-	funcdata._func = init_func(symbol, reloc.SymMap[symName].Offset, nameOff, pcspOff, pcfileOff, pclnOff)
+	funcdata._func = init_func(symbol, reloc.symMap[symName].Offset, nameOff, pcspOff, pcfileOff, pclnOff)
 	for _, data := range symbol.Func.PCData {
-		fs.ReadAtWithSize(&(module.pclntable), data.Size, data.Offset)
+		fd.ReadAtWithSize(&(module.pclntable), data.Size, data.Offset)
 	}
 
 	for _, data := range symbol.Func.FuncData {
@@ -191,7 +191,7 @@ func addModule(codeModule *CodeModule, aModule *moduledata) {
 		}
 		datap = datap.next
 	}
-	codeModule.Module = aModule
+	codeModule.module = aModule
 }
 
 func removeModule(module interface{}) {
