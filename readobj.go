@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath *string) error {
+func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath *string) error {
 	if pkgpath == nil || *pkgpath == EMPTY_STRING {
 		defaultPkgPath := DEFAULT_PKGPATH
 		pkgpath = &defaultPkgPath
@@ -20,14 +20,14 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 	}
 	reloc.Arch = obj.Arch
 	for _, sym := range obj.Syms {
-		objsymmap[sym.Name] = objSym{
+		objSymMap[sym.Name] = objSym{
 			sym:  sym,
 			file: f,
 		}
 	}
 	for _, sym := range obj.Syms {
 		if sym.Kind == STEXT && sym.DupOK == false {
-			_, err := relocSym(reloc, sym.Name, objsymmap)
+			_, err := relocSym(reloc, sym.Name, objSymMap)
 			if err != nil {
 				return err
 			}
@@ -37,10 +37,10 @@ func readObj(f *os.File, reloc *CodeReloc, objsymmap map[string]objSym, pkgpath 
 }
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
-	reloc := CodeReloc{symMap: make(map[string]*SymData), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc := CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
-	objsymmap := make(map[string]objSym)
-	err := readObj(f, &reloc, objsymmap, nil)
+	objSymMap := make(map[string]objSym)
+	err := readObj(f, &reloc, objSymMap, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -51,16 +51,16 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	reloc := CodeReloc{symMap: make(map[string]*SymData), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc := CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
-	objsymmap := make(map[string]objSym)
+	objSymMap := make(map[string]objSym)
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, err
 		}
 		defer f.Close()
-		err = readObj(f, &reloc, objsymmap, &(pkgPath[i]))
+		err = readObj(f, &reloc, objSymMap, &(pkgPath[i]))
 		if err != nil {
 			return nil, err
 		}

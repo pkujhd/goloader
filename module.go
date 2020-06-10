@@ -104,10 +104,10 @@ type module struct {
 	filetab   []uint32
 }
 
-func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym, codeLen int) (err error) {
+func readFuncData(reloc *CodeReloc, symName string, objSymMap map[string]objSym, codeLen int) (err error) {
 	module := &reloc.module
-	fd := readAtSeeker{ReadSeeker: objsymmap[symName].file}
-	symbol := objsymmap[symName].sym
+	fd := readAtSeeker{ReadSeeker: objSymMap[symName].file}
+	symbol := objSymMap[symName].sym
 
 	x := codeLen
 	b := x / pcbucketsize
@@ -155,7 +155,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 
 	for _, data := range symbol.Func.FuncData {
 		if _, ok := reloc.stkmaps[data.Sym.Name]; !ok {
-			if gcobj, ok := objsymmap[data.Sym.Name]; ok {
+			if gcobj, ok := objSymMap[data.Sym.Name]; ok {
 				reloc.stkmaps[data.Sym.Name] = make([]byte, gcobj.sym.Data.Size)
 				fd := readAtSeeker{ReadSeeker: gcobj.file}
 				fd.ReadAt(reloc.stkmaps[data.Sym.Name], gcobj.sym.Data.Offset)
@@ -166,7 +166,7 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 			}
 		}
 		if strings.Contains(data.Sym.Name, STKOBJ_SUFFIX) {
-			funcdata.stkobjReloc = objsymmap[data.Sym.Name].sym.Reloc
+			funcdata.stkobjReloc = objSymMap[data.Sym.Name].sym.Reloc
 		}
 	}
 	funcdata.Func = symbol.Func
@@ -175,8 +175,8 @@ func readFuncData(reloc *CodeReloc, symName string, objsymmap map[string]objSym,
 	module.funcdata = append(module.funcdata, funcdata)
 
 	for _, data := range symbol.Func.FuncData {
-		if _, ok := objsymmap[data.Sym.Name]; ok {
-			relocSym(reloc, data.Sym.Name, objsymmap)
+		if _, ok := objSymMap[data.Sym.Name]; ok {
+			relocSym(reloc, data.Sym.Name, objSymMap)
 		}
 	}
 	return

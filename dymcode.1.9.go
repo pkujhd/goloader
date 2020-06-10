@@ -44,8 +44,10 @@ const (
 	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
 )
 
-func addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
+func addStackObject(codereloc *CodeReloc, funcdata *funcData, symbolMap map[string]uintptr) (err error) {
+	return nil
 }
 
-func addDeferReturn(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
+func addDeferReturn(codereloc *CodeReloc, funcdata *funcData) (err error) {
+	return nil
 }

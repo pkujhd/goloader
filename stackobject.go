@@ -5,6 +5,7 @@ package goloader
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -21,7 +22,7 @@ type stackObjectRecord struct {
 	typ *_type
 }
 
-func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
+func _addStackObject(codereloc *CodeReloc, funcdata *funcData, symbolMap map[string]uintptr) (err error) {
 	if len(funcdata.Func.FuncData) > _FUNCDATA_StackObjects &&
 		codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name] != nil {
 		b := codereloc.stkmaps[funcdata.Func.FuncData[_FUNCDATA_StackObjects].Sym.Name]
@@ -39,8 +40,8 @@ func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 			if len(name) == 0 {
 				name = funcdata.stkobjReloc[i].Sym.Name
 			}
-			if ptr, ok := seg.symbolMap[name]; !ok {
-				seg.errors += fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s\n", funcdata.Name, i, name)
+			if ptr, ok := symbolMap[name]; !ok {
+				err = errors.New(fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s\n", funcdata.Name, i, name))
 			} else {
 				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
 				if PtrSize == 4 {
@@ -52,4 +53,5 @@ func _addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 			p = add(p, stackObjectRecordSize)
 		}
 	}
+	return err
 }

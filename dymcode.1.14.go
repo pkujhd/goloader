@@ -3,7 +3,10 @@
 
 package goloader
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	R_PCREL = 16
@@ -56,11 +59,11 @@ const (
 
 )
 
-func addStackObject(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
-	_addStackObject(codereloc, funcdata, seg)
+func addStackObject(codereloc *CodeReloc, funcdata *funcData, symbolMap map[string]uintptr) (err error) {
+	return _addStackObject(codereloc, funcdata, symbolMap)
 }
 
-func addDeferReturn(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
+func addDeferReturn(codereloc *CodeReloc, funcdata *funcData) (err error) {
 	if len(funcdata.Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
 		sym := codereloc.symMap[funcdata.Name]
 		for _, r := range sym.Reloc {
@@ -72,10 +75,11 @@ func addDeferReturn(codereloc *CodeReloc, funcdata *funcData, seg *segment) {
 				case ARCH_ARM32, ARCH_ARM64:
 					funcdata.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					seg.errors += fmt.Sprintf("not support arch:%s\n", codereloc.Arch)
+					err = errors.New(fmt.Sprintf("not support arch:%s\n", codereloc.Arch))
 				}
 				break
 			}
 		}
 	}
+	return err
 }

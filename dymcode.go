@@ -32,39 +32,51 @@ const (
 	R_CALLIND     = 11
 )
 
-type SymData struct {
+// copy from $GOROOT/src/cmd/internal/goobj/read.go type Sym struct
+type Sym struct {
 	Name   string
 	Kind   int
 	Offset int
 	Reloc  []Reloc
 }
 
+// copy from $GOROOT/src/cmd/internal/goobj/read.go type Reloc struct
 type Reloc struct {
 	Offset   int
-	Sym      *SymData
+	Sym      *Sym
 	Size     int
 	Type     int
 	Add      int
 	DataSize int64
 }
 
-// CodeReloc dispatch and load CodeReloc struct via network is OK
+// code segment
+type segment struct {
+	codeByte  []byte
+	codeBase  int
+	dataBase  int
+	dataLen   int
+	codeLen   int
+	maxLength int
+	offset    int
+}
+
 type CodeReloc struct {
 	module
 	code    []byte
 	data    []byte
-	symMap  map[string]*SymData
+	symMap  map[string]*Sym
 	stkmaps map[string][]byte
 	fileMap map[string]int
 	Arch    string
 }
 
 type CodeModule struct {
-	Syms     map[string]uintptr
-	codeByte []byte
-	module   *moduledata
-	stkmaps  map[string][]byte
-	itabs    map[string]*itabSym
+	segment
+	Syms    map[string]uintptr
+	module  *moduledata
+	stkmaps map[string][]byte
+	itabs   map[string]*itabSym
 }
 
 type itabSym struct {
@@ -79,18 +91,6 @@ type objSym struct {
 	file *os.File
 }
 
-type segment struct {
-	codeByte  []byte
-	codeBase  int
-	dataBase  int
-	dataLen   int
-	codeLen   int
-	maxLength int
-	offset    int
-	symbolMap map[string]uintptr
-	errors    string
-}
-
 var (
 	modules       = make(map[interface{}]bool)
 	modulesLock   sync.Mutex
@@ -98,12 +98,12 @@ var (
 	armmoduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
 )
 
-func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*SymData, error) {
+func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*Sym, error) {
 	if symbol, ok := codereloc.symMap[name]; ok {
 		return symbol, nil
 	}
-	objsym := objsymmap[name]
-	rsym := SymData{Name: objsym.sym.Name, Kind: int(objsym.sym.Kind)}
+	objsym := objSymMap[name]
+	rsym := Sym{Name: objsym.sym.Name, Kind: int(objsym.sym.Kind)}
 	codereloc.symMap[rsym.Name] = &rsym
 
 	code := make([]byte, objsym.sym.Data.Size)
@@ -116,7 +116,7 @@ func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*
 		rsym.Offset = len(codereloc.code)
 		codereloc.code = append(codereloc.code, code...)
 		bytearrayAlign(&codereloc.code, PtrSize)
-		err := readFuncData(codereloc, name, objsymmap, rsym.Offset)
+		err := readFuncData(codereloc, name, objSymMap, rsym.Offset)
 		if err != nil {
 			return nil, err
 		}
@@ -127,14 +127,14 @@ func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*
 	}
 
 	for _, loc := range objsym.sym.Reloc {
-		symbol := (*SymData)(nil)
-		if s, ok := objsymmap[loc.Sym.Name]; ok {
-			symbol, err = relocSym(codereloc, s.sym.Name, objsymmap)
+		symbol := (*Sym)(nil)
+		if s, ok := objSymMap[loc.Sym.Name]; ok {
+			symbol, err = relocSym(codereloc, s.sym.Name, objSymMap)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			sym := SymData{Name: loc.Sym.Name, Offset: INVALID_OFFSET}
+			sym := Sym{Name: loc.Sym.Name, Offset: INVALID_OFFSET}
 			if loc.Type == R_TLS_LE {
 				sym.Name = TLSNAME
 				sym.Offset = int(loc.Offset)
@@ -153,9 +153,9 @@ func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*
 			symbol = &sym
 		}
 		rsym.Reloc = append(rsym.Reloc, Reloc{Offset: int(loc.Offset) + rsym.Offset, Sym: symbol, Type: int(loc.Type), Size: int(loc.Size), Add: int(loc.Add), DataSize: -1})
-		if s, ok := objsymmap[loc.Sym.Name]; ok {
+		if s, ok := objSymMap[loc.Sym.Name]; ok {
 			if s.sym.Data.Size == 0 && loc.Size > 0 {
-				rsym.Reloc[len(rsym.Reloc)-1].DataSize = s.sym.Data.Size
+				rsym.Reloc[len(rsym.Reloc)-1].DataSize = 0
 			}
 		}
 	}
@@ -164,7 +164,7 @@ func relocSym(codereloc *CodeReloc, name string, objsymmap map[string]objSym) (*
 	return codereloc.symMap[name], nil
 }
 
-func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr, symName string) {
+func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr) {
 	offset := int64(symAddr) + int64(loc.Add) - ((int64(seg.codeBase) + int64(loc.Offset)) &^ 0xfff)
 	//overflow
 	if offset > 0xFFFFFFFF || offset <= -0x100000000 {
@@ -187,40 +187,44 @@ func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr, symNam
 	}
 }
 
-func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule, seg *segment) {
+func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule) (symbolMap map[string]uintptr, err error) {
+	symbolMap = make(map[string]uintptr)
+	segment := &codeModule.segment
 	for name, sym := range codereloc.symMap {
 		if sym.Offset == INVALID_OFFSET {
 			if ptr, ok := symPtr[sym.Name]; ok {
-				seg.symbolMap[name] = ptr
+				symbolMap[name] = ptr
 			} else {
-				seg.symbolMap[name] = INVALID_HANDLE_VALUE
-				seg.errors += fmt.Sprintf("unresolve external:%s\n", sym.Name)
+				symbolMap[name] = INVALID_HANDLE_VALUE
+				err = errors.New(fmt.Sprintf("unresolve external:%s\n", sym.Name))
 			}
 		} else if sym.Name == TLSNAME {
-			regTLS(seg.symbolMap, sym.Offset)
+			regTLS(symbolMap, sym.Offset)
 		} else if sym.Kind == STEXT {
-			seg.symbolMap[name] = uintptr(codereloc.symMap[name].Offset + seg.codeBase)
-			codeModule.Syms[sym.Name] = uintptr(seg.symbolMap[name])
+			symbolMap[name] = uintptr(codereloc.symMap[name].Offset + segment.codeBase)
+			codeModule.Syms[sym.Name] = uintptr(symbolMap[name])
 		} else if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
 			if ptr, ok := symPtr[sym.Name]; ok {
-				seg.symbolMap[name] = ptr
+				symbolMap[name] = ptr
 			}
 		} else {
-			seg.symbolMap[name] = uintptr(codereloc.symMap[name].Offset + seg.dataBase)
+			symbolMap[name] = uintptr(codereloc.symMap[name].Offset + segment.dataBase)
 			if strings.HasPrefix(sym.Name, TYPE_PREFIX) {
 				if ptr, ok := symPtr[sym.Name]; ok {
-					seg.symbolMap[name] = ptr
+					symbolMap[name] = ptr
 				}
 			}
 		}
 	}
+	return symbolMap, err
 }
 
-func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
+func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+	segment := &codeModule.segment
 	for itabName, iter := range codeModule.itabs {
 		symbol := codereloc.symMap[itabName]
-		inter := seg.symbolMap[symbol.Reloc[0].Sym.Name]
-		typ := seg.symbolMap[symbol.Reloc[1].Sym.Name]
+		inter := symbolMap[symbol.Reloc[0].Sym.Name]
+		typ := symbolMap[symbol.Reloc[1].Sym.Name]
 		if inter != INVALID_HANDLE_VALUE && typ != INVALID_HANDLE_VALUE {
 			*(*uintptr)(unsafe.Pointer(&(iter.inter))) = inter
 			*(*uintptr)(unsafe.Pointer(&(iter.typ))) = typ
@@ -234,52 +238,53 @@ func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
 			if iter.ptr != nil {
 				switch iter.Type {
 				case R_PCREL:
-					offset := int(address) - (seg.codeBase + iter.Offset + iter.Size) + iter.Add
+					offset := int(address) - (segment.codeBase + iter.Offset + iter.Size) + iter.Add
 					if offset > 0x7FFFFFFF || offset < -0x80000000 {
-						offset = seg.offset - (iter.Offset + iter.Size) + iter.Add
-						binary.LittleEndian.PutUint32(seg.codeByte[iter.Offset:], uint32(offset))
-						if seg.codeByte[iter.Offset-2] == x86amd64MOVcode {
+						offset = segment.offset - (iter.Offset + iter.Size) + iter.Add
+						binary.LittleEndian.PutUint32(segment.codeByte[iter.Offset:], uint32(offset))
+						if segment.codeByte[iter.Offset-2] == x86amd64MOVcode {
 							//!!!TRICK
 							//because struct itab doesn't change after it adds into itab list, so
 							//copy itab data instead of jump code
-							copy2Slice(seg.codeByte[seg.offset:], address, ItabSize)
-							seg.offset += ItabSize
-						} else if seg.codeByte[iter.Offset-2] == x86amd64LEAcode {
-							seg.codeByte[iter.Offset-2:][0] = x86amd64MOVcode
-							putAddressAddOffset(seg.codeByte, &seg.offset, uint64(address))
+							copy2Slice(segment.codeByte[segment.offset:], address, ItabSize)
+							segment.offset += ItabSize
+						} else if segment.codeByte[iter.Offset-2] == x86amd64LEAcode {
+							segment.codeByte[iter.Offset-2:][0] = x86amd64MOVcode
+							putAddressAddOffset(segment.codeByte, &segment.offset, uint64(address))
 						} else {
-							seg.errors += fmt.Sprintf("relocateItab: not support code:%v!\n", seg.codeByte[iter.Offset-2:iter.Offset])
+							err = errors.New(fmt.Sprintf("relocateItab: not support code:%v!\n", segment.codeByte[iter.Offset-2:iter.Offset]))
 						}
 					} else {
-						binary.LittleEndian.PutUint32(seg.codeByte[iter.Offset:], uint32(offset))
+						binary.LittleEndian.PutUint32(segment.codeByte[iter.Offset:], uint32(offset))
 					}
 				case R_ADDRARM64:
-					relocateADRP(seg.codeByte[iter.Offset:], iter.Reloc, seg, address, itabName)
+					relocateADRP(segment.codeByte[iter.Offset:], iter.Reloc, segment, address)
 				case R_ADDR:
-					putAddress(seg.codeByte[iter.Offset:], uint64(int(address)+iter.Add))
+					putAddress(segment.codeByte[iter.Offset:], uint64(int(address)+iter.Add))
 				default:
-					seg.errors += fmt.Sprintf("unknown relocateItab type:%d Name:%s\n", iter.Type, itabName)
+					err = errors.New(fmt.Sprintf("unknown relocateItab type:%d Name:%s\n", iter.Type, itabName))
 				}
 			}
 		}
 	}
+	return err
 }
 
-func relocateCALL(addr uintptr, loc Reloc, seg *segment, sym *SymData, relocByte []byte, addrBase int) {
+func relocateCALL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, addrBase int) {
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
-		offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
-		copy(seg.codeByte[seg.offset:], x86amd64JMPLcode)
-		seg.offset += len(x86amd64JMPLcode)
-		putAddressAddOffset(seg.codeByte, &seg.offset, uint64(addr)+uint64(loc.Add))
+		offset = (segment.codeBase + segment.offset) - (addrBase + loc.Offset + loc.Size)
+		copy(segment.codeByte[segment.offset:], x86amd64JMPLcode)
+		segment.offset += len(x86amd64JMPLcode)
+		putAddressAddOffset(segment.codeByte, &segment.offset, uint64(addr)+uint64(loc.Add))
 	}
 	binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 }
 
-func relocatePCREL(addr uintptr, loc Reloc, seg *segment, sym *SymData, relocByte []byte, addrBase int) {
+func relocatePCREL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
-		offset = (seg.codeBase + seg.offset) - (addrBase + loc.Offset + loc.Size)
+		offset = (segment.codeBase + segment.offset) - (addrBase + loc.Offset + loc.Size)
 		bytes := relocByte[loc.Offset-2:]
 		opcode := relocByte[loc.Offset-2]
 		regsiter := ZERO_BYTE
@@ -291,81 +296,83 @@ func relocatePCREL(addr uintptr, loc Reloc, seg *segment, sym *SymData, relocByt
 		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
 			copy(bytes, x86amd64JMPLcode)
 		} else {
-			seg.errors += fmt.Sprintf("not support code:%v!\n", relocByte[loc.Offset-2:loc.Offset])
+			err = errors.New(fmt.Sprintf("not support code:%v!\n", relocByte[loc.Offset-2:loc.Offset]))
 		}
 		binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		if opcode == x86amd64CMPLcode || opcode == x86amd64MOVcode {
-			putAddressAddOffset(seg.codeByte, &seg.offset, uint64(seg.codeBase+seg.offset+PtrSize))
+			putAddressAddOffset(segment.codeByte, &segment.offset, uint64(segment.codeBase+segment.offset+PtrSize))
 			if opcode == x86amd64CMPLcode {
-				copy(seg.codeByte[seg.offset:], x86amd64replaceCMPLcode)
-				seg.codeByte[seg.offset+0x0F] = relocByte[loc.Offset+loc.Size]
-				seg.offset += len(x86amd64replaceCMPLcode)
-				putAddressAddOffset(seg.codeByte, &seg.offset, uint64(addr))
+				copy(segment.codeByte[segment.offset:], x86amd64replaceCMPLcode)
+				segment.codeByte[segment.offset+0x0F] = relocByte[loc.Offset+loc.Size]
+				segment.offset += len(x86amd64replaceCMPLcode)
+				putAddressAddOffset(segment.codeByte, &segment.offset, uint64(addr))
 			} else {
-				copy(seg.codeByte[seg.offset:], x86amd64replaceMOVQcode)
-				seg.codeByte[seg.offset+1] = regsiter
-				copy2Slice(seg.codeByte[seg.offset+2:], addr, PtrSize)
-				seg.offset += len(x86amd64replaceMOVQcode)
+				copy(segment.codeByte[segment.offset:], x86amd64replaceMOVQcode)
+				segment.codeByte[segment.offset+1] = regsiter
+				copy2Slice(segment.codeByte[segment.offset+2:], addr, PtrSize)
+				segment.offset += len(x86amd64replaceMOVQcode)
 			}
-			putAddressAddOffset(seg.codeByte, &seg.offset, uint64(addrBase+loc.Offset+loc.Size-loc.Add))
+			putAddressAddOffset(segment.codeByte, &segment.offset, uint64(addrBase+loc.Offset+loc.Size-loc.Add))
 		} else {
-			putAddressAddOffset(seg.codeByte, &seg.offset, uint64(addr))
+			putAddressAddOffset(segment.codeByte, &segment.offset, uint64(addr))
 		}
 	} else {
 		binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 	}
+	return err
 }
 
-func relocteCALLARM(addr uintptr, loc Reloc, seg *segment, sym *SymData) {
+func relocteCALLARM(addr uintptr, loc Reloc, segment *segment) {
 	add := loc.Add
 	if loc.Type == R_CALLARM {
 		add = int(signext24(int64(loc.Add&0xFFFFFF)) * 4)
 	}
-	offset := (int(addr) + add - (seg.codeBase + loc.Offset)) / 4
+	offset := (int(addr) + add - (segment.codeBase + loc.Offset)) / 4
 	if offset > 0x7FFFFF || offset < -0x800000 {
-		seg.offset = alignof(seg.offset, PtrSize)
-		off := uint32(seg.offset-loc.Offset) / 4
+		segment.offset = alignof(segment.offset, PtrSize)
+		off := uint32(segment.offset-loc.Offset) / 4
 		if loc.Type == R_CALLARM {
 			add = int(signext24(int64(loc.Add&0xFFFFFF)+2) * 4)
-			off = uint32(seg.offset-loc.Offset-8) / 4
+			off = uint32(segment.offset-loc.Offset-8) / 4
 		}
-		putUint24(seg.codeByte[loc.Offset:], off)
+		putUint24(segment.codeByte[loc.Offset:], off)
 		if loc.Type == R_CALLARM64 {
-			copy(seg.codeByte[seg.offset:], arm64code)
-			seg.offset += len(arm64code)
+			copy(segment.codeByte[segment.offset:], arm64code)
+			segment.offset += len(arm64code)
 		} else {
-			copy(seg.codeByte[seg.offset:], armcode)
-			seg.offset += len(armcode)
+			copy(segment.codeByte[segment.offset:], armcode)
+			segment.offset += len(armcode)
 		}
-		putAddressAddOffset(seg.codeByte, &seg.offset, uint64(int(addr)+add))
+		putAddressAddOffset(segment.codeByte, &segment.offset, uint64(int(addr)+add))
 	} else {
-		val := binary.LittleEndian.Uint32(seg.codeByte[loc.Offset:])
+		val := binary.LittleEndian.Uint32(segment.codeByte[loc.Offset:])
 		if loc.Type == R_CALLARM {
 			val |= uint32(offset) & 0x00FFFFFF
 		} else {
 			val |= uint32(offset) & 0x03FFFFFF
 		}
-		binary.LittleEndian.PutUint32(seg.codeByte[loc.Offset:], val)
+		binary.LittleEndian.PutUint32(segment.codeByte[loc.Offset:], val)
 	}
 }
 
-func relocate(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
+func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+	segment := &codeModule.segment
 	for _, symbol := range codereloc.symMap {
 		for _, loc := range symbol.Reloc {
-			addr := seg.symbolMap[loc.Sym.Name]
+			addr := symbolMap[loc.Sym.Name]
 			sym := loc.Sym
-			relocByte := seg.codeByte[seg.codeLen:]
-			addrBase := seg.dataBase
+			relocByte := segment.codeByte[segment.codeLen:]
+			addrBase := segment.dataBase
 			if symbol.Kind == STEXT {
-				addrBase = seg.codeBase
-				relocByte = seg.codeByte
+				addrBase = segment.codeBase
+				relocByte = segment.codeByte
 			}
 			//static_tmp is 0, golang compile not allocate memory.
 			if loc.DataSize == 0 && loc.Size > 0 {
 				if loc.Size <= IntSize {
-					addr = uintptr(seg.codeBase + seg.codeLen + seg.dataLen)
+					addr = uintptr(segment.codeBase + segment.codeLen + segment.dataLen)
 				} else {
-					seg.errors += fmt.Sprintf("Symbol:%s size:%d>IntSize:%d\n", sym.Name, loc.Size, IntSize)
+					err = errors.New(fmt.Sprintf("Symbol:%s size:%d>IntSize:%d\n", sym.Name, loc.Size, IntSize))
 				}
 			}
 			if addr == INVALID_HANDLE_VALUE {
@@ -375,18 +382,18 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
 			} else {
 				switch loc.Type {
 				case R_TLS_LE:
-					binary.LittleEndian.PutUint32(seg.codeByte[loc.Offset:], uint32(seg.symbolMap[TLSNAME]))
+					binary.LittleEndian.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
 				case R_CALL:
-					relocateCALL(addr, loc, seg, sym, relocByte, addrBase)
+					relocateCALL(addr, loc, segment, relocByte, addrBase)
 				case R_PCREL:
-					relocatePCREL(addr, loc, seg, sym, relocByte, addrBase)
+					err = relocatePCREL(addr, loc, segment, relocByte, addrBase)
 				case R_CALLARM, R_CALLARM64:
-					relocteCALLARM(addr, loc, seg, sym)
+					relocteCALLARM(addr, loc, segment)
 				case R_ADDRARM64:
 					if symbol.Kind != STEXT {
-						seg.errors += fmt.Sprintf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
+						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate not in code segment!\n", sym.Name))
 					}
-					relocateADRP(seg.codeByte[loc.Offset:], loc, seg, addr, sym.Name)
+					relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
 				case R_ADDR:
 					address := uintptr(int(addr) + loc.Add)
 					putAddress(relocByte[loc.Offset:], uint64(address))
@@ -394,26 +401,27 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
 					//nothing todo
 				case R_ADDROFF, R_WEAKADDROFF, R_METHODOFF:
 					if symbol.Kind == STEXT {
-						seg.errors += fmt.Sprintf("impossible!Sym:%s locate on code segment!\n", sym.Name)
+						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate on code segment!\n", sym.Name))
 					}
-					offset := int(addr) - seg.codeBase + loc.Add
-					binary.LittleEndian.PutUint32(seg.codeByte[seg.codeLen+loc.Offset:], uint32(offset))
+					offset := int(addr) - segment.codeBase + loc.Add
+					binary.LittleEndian.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
 				default:
-					seg.errors += fmt.Sprintf("unknown reloc type:%d sym:%s\n", loc.Type, sym.Name)
+					err = errors.New(fmt.Sprintf("unknown reloc type:%d sym:%s\n", loc.Type, sym.Name))
 				}
 			}
 
 		}
 	}
+	return err
 }
 
-func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, seg *segment) {
-	module.ftab[i].entry = uintptr(seg.symbolMap[codereloc.funcdata[i].Name])
+func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeReloc, symbolMap map[string]uintptr) (err error) {
+	module.ftab[index].entry = uintptr(symbolMap[codereloc.funcdata[index].Name])
 
 	offset := alignof(*pclnOff, PtrSize)
-	module.ftab[i].funcoff = uintptr(offset)
-	funcdata := codereloc.funcdata[i]
-	funcdata.entry = module.ftab[i].entry
+	module.ftab[index].funcoff = uintptr(offset)
+	funcdata := codereloc.funcdata[index]
+	funcdata.entry = module.ftab[index].entry
 
 	data := make([]uintptr, len(funcdata.Func.FuncData))
 	for k, symbol := range funcdata.Func.FuncData {
@@ -424,8 +432,12 @@ func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, s
 		}
 	}
 
-	addStackObject(codereloc, &funcdata, seg)
-	addDeferReturn(codereloc, &funcdata, seg)
+	if err = addStackObject(codereloc, &funcdata, symbolMap); err != nil {
+		return err
+	}
+	if err = addDeferReturn(codereloc, &funcdata); err != nil {
+		return err
+	}
 
 	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata._func)), _FuncSize)
 	offset += _FuncSize
@@ -443,25 +455,29 @@ func addFuncTab(module *moduledata, i int, pclnOff *int, codereloc *CodeReloc, s
 	offset += funcDataSize
 
 	*pclnOff = offset
+	return err
 }
 
-func buildModule(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
+func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+	segment := &codeModule.segment
 	module := moduledata{}
 	module.ftab = make([]functab, len(codereloc.funcdata))
 	pclnOff := len(codereloc.pclntable)
 	module.pclntable = make([]byte, 4*len(codereloc.pclntable))
 	copy(module.pclntable, codereloc.pclntable)
-	module.minpc = uintptr(seg.codeBase)
-	module.maxpc = uintptr(seg.dataBase)
+	module.minpc = uintptr(segment.codeBase)
+	module.maxpc = uintptr(segment.dataBase)
 	module.filetab = codereloc.filetab
 	module.typemap = make(map[typeOff]uintptr)
-	module.types = uintptr(seg.codeBase)
-	module.etypes = uintptr(seg.codeBase + seg.maxLength)
-	module.text = uintptr(seg.codeBase)
-	module.etext = uintptr(seg.codeBase + len(codereloc.code))
+	module.types = uintptr(segment.codeBase)
+	module.etypes = uintptr(segment.codeBase + segment.maxLength)
+	module.text = uintptr(segment.codeBase)
+	module.etext = uintptr(segment.codeBase + len(codereloc.code))
 	codeModule.stkmaps = codereloc.stkmaps // hold reference
-	for i := range module.ftab {
-		addFuncTab(&module, i, &pclnOff, codereloc, seg)
+	for index := range module.ftab {
+		if err = addFuncTab(&module, index, &pclnOff, codereloc, symbolMap); err != nil {
+			return err
+		}
 	}
 	pclnOff = alignof(pclnOff, PtrSize)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[pclnOff]))
@@ -481,42 +497,41 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, seg *segment) {
 	modulesLock.Unlock()
 	moduledataverify1(&module)
 
-	codeModule.codeByte = seg.codeByte
+	return err
 }
 
-func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (*CodeModule, error) {
-	seg := segment{symbolMap: make(map[string]uintptr)}
-	seg.codeLen = len(codereloc.code)
-	seg.dataLen = len(codereloc.data)
-	seg.maxLength = (seg.codeLen + seg.dataLen) * 2
-	codeByte, err := Mmap(seg.maxLength)
-	if err != nil {
-		return nil, err
-	}
-	seg.codeByte = codeByte
-
-	codeModule := CodeModule{
+func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
+	codeModule = &CodeModule{
 		Syms:  make(map[string]uintptr),
 		itabs: make(map[string]*itabSym),
 	}
-
-	seg.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	seg.dataBase = seg.codeBase + len(codereloc.code)
-	seg.offset = seg.codeLen + seg.dataLen
-	//static_tmp is 0, golang compile not allocate memory.
-	seg.offset += IntSize
-	copy(seg.codeByte, codereloc.code)
-	copy(seg.codeByte[seg.codeLen:], codereloc.data)
-
-	addSymbolMap(codereloc, symPtr, &codeModule, &seg)
-	relocate(codereloc, &codeModule, &seg)
-	buildModule(codereloc, &codeModule, &seg)
-	relocateItab(codereloc, &codeModule, &seg)
-
-	if len(seg.errors) > 0 {
-		return &codeModule, errors.New(seg.errors)
+	codeModule.codeLen = len(codereloc.code)
+	codeModule.dataLen = len(codereloc.data)
+	codeModule.maxLength = (codeModule.codeLen + codeModule.dataLen) * 2
+	codeByte, err := Mmap(codeModule.maxLength)
+	if err != nil {
+		return nil, err
 	}
-	return &codeModule, nil
+
+	codeModule.codeByte = codeByte
+	codeModule.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
+	codeModule.dataBase = codeModule.codeBase + len(codereloc.code)
+	codeModule.offset = codeModule.codeLen + codeModule.dataLen
+	//static_tmp is 0, golang compile not allocate memory.
+	codeModule.offset += IntSize
+	copy(codeModule.codeByte, codereloc.code)
+	copy(codeModule.codeByte[codeModule.codeLen:], codereloc.data)
+
+	if symbolMap, err := addSymbolMap(codereloc, symPtr, codeModule); err == nil {
+		if err = relocate(codereloc, codeModule, symbolMap); err == nil {
+			if err = buildModule(codereloc, codeModule, symbolMap); err == nil {
+				if err = relocateItab(codereloc, codeModule, symbolMap); err == nil {
+					return codeModule, err
+				}
+			}
+		}
+	}
+	return nil, err
 }
 
 func (cm *CodeModule) Unload() {
