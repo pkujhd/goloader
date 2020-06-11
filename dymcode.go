@@ -107,71 +107,68 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 	if symbol, ok := codereloc.symMap[name]; ok {
 		return symbol, nil
 	}
-	objsym := objSymMap[name]
-	rsym := Sym{Name: objsym.sym.Name, Kind: int(objsym.sym.Kind), Func: nil}
-	codereloc.symMap[rsym.Name] = &rsym
+	objsym := objSymMap[name].sym
+	symbol := &Sym{Name: objsym.Name, Kind: int(objsym.Kind), Func: objsym.Func}
+	codereloc.symMap[symbol.Name] = symbol
 
-	code := make([]byte, objsym.sym.Data.Size)
-	_, err := objsym.file.ReadAt(code, objsym.sym.Data.Offset)
+	code := make([]byte, objsym.Data.Size)
+	_, err := objSymMap[name].file.ReadAt(code, objsym.Data.Offset)
 	if err != nil {
 		return nil, err
 	}
-	switch rsym.Kind {
+	switch symbol.Kind {
 	case STEXT:
-		rsym.Offset = len(codereloc.code)
+		symbol.Offset = len(codereloc.code)
 		codereloc.code = append(codereloc.code, code...)
 		bytearrayAlign(&codereloc.code, PtrSize)
-		rsym.Func = objsym.sym.Func
-		err := readFuncData(codereloc, objsym, objSymMap, rsym.Offset)
-		if err != nil {
+		if err := readFuncData(codereloc, objSymMap[name], objSymMap, symbol.Offset); err != nil {
 			return nil, err
 		}
 	default:
-		rsym.Offset = len(codereloc.data)
+		symbol.Offset = len(codereloc.data)
 		codereloc.data = append(codereloc.data, code...)
 		bytearrayAlign(&codereloc.data, PtrSize)
 	}
 
-	for _, loc := range objsym.sym.Reloc {
-		symbol := (*Sym)(nil)
-		if s, ok := objSymMap[loc.Sym.Name]; ok {
-			symbol, err = relocSym(codereloc, s.sym.Name, objSymMap)
-			if err != nil {
+	for _, loc := range objsym.Reloc {
+		reloc := Reloc{
+			Offset:   int(loc.Offset) + symbol.Offset,
+			Sym:      &Sym{Name: loc.Sym.Name, Offset: INVALID_OFFSET},
+			Type:     int(loc.Type),
+			Size:     int(loc.Size),
+			Add:      int(loc.Add),
+			DataSize: -1}
+		if _, ok := objSymMap[loc.Sym.Name]; ok {
+			if reloc.Sym, err = relocSym(codereloc, loc.Sym.Name, objSymMap); err != nil {
 				return nil, err
 			}
+			if objSymMap[loc.Sym.Name].sym.Data.Size == 0 && loc.Size > 0 {
+				reloc.DataSize = 0
+			}
 		} else {
-			sym := Sym{Name: loc.Sym.Name, Offset: INVALID_OFFSET}
 			if loc.Type == R_TLS_LE {
-				sym.Name = TLSNAME
-				sym.Offset = int(loc.Offset)
+				reloc.Sym.Name = TLSNAME
+				reloc.Sym.Offset = int(loc.Offset)
 			}
 			if loc.Type == R_CALLIND {
-				sym.Offset = 0
-				sym.Name = R_CALLIND_NAME
+				reloc.Sym.Offset = 0
+				reloc.Sym.Name = R_CALLIND_NAME
 			}
-			if strings.HasPrefix(sym.Name, TYPE_IMPORTPATH_PREFIX) {
-				path := strings.Trim(strings.TrimLeft(sym.Name, TYPE_IMPORTPATH_PREFIX), ".")
-				sym.Offset = len(codereloc.data)
+			if strings.HasPrefix(loc.Sym.Name, TYPE_IMPORTPATH_PREFIX) {
+				path := strings.Trim(strings.TrimLeft(loc.Sym.Name, TYPE_IMPORTPATH_PREFIX), ".")
+				reloc.Sym.Offset = len(codereloc.data)
 				codereloc.data = append(codereloc.data, path...)
 				codereloc.data = append(codereloc.data, ZERO_BYTE)
 			}
-			codereloc.symMap[sym.Name] = &sym
-			symbol = &sym
+			codereloc.symMap[reloc.Sym.Name] = reloc.Sym
 		}
-		rsym.Reloc = append(rsym.Reloc, Reloc{Offset: int(loc.Offset) + rsym.Offset, Sym: symbol, Type: int(loc.Type), Size: int(loc.Size), Add: int(loc.Add), DataSize: -1})
-		if s, ok := objSymMap[loc.Sym.Name]; ok {
-			if s.sym.Data.Size == 0 && loc.Size > 0 {
-				rsym.Reloc[len(rsym.Reloc)-1].DataSize = 0
-			}
-		}
+		symbol.Reloc = append(symbol.Reloc, reloc)
 	}
-	codereloc.symMap[name].Reloc = rsym.Reloc
-
-	return codereloc.symMap[name], nil
+	return symbol, nil
 }
 
-func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr) {
-	offset := int64(symAddr) + int64(loc.Add) - ((int64(seg.codeBase) + int64(loc.Offset)) &^ 0xfff)
+func relocateADRP(mCode []byte, loc Reloc, segment *segment, symAddr uintptr) {
+	offset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
 	//overflow
 	if offset > 0xFFFFFFFF || offset <= -0x100000000 {
 		//low:	MOV reg imm
@@ -180,13 +177,13 @@ func relocateADRP(mCode []byte, loc Reloc, seg *segment, symAddr uintptr) {
 		addr := binary.LittleEndian.Uint32(mCode)
 		low := uint32(value & 0xFFFFFFFF)
 		high := uint32(value >> 32)
-		low = ((addr & 0x1f) | low) | ((uint32(symAddr) & 0xffff) << 5)
-		high = ((addr & 0x1f) | high) | (uint32(symAddr) >> 16 << 5)
+		low = ((addr & 0x1F) | low) | ((uint32(symAddr) & 0xFFFF) << 5)
+		high = ((addr & 0x1F) | high) | (uint32(symAddr) >> 16 << 5)
 		binary.LittleEndian.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
 	} else {
 		// 2bit + 19bit + low(12bit) = 33bit
-		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7ffff) << 5)
-		high := (uint32(offset&0xfff) << 10)
+		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
+		high := (uint32(offset&0xFFF) << 10)
 		value := binary.LittleEndian.Uint64(mCode)
 		value = (uint64(uint32(value>>32)|high) << 32) | uint64(uint32(value&0xFFFFFFFF)|low)
 		binary.LittleEndian.PutUint64(mCode, value)
@@ -478,7 +475,7 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 	module.filetab = codereloc.filetab
 	module.typemap = make(map[typeOff]uintptr)
 	module.types = uintptr(segment.codeBase)
-	module.etypes = uintptr(segment.codeBase + segment.maxLength)
+	module.etypes = uintptr(segment.codeBase + segment.offset)
 	module.text = uintptr(segment.codeBase)
 	module.etext = uintptr(segment.codeBase + len(codereloc.code))
 	codeModule.stkmaps = codereloc.stkmaps // hold reference
