@@ -25,33 +25,33 @@ func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath 
 			file: f,
 		}
 	}
-	for _, sym := range obj.Syms {
-		if sym.Kind == STEXT && sym.DupOK == false {
-			_, err := relocSym(reloc, sym.Name, objSymMap)
-			if err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
-	reloc := CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
 	objSymMap := make(map[string]objSym)
-	err := readObj(f, &reloc, objSymMap, nil)
+	err := readObj(f, reloc, objSymMap, nil)
 	if err != nil {
 		return nil, err
+	}
+	for _, objSym := range objSymMap {
+		if objSym.sym.Kind == STEXT && objSym.sym.DupOK == false {
+			_, err := relocSym(reloc, objSym.sym.Name, objSymMap)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
 		copy(reloc.pclntable, armmoduleHead)
 	}
-	return &reloc, err
+	return reloc, err
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	reloc := CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
 	objSymMap := make(map[string]objSym)
 	for i, file := range files {
@@ -60,13 +60,21 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 			return nil, err
 		}
 		defer f.Close()
-		err = readObj(f, &reloc, objSymMap, &(pkgPath[i]))
+		err = readObj(f, reloc, objSymMap, &(pkgPath[i]))
 		if err != nil {
 			return nil, err
+		}
+	}
+	for _, objSym := range objSymMap {
+		if objSym.sym.Kind == STEXT && objSym.sym.DupOK == false {
+			_, err := relocSym(reloc, objSym.sym.Name, objSymMap)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
 		copy(reloc.pclntable, armmoduleHead)
 	}
-	return &reloc, nil
+	return reloc, nil
 }
