@@ -36,6 +36,8 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 	if err != nil {
 		return nil, err
 	}
+	//static_tmp is 0, golang compile not allocate memory.
+	reloc.data = append(reloc.data, make([]byte, IntSize)...)
 	for _, objSym := range objSymMap {
 		if objSym.sym.Kind == STEXT && objSym.sym.DupOK == false {
 			_, err := relocSym(reloc, objSym.sym.Name, objSymMap)
@@ -65,6 +67,8 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 			return nil, err
 		}
 	}
+	//static_tmp is 0, golang compile not allocate memory.
+	reloc.data = append(reloc.data, make([]byte, IntSize)...)
 	for _, objSym := range objSymMap {
 		if objSym.sym.Kind == STEXT && objSym.sym.DupOK == false {
 			_, err := relocSym(reloc, objSym.sym.Name, objSymMap)

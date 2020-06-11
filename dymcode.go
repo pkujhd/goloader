@@ -43,12 +43,11 @@ type Sym struct {
 
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Reloc struct
 type Reloc struct {
-	Offset   int
-	Sym      *Sym
-	Size     int
-	Type     int
-	Add      int
-	DataSize int64
+	Offset int
+	Sym    *Sym
+	Size   int
+	Type   int
+	Add    int
 }
 
 // ourself defined struct
@@ -132,18 +131,21 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 
 	for _, loc := range objsym.Reloc {
 		reloc := Reloc{
-			Offset:   int(loc.Offset) + symbol.Offset,
-			Sym:      &Sym{Name: loc.Sym.Name, Offset: INVALID_OFFSET},
-			Type:     int(loc.Type),
-			Size:     int(loc.Size),
-			Add:      int(loc.Add),
-			DataSize: -1}
+			Offset: int(loc.Offset) + symbol.Offset,
+			Sym:    &Sym{Name: loc.Sym.Name, Offset: INVALID_OFFSET},
+			Type:   int(loc.Type),
+			Size:   int(loc.Size),
+			Add:    int(loc.Add)}
 		if _, ok := objSymMap[loc.Sym.Name]; ok {
 			if reloc.Sym, err = relocSym(codereloc, loc.Sym.Name, objSymMap); err != nil {
 				return nil, err
 			}
 			if objSymMap[loc.Sym.Name].sym.Data.Size == 0 && loc.Size > 0 {
-				reloc.DataSize = 0
+				if int(loc.Size) <= IntSize {
+					reloc.Sym.Offset = 0
+				} else {
+					return nil, errors.New(fmt.Sprintf("Symbol:%s size:%d>IntSize:%d", loc.Sym.Name, loc.Size, IntSize))
+				}
 			}
 		} else {
 			if loc.Type == R_TLS_LE {
@@ -199,7 +201,7 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 				symbolMap[name] = ptr
 			} else {
 				symbolMap[name] = INVALID_HANDLE_VALUE
-				err = errors.New(fmt.Sprintf("unresolve external:%s", sym.Name))
+				return nil, errors.New(fmt.Sprintf("unresolve external:%s", sym.Name))
 			}
 		} else if sym.Name == TLSNAME {
 			regTLS(symbolMap, sym.Offset)
@@ -370,14 +372,6 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
-			//static_tmp is 0, golang compile not allocate memory.
-			if loc.DataSize == 0 && loc.Size > 0 {
-				if loc.Size <= IntSize {
-					addr = uintptr(segment.codeBase + segment.codeLen + segment.dataLen)
-				} else {
-					err = errors.New(fmt.Sprintf("Symbol:%s size:%d>IntSize:%d", sym.Name, loc.Size, IntSize))
-				}
-			}
 			if addr == INVALID_HANDLE_VALUE {
 				//nothing todo
 			} else if addr == 0 && strings.HasPrefix(sym.Name, ITAB_PREFIX) {
@@ -522,8 +516,6 @@ func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModu
 	codeModule.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
 	codeModule.dataBase = codeModule.codeBase + len(codereloc.code)
 	codeModule.offset = codeModule.codeLen + codeModule.dataLen
-	//static_tmp is 0, golang compile not allocate memory.
-	codeModule.offset += IntSize
 	copy(codeModule.codeByte, codereloc.code)
 	copy(codeModule.codeByte[codeModule.codeLen:], codereloc.data)
 
