@@ -2,6 +2,9 @@ package goloader
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
+	"strconv"
 	"unsafe"
 )
 
@@ -68,4 +71,36 @@ func copy2Slice(dst []byte, src uintptr, size int) {
 //see runtime.internal.atomic.Loadp
 func loadp(ptr unsafe.Pointer) unsafe.Pointer {
 	return *(*unsafe.Pointer)(ptr)
+}
+
+//see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
+func ispreprocesssymbol(name string) bool {
+	if len(name) > 5 {
+		switch name[:5] {
+		case "$f32.", "$f64.", "$i64.":
+			return true
+		default:
+		}
+	}
+	return false
+}
+
+func preprocesssymbol(name string, bytes []byte) error {
+	val, err := strconv.ParseUint(name[5:], 16, 64)
+	if err != nil {
+		return errors.New(fmt.Sprintf("failed to parse $-symbol %s: %v", name, err))
+	}
+	switch name[:5] {
+	case "$f32.":
+		if uint64(uint32(val)) != val {
+			return errors.New(fmt.Sprintf("$-symbol %s too large: %d", name, val))
+		}
+		binary.LittleEndian.PutUint32(bytes, uint32(val))
+		bytes = bytes[:4]
+	case "$f64.", "$i64.":
+		binary.LittleEndian.PutUint64(bytes, val)
+	default:
+		return errors.New(fmt.Sprintf("unrecognized $-symbol: %s", name))
+	}
+	return nil
 }
