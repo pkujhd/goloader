@@ -30,4 +30,6 @@ before_install:
 script:
   - go build github.com/pkujhd/goloader/examples/loader
   - go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
+  - go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go
   - ./loader -o base.o -run main.main
+  - ./loader -o const.o -run main.main
