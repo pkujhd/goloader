@@ -162,7 +162,11 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 				codereloc.data = append(codereloc.data, path...)
 				codereloc.data = append(codereloc.data, ZERO_BYTE)
 			}
-			codereloc.symMap[reloc.Sym.Name] = reloc.Sym
+			if _, ok := codereloc.symMap[reloc.Sym.Name]; !ok {
+				//golang1.8, some function generates more than one (MOVQ (TLS), CX)
+				//so when same name symbol in codereloc.symMap, do not update it
+				codereloc.symMap[reloc.Sym.Name] = reloc.Sym
+			}
 		}
 		symbol.Reloc = append(symbol.Reloc, reloc)
 	}
