@@ -67,10 +67,16 @@ const (
 	SDWARFINFO
 )
 
+type inlinedCall struct{}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, funcdata *[]uintptr, pcdata *[]uint32, inlineOffset uint32) (err error) {
+	return nil
+}
+
 func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
 	return nil
 }
 
-func addDeferReturn(codereloc *CodeReloc, _func *_func, funcname string) (err error) {
+func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
 	return nil
 }

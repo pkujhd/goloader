@@ -11,6 +11,7 @@ const (
 	_FuncSize            = int(unsafe.Sizeof(_func{}))
 	ItabSize             = int(unsafe.Sizeof(itab{}))
 	FindFuncBucketSize   = int(unsafe.Sizeof(findfuncbucket{}))
+	InlinedCallSize      = int(unsafe.Sizeof(inlinedCall{}))
 	INVALID_HANDLE_VALUE = ^uintptr(0)
 	INVALID_OFFSET       = int(-1)
 )
@@ -49,4 +50,5 @@ const (
 	ITAB_PREFIX            = "go.itab."
 	RUNTIME_PREFIX         = "runtime."
 	STKOBJ_SUFFIX          = ".stkobj"
+	INLINETREE_SUFFIX      = ".inlinetree"
 )

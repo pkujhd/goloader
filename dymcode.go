@@ -435,36 +435,41 @@ func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeRelo
 	_func := codereloc._func[index]
 	_func.entry = module.ftab[index].entry
 
-	data := make([]uintptr, len(Func.FuncData))
+	funcdata := make([]uintptr, len(Func.FuncData))
 	for k, symbol := range Func.FuncData {
 		if codereloc.stkmaps[symbol.Sym.Name] != nil {
-			data[k] = (uintptr)(unsafe.Pointer(&(codereloc.stkmaps[symbol.Sym.Name][0])))
+			funcdata[k] = (uintptr)(unsafe.Pointer(&(codereloc.stkmaps[symbol.Sym.Name][0])))
 		} else {
-			data[k] = (uintptr)(0)
+			funcdata[k] = (uintptr)(0)
 		}
 	}
-
+	pcdata := []uint32{}
+	pcln := uint32(_func.pcln) + uint32(Func.PCLine.Size)
+	for k := 0; k < len(Func.PCData); k++ {
+		pcdata = append(pcdata, pcln)
+		pcln += uint32(Func.PCData[k].Size)
+	}
+	if err = addInlineTree(codereloc, &_func, &funcdata, &pcdata, pcln); err != nil {
+		return err
+	}
 	if err = addStackObject(codereloc, funcname, symbolMap); err != nil {
 		return err
 	}
-	if err = addDeferReturn(codereloc, &_func, funcname); err != nil {
+	if err = addDeferReturn(codereloc, &_func); err != nil {
 		return err
 	}
 
 	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&_func)), _FuncSize)
 	offset += _FuncSize
 
-	pcln := uint32(_func.pcln) + uint32(Func.PCLine.Size)
-	for k := 0; k < len(Func.PCData); k++ {
-		binary.LittleEndian.PutUint32(module.pclntable[offset:], pcln)
-		pcln += uint32(Func.PCData[k].Size)
-		offset += Uint32Size
+	if len(pcdata) > 0 {
+		copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&(pcdata[0]))), Uint32Size*len(pcdata))
+		offset += Uint32Size * len(pcdata)
 	}
 
 	offset = alignof(offset, PtrSize)
-	funcDataSize := int(PtrSize * _func.nfuncdata)
-	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&data[0])), funcDataSize)
-	offset += funcDataSize
+	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
+	offset += int(PtrSize * _func.nfuncdata)
 
 	*pclnOff = offset
 	return err

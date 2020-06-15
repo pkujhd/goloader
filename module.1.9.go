@@ -1,5 +1,5 @@
-// +build go1.8
-// +build !go1.9,!go1.10,!go1.11,!go1.12,!go1.13,!go1.14,!go1.15
+// +build go1.9
+// +build !go1.10,!go1.11,!go1.12,!go1.13,!go1.14,!go1.15
 
 package goloader
 
@@ -12,8 +12,10 @@ import (
 // See funcdata.h and ../cmd/internal/obj/funcdata.go.
 const (
 	_PCDATA_StackMapIndex       = 0
+	_PCDATA_InlTreeIndex        = 1
 	_FUNCDATA_ArgsPointerMaps   = 0
 	_FUNCDATA_LocalsPointerMaps = 1
+	_FUNCDATA_InlTree           = 2
 	_ArgsSizeUnknown            = -0x80000000
 )
 
@@ -82,7 +84,4 @@ func init_func(symbol *goobj.Sym, nameOff, spOff, pcfileOff, pclnOff int) _func 
 		nfuncdata: int32(len(symbol.Func.FuncData)),
 	}
 	return fdata
-}
-
-func readPCInline(codeReloc *CodeReloc, symbol *goobj.Sym, fd *readAtSeeker) {
 }

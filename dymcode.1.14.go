@@ -4,6 +4,7 @@
 package goloader
 
 import (
+	"cmd/objfile/goobj"
 	"errors"
 	"fmt"
 )
@@ -59,11 +60,37 @@ const (
 
 )
 
+// inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
+type inlinedCall struct {
+	parent   int16  // index of parent in the inltree, or < 0
+	funcID   funcID // type of the called function
+	_        byte
+	file     int32 // fileno index into filetab
+	line     int32 // line number of the call site
+	func_    int32 // offset into pclntab for name of called function
+	parentPc int32 // position of an instruction whose source position is the call site (offset from entry)
+}
+
+func initInlinedCall(codereloc *CodeReloc, inl goobj.InlinedCall, _func *_func) inlinedCall {
+	return inlinedCall{
+		parent:   int16(inl.Parent),
+		funcID:   _func.funcID,
+		file:     int32(findFileTab(codereloc, inl.File)),
+		line:     int32(inl.Line),
+		func_:    int32(findFuncNameOff(codereloc, inl.Func.Name)),
+		parentPc: int32(inl.ParentPC)}
+}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, funcdata *[]uintptr, pcdata *[]uint32, inlineOffset uint32) (err error) {
+	return _addInlineTree(codereloc, _func, funcdata, pcdata, inlineOffset)
+}
+
 func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
 	return _addStackObject(codereloc, funcname, symbolMap)
 }
 
-func addDeferReturn(codereloc *CodeReloc, _func *_func, funcname string) (err error) {
+func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
+	funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
 	Func := codereloc.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
 		sym := codereloc.symMap[funcname]
