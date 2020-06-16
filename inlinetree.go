@@ -14,10 +14,10 @@ func readPCInline(codeReloc *CodeReloc, symbol *goobj.Sym, fd *readAtSeeker) {
 }
 
 func findFuncNameOff(codereloc *CodeReloc, funcname string) int32 {
-	for index, _ := range codereloc._func {
-		name := gostringnocopy(&codereloc.pclntable[codereloc._func[index].nameoff])
+	for _, _func := range codereloc._func {
+		name := gostringnocopy(&codereloc.pclntable[_func.nameoff])
 		if name == funcname {
-			return codereloc._func[index].nameoff
+			return _func.nameoff
 		}
 	}
 	return -1
