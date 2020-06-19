@@ -168,18 +168,16 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 	return
 }
 
-func addModule(codeModule *CodeModule, aModule *moduledata) {
-	modules[aModule] = true
+func addModule(codeModule *CodeModule) {
+	modules[codeModule.module] = true
 	for datap := &firstmoduledata; ; {
 		if datap.next == nil {
-			datap.next = aModule
+			datap.next = codeModule.module
 			break
 		}
 		datap = datap.next
 	}
-	codeModule.module = aModule
 }
-
 func removeModule(module interface{}) {
 	prevp := &firstmoduledata
 	for datap := &firstmoduledata; datap != nil; {

@@ -238,57 +238,6 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 	return symbolMap, err
 }
 
-func relocateItab(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
-	segment := &codeModule.segment
-	for itabName, iter := range codeModule.itabs {
-		symbol := codereloc.symMap[itabName]
-		inter := symbolMap[symbol.Reloc[0].Sym.Name]
-		typ := symbolMap[symbol.Reloc[1].Sym.Name]
-		if inter != INVALID_HANDLE_VALUE && typ != INVALID_HANDLE_VALUE {
-			*(*uintptr)(unsafe.Pointer(&(iter.inter))) = inter
-			*(*uintptr)(unsafe.Pointer(&(iter.typ))) = typ
-			methods := iter.typ.uncommon().methods()
-			for k := 0; k < len(iter.inter.mhdr) && k < len(methods); k++ {
-				itype := uintptr(unsafe.Pointer(iter.inter.typ.typeOff(iter.inter.mhdr[k].ityp)))
-				codeModule.module.typemap[methods[k].mtyp] = itype
-			}
-			iter.ptr = getitab(iter.inter, iter.typ, false)
-			address := uintptr(unsafe.Pointer(iter.ptr))
-			if iter.ptr != nil {
-				switch iter.Type {
-				case R_PCREL:
-					offset := int(address) - (segment.codeBase + iter.Offset + iter.Size) + iter.Add
-					if offset > 0x7FFFFFFF || offset < -0x80000000 {
-						offset = segment.offset - (iter.Offset + iter.Size) + iter.Add
-						binary.LittleEndian.PutUint32(segment.codeByte[iter.Offset:], uint32(offset))
-						if segment.codeByte[iter.Offset-2] == x86amd64MOVcode {
-							//!!!TRICK
-							//because struct itab doesn't change after it adds into itab list, so
-							//copy itab data instead of jump code
-							copy2Slice(segment.codeByte[segment.offset:], address, ItabSize)
-							segment.offset += ItabSize
-						} else if segment.codeByte[iter.Offset-2] == x86amd64LEAcode {
-							segment.codeByte[iter.Offset-2:][0] = x86amd64MOVcode
-							putAddressAddOffset(segment.codeByte, &segment.offset, uint64(address))
-						} else {
-							err = errors.New(fmt.Sprintf("relocateItab: not support code:%v!", segment.codeByte[iter.Offset-2:iter.Offset]))
-						}
-					} else {
-						binary.LittleEndian.PutUint32(segment.codeByte[iter.Offset:], uint32(offset))
-					}
-				case R_ADDRARM64:
-					relocateADRP(segment.codeByte[iter.Offset:], iter.Reloc, segment, address)
-				case R_ADDR:
-					putAddress(segment.codeByte[iter.Offset:], uint64(int(address)+iter.Add))
-				default:
-					err = errors.New(fmt.Sprintf("unknown relocateItab type:%d Name:%s", iter.Type, itabName))
-				}
-			}
-		}
-	}
-	return err
-}
-
 func relocateCALL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, addrBase int) {
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
@@ -386,10 +335,13 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
+			if addr == 0 && strings.HasPrefix(sym.Name, ITAB_PREFIX) {
+				addr = uintptr(segment.dataBase + loc.Sym.Offset)
+				symbolMap[loc.Sym.Name] = addr
+				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
+			}
 			if addr == INVALID_HANDLE_VALUE {
 				//nothing todo
-			} else if addr == 0 && strings.HasPrefix(sym.Name, ITAB_PREFIX) {
-				codeModule.itabs[sym.Name] = &itabSym{Reloc: loc, inter: nil, typ: nil, ptr: nil}
 			} else {
 				switch loc.Type {
 				case R_TLS_LE:
@@ -478,7 +430,7 @@ func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeRelo
 
 func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
-	module := moduledata{}
+	module := codeModule.module
 	module.ftab = make([]functab, len(codereloc._func))
 	pclnOff := len(codereloc.pclntable)
 	module.pclntable = make([]byte, 4*len(codereloc.pclntable))
@@ -493,7 +445,7 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 	module.etext = uintptr(segment.codeBase + len(codereloc.code))
 	codeModule.stkmaps = codereloc.stkmaps // hold reference
 	for index := range module.ftab {
-		if err = addFuncTab(&module, index, &pclnOff, codereloc, symbolMap); err != nil {
+		if err = addFuncTab(module, index, &pclnOff, codereloc, symbolMap); err != nil {
 			return err
 		}
 	}
@@ -511,17 +463,19 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 	module.ftab[len(module.ftab)-1].entry = module.maxpc
 
 	modulesLock.Lock()
-	addModule(codeModule, &module)
+	addModule(codeModule)
 	modulesLock.Unlock()
-	moduledataverify1(&module)
+	additabs(codeModule.module)
+	moduledataverify1(codeModule.module)
 
 	return err
 }
 
 func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
-		Syms:  make(map[string]uintptr),
-		itabs: make(map[string]*itabSym),
+		Syms:   make(map[string]uintptr),
+		itabs:  make(map[string]*itabSym),
+		module: &moduledata{},
 	}
 	codeModule.codeLen = len(codereloc.code)
 	codeModule.dataLen = len(codereloc.data)
@@ -542,9 +496,7 @@ func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModu
 	if symbolMap, err = addSymbolMap(codereloc, symPtr, codeModule); err == nil {
 		if err = relocate(codereloc, codeModule, symbolMap); err == nil {
 			if err = buildModule(codereloc, codeModule, symbolMap); err == nil {
-				if err = relocateItab(codereloc, codeModule, symbolMap); err == nil {
-					return codeModule, err
-				}
+				return codeModule, err
 			}
 		}
 	}
@@ -552,11 +504,7 @@ func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModu
 }
 
 func (cm *CodeModule) Unload() {
-	for _, itab := range cm.itabs {
-		if itab.inter != nil && itab.typ != nil {
-			eraseiface(itab.inter, itab.typ)
-		}
-	}
+	removeitabs(cm.module)
 	runtime.GC()
 	modulesLock.Lock()
 	removeModule(cm.module)

@@ -32,7 +32,30 @@ var ifaceLock mutex
 //go:linkname itabhash runtime.itabhash
 func itabhash(inter *interfacetype, typ *_type) uint32
 
-func eraseiface(inter *interfacetype, typ *_type) bool {
+//go:linkname additab runtime.additab
+func additab(m *itab, locked, canfail bool)
+
+func additabs(module *moduledata) {
+	lock(&ifaceLock)
+	for _, itab := range module.itablinks {
+		if itab.inhash == 0 {
+			methods := itab._type.uncommon().methods()
+			for k := 0; k < len(methods); k++ {
+				for m := 0; m < len(itab.inter.mhdr); m++ {
+					if itab.inter.typ.nameOff(itab.inter.mhdr[m].name).name() ==
+						itab._type.nameOff(methods[k].name).name() {
+						itype := uintptr(unsafe.Pointer(itab.inter.typ.typeOff(itab.inter.mhdr[k].ityp)))
+						module.typemap[methods[k].mtyp] = itype
+					}
+				}
+			}
+			additab(itab, true, false)
+		}
+	}
+	unlock(&ifaceLock)
+}
+
+func removeitab(inter *interfacetype, typ *_type) bool {
 	lock(&ifaceLock)
 	defer unlock(&ifaceLock)
 	h := itabhash(inter, typ)

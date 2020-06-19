@@ -37,7 +37,28 @@ var itabLock mutex
 //go:linkname itabHashFunc runtime.itabHashFunc
 func itabHashFunc(inter *interfacetype, typ *_type) uintptr
 
-func eraseiface(inter *interfacetype, typ *_type) bool {
+//go:linkname itabAdd runtime.itabAdd
+func itabAdd(m *itab)
+
+func additabs(module *moduledata) {
+	lock(&itabLock)
+	for _, itab := range module.itablinks {
+		methods := itab._type.uncommon().methods()
+		for k := 0; k < len(methods); k++ {
+			for m := 0; m < len(itab.inter.mhdr); m++ {
+				if itab.inter.typ.nameOff(itab.inter.mhdr[m].name).name() ==
+					itab._type.nameOff(methods[k].name).name() {
+					itype := uintptr(unsafe.Pointer(itab.inter.typ.typeOff(itab.inter.mhdr[k].ityp)))
+					module.typemap[methods[k].mtyp] = itype
+				}
+			}
+		}
+		itabAdd(itab)
+	}
+	unlock(&itabLock)
+}
+
+func removeitab(inter *interfacetype, typ *_type) bool {
 	lock(&itabLock)
 	defer unlock(&itabLock)
 	mask := itabTable.size - 1
