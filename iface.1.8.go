@@ -44,7 +44,7 @@ func additabs(module *moduledata) {
 				for m := 0; m < len(itab.inter.mhdr); m++ {
 					if itab.inter.typ.nameOff(itab.inter.mhdr[m].name).name() ==
 						itab._type.nameOff(methods[k].name).name() {
-						itype := uintptr(unsafe.Pointer(itab.inter.typ.typeOff(itab.inter.mhdr[k].ityp)))
+						itype := uintptr(unsafe.Pointer(itab.inter.typ.typeOff(itab.inter.mhdr[m].ityp)))
 						module.typemap[methods[k].mtyp] = itype
 					}
 				}
