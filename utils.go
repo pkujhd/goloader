@@ -73,6 +73,12 @@ func loadp(ptr unsafe.Pointer) unsafe.Pointer {
 	return *(*unsafe.Pointer)(ptr)
 }
 
+func grow(bytes *[]byte, size int) {
+	if len(*bytes) < size {
+		*bytes = append(*bytes, make([]byte, size-len(*bytes))...)
+	}
+}
+
 //see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
 func ispreprocesssymbol(name string) bool {
 	if len(name) > 5 {
