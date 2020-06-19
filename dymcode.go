@@ -115,6 +115,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 	if err != nil {
 		return nil, err
 	}
+	grow(&code, int(objsym.Size))
 	switch symbol.Kind {
 	case STEXT:
 		symbol.Offset = len(codereloc.code)
