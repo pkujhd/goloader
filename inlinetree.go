@@ -5,26 +5,26 @@ package goloader
 
 import (
 	"cmd/objfile/goobj"
-	"strings"
 	"unsafe"
 )
 
 func readPCInline(codeReloc *CodeReloc, symbol *goobj.Sym, fd *readAtSeeker) {
 	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCInline.Size, symbol.Func.PCInline.Offset)
+	for _, inl := range symbol.Func.InlTree {
+		if _, ok := codeReloc.namemap[inl.Func.Name]; !ok {
+			codeReloc.namemap[inl.Func.Name] = len(codeReloc.pclntable)
+			codeReloc.pclntable = append(codeReloc.pclntable, []byte(inl.Func.Name)...)
+			codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
+		}
+	}
 }
 
 func findFuncNameOff(codereloc *CodeReloc, funcname string) int32 {
-	for _, _func := range codereloc._func {
-		name := gostringnocopy(&codereloc.pclntable[_func.nameoff])
-		if name == funcname {
-			return _func.nameoff
-		}
-	}
-	return -1
+	return int32(codereloc.namemap[funcname])
 }
 
 func findFileTab(codereloc *CodeReloc, filename string) int32 {
-	tab := codereloc.fileMap[strings.TrimLeft(filename, FILE_SYM_PREFIX)]
+	tab := codereloc.namemap[filename]
 	for index, value := range codereloc.filetab {
 		if uint32(tab) == value {
 			return int32(index)

@@ -67,7 +67,7 @@ type CodeReloc struct {
 	data      []byte
 	symMap    map[string]*Sym
 	stkmaps   map[string][]byte
-	fileMap   map[string]int
+	namemap   map[string]int
 	filetab   []uint32
 	pclntable []byte
 	pcfunc    []findfuncbucket

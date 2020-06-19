@@ -108,10 +108,10 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 	pcFileHead := make([]byte, 32)
 	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(codeReloc.filetab))<<1)
 	for _, fileName := range symbol.Func.File {
-		fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
-		if offset, ok := codeReloc.fileMap[fileName]; !ok {
+		if offset, ok := codeReloc.namemap[fileName]; !ok {
 			codeReloc.filetab = append(codeReloc.filetab, (uint32)(len(codeReloc.pclntable)))
-			codeReloc.fileMap[fileName] = len(codeReloc.pclntable)
+			codeReloc.namemap[fileName] = len(codeReloc.pclntable)
+			fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
 			codeReloc.pclntable = append(codeReloc.pclntable, []byte(fileName)...)
 			codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
 		} else {
@@ -120,8 +120,13 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 	}
 
 	nameOff := len(codeReloc.pclntable)
-	codeReloc.pclntable = append(codeReloc.pclntable, []byte(symbol.Name)...)
-	codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
+	if offset, ok := codeReloc.namemap[symbol.Name]; !ok {
+		codeReloc.namemap[symbol.Name] = len(codeReloc.pclntable)
+		codeReloc.pclntable = append(codeReloc.pclntable, []byte(symbol.Name)...)
+		codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
+	} else {
+		nameOff = offset
+	}
 
 	pcspOff := len(codeReloc.pclntable)
 	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCSP.Size, symbol.Func.PCSP.Offset)

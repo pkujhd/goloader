@@ -29,7 +29,7 @@ func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath 
 }
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
-	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), namemap: make(map[string]int)}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
 	objSymMap := make(map[string]objSym)
 	err := readObj(f, reloc, objSymMap, nil)
@@ -53,7 +53,7 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), fileMap: make(map[string]int)}
+	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), namemap: make(map[string]int)}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
 	objSymMap := make(map[string]objSym)
 	for i, file := range files {
