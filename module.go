@@ -145,6 +145,8 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 
 	readPCInline(codeReloc, symbol, &fd)
 
+	grow(&codeReloc.pclntable, alignof(len(codeReloc.pclntable), PtrSize))
+
 	for _, data := range symbol.Func.FuncData {
 		if _, ok := codeReloc.stkmaps[data.Sym.Name]; !ok {
 			if gcobj, ok := objSymMap[data.Sym.Name]; ok {
