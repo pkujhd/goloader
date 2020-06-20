@@ -370,16 +370,10 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 	return err
 }
 
-func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeReloc, symbolMap map[string]uintptr) (err error) {
-	funcname := gostringnocopy(&codereloc.pclntable[codereloc._func[index].nameoff])
+func addFuncTab(module *moduledata, _func *_func, codereloc *CodeReloc, symbolMap map[string]uintptr) (err error) {
+	funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
+	_func.entry = uintptr(symbolMap[funcname])
 	Func := codereloc.symMap[funcname].Func
-	module.ftab[index].entry = uintptr(symbolMap[funcname])
-
-	offset := alignof(*pclnOff, PtrSize)
-	module.ftab[index].funcoff = uintptr(offset)
-	_func := codereloc._func[index]
-	_func.entry = module.ftab[index].entry
-
 	funcdata := make([]uintptr, len(Func.FuncData))
 	for k, symbol := range Func.FuncData {
 		if codereloc.stkmaps[symbol.Sym.Name] != nil {
@@ -394,67 +388,56 @@ func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeRelo
 		pcdata = append(pcdata, pcln)
 		pcln += uint32(Func.PCData[k].Size)
 	}
-	if err = addInlineTree(codereloc, &_func, &funcdata, &pcdata, pcln); err != nil {
+	if err = addInlineTree(codereloc, _func, &funcdata, &pcdata, pcln); err != nil {
 		return err
 	}
 	if err = addStackObject(codereloc, funcname, symbolMap); err != nil {
 		return err
 	}
-	if err = addDeferReturn(codereloc, &_func); err != nil {
+	if err = addDeferReturn(codereloc, _func); err != nil {
 		return err
 	}
 
-	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&_func)), _FuncSize)
-	offset += _FuncSize
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(_func)), _FuncSize)
 
 	if _func.npcdata > 0 {
-		copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&(pcdata[0]))), Uint32Size*int(_func.npcdata))
-		offset += Uint32Size * int(_func.npcdata)
+		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(pcdata[0]))), Uint32Size*int(_func.npcdata))
 	}
 
-	offset = alignof(offset, PtrSize)
+	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
 	if _func.nfuncdata > 0 {
-		copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
-		offset += int(PtrSize * _func.nfuncdata)
+		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
 	}
 
-	*pclnOff = offset
 	return err
 }
 
 func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	module := codeModule.module
-	module.ftab = make([]functab, len(codereloc._func))
-	pclnOff := len(codereloc.pclntable)
-	module.pclntable = make([]byte, 4*len(codereloc.pclntable))
-	copy(module.pclntable, codereloc.pclntable)
+	module.pclntable = append(module.pclntable, codereloc.pclntable...)
 	module.minpc = uintptr(segment.codeBase)
 	module.maxpc = uintptr(segment.dataBase)
 	module.filetab = codereloc.filetab
-	module.typemap = make(map[typeOff]uintptr)
 	module.types = uintptr(segment.codeBase)
 	module.etypes = uintptr(segment.codeBase + segment.offset)
 	module.text = uintptr(segment.codeBase)
 	module.etext = uintptr(segment.codeBase + len(codereloc.code))
 	codeModule.stkmaps = codereloc.stkmaps // hold reference
-	for index := range module.ftab {
-		if err = addFuncTab(module, index, &pclnOff, codereloc, symbolMap); err != nil {
+
+	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.minpc})
+	for index, _func := range codereloc._func {
+		funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
+		module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: uintptr(symbolMap[funcname])})
+		if err = addFuncTab(module, &(codereloc._func[index]), codereloc, symbolMap); err != nil {
 			return err
 		}
 	}
-	pclnOff = alignof(pclnOff, PtrSize)
-	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[pclnOff]))
-	copy2Slice(module.pclntable[pclnOff:], (uintptr)(unsafe.Pointer(&codereloc.pcfunc[0])), len(codereloc.pcfunc)*FindFuncBucketSize)
-	pclnOff += len(codereloc.pcfunc) * FindFuncBucketSize
-	module.pclntable = module.pclntable[:pclnOff]
-	module.ftab = append(module.ftab, functab{})
-	for i := len(module.ftab) - 1; i > 0; i-- {
-		module.ftab[i] = module.ftab[i-1]
-	}
-	module.ftab = append(module.ftab, functab{})
-	module.ftab[0].entry = module.minpc
-	module.ftab[len(module.ftab)-1].entry = module.maxpc
+	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.maxpc})
+
+	length := len(codereloc.pcfunc) * FindFuncBucketSize
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&codereloc.pcfunc[0])), length)
+	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[len(module.pclntable)-length]))
 
 	modulesLock.Lock()
 	addModule(codeModule)
@@ -468,7 +451,7 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
-		module: &moduledata{},
+		module: &moduledata{typemap: make(map[typeOff]uintptr)},
 	}
 	codeModule.codeLen = len(codereloc.code)
 	codeModule.dataLen = len(codereloc.data)
