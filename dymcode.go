@@ -445,7 +445,7 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 	}
 	pclnOff = alignof(pclnOff, PtrSize)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[pclnOff]))
-	copy2Slice(module.pclntable[pclnOff:], module.findfunctab, len(codereloc.pcfunc)*FindFuncBucketSize)
+	copy2Slice(module.pclntable[pclnOff:], (uintptr)(unsafe.Pointer(&codereloc.pcfunc[0])), len(codereloc.pcfunc)*FindFuncBucketSize)
 	pclnOff += len(codereloc.pcfunc) * FindFuncBucketSize
 	module.pclntable = module.pclntable[:pclnOff]
 	module.ftab = append(module.ftab, functab{})
