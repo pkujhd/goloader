@@ -80,14 +80,6 @@ type CodeModule struct {
 	Syms    map[string]uintptr
 	module  *moduledata
 	stkmaps map[string][]byte
-	itabs   map[string]*itabSym
-}
-
-type itabSym struct {
-	Reloc
-	inter *interfacetype
-	typ   *_type
-	ptr   *itab
 }
 
 type objSym struct {
@@ -474,7 +466,6 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
-		itabs:  make(map[string]*itabSym),
 		module: &moduledata{},
 	}
 	codeModule.codeLen = len(codereloc.code)
