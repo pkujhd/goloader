@@ -58,12 +58,21 @@ func signext24(x int64) int32 {
 }
 
 func copy2Slice(dst []byte, src uintptr, size int) {
-	var s = sliceHeader{
+	s := sliceHeader{
 		Data: src,
 		Len:  size,
 		Cap:  size,
 	}
 	copy(dst, *(*[]byte)(unsafe.Pointer(&s)))
+}
+
+func append2Slice(dst *[]byte, src uintptr, size int) {
+	s := sliceHeader{
+		Data: src,
+		Len:  size,
+		Cap:  size,
+	}
+	*dst = append(*dst, *(*[]byte)(unsafe.Pointer(&s))...)
 }
 
 //go:nosplit
