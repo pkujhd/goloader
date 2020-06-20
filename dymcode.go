@@ -407,14 +407,16 @@ func addFuncTab(module *moduledata, index int, pclnOff *int, codereloc *CodeRelo
 	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&_func)), _FuncSize)
 	offset += _FuncSize
 
-	if len(pcdata) > 0 {
-		copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&(pcdata[0]))), Uint32Size*len(pcdata))
-		offset += Uint32Size * len(pcdata)
+	if _func.npcdata > 0 {
+		copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&(pcdata[0]))), Uint32Size*int(_func.npcdata))
+		offset += Uint32Size * int(_func.npcdata)
 	}
 
 	offset = alignof(offset, PtrSize)
-	copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
-	offset += int(PtrSize * _func.nfuncdata)
+	if _func.nfuncdata > 0 {
+		copy2Slice(module.pclntable[offset:], uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
+		offset += int(PtrSize * _func.nfuncdata)
+	}
 
 	*pclnOff = offset
 	return err
