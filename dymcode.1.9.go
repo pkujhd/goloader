@@ -3,10 +3,6 @@
 
 package goloader
 
-import (
-	"cmd/objfile/goobj"
-)
-
 const (
 	R_PCREL = 15
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
@@ -47,26 +43,6 @@ const (
 	SDWARFMISC
 	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
 )
-
-// inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
-type inlinedCall struct {
-	parent int32 // index of parent in the inltree, or < 0
-	file   int32 // fileno index into filetab
-	line   int32 // line number of the call site
-	func_  int32 // offset into pclntab for name of called function
-}
-
-func initInlinedCall(codereloc *CodeReloc, inl goobj.InlinedCall, _func *_func) inlinedCall {
-	return inlinedCall{
-		parent: int32(inl.Parent),
-		file:   int32(findFileTab(codereloc, inl.File)),
-		line:   int32(inl.Line),
-		func_:  int32(findFuncNameOff(codereloc, inl.Func.Name))}
-}
-
-func addInlineTree(codereloc *CodeReloc, _func *_func, funcdata *[]uintptr, pcdata *[]uint32, inlineOffset uint32) (err error) {
-	return _addInlineTree(codereloc, _func, funcdata, pcdata, inlineOffset)
-}
 
 func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
 	return nil

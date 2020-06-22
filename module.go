@@ -139,13 +139,11 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCLine.Size, symbol.Func.PCLine.Offset)
 
 	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff)
+	Func := codeReloc.symMap[symbol.Name].Func
 	for _, data := range symbol.Func.PCData {
+		Func.PCData = append(Func.PCData, uint32(len(codeReloc.pclntable)))
 		fd.ReadAtWithSize(&(codeReloc.pclntable), data.Size, data.Offset)
 	}
-
-	readPCInline(codeReloc, symbol, &fd)
-
-	grow(&codeReloc.pclntable, alignof(len(codeReloc.pclntable), PtrSize))
 
 	for _, data := range symbol.Func.FuncData {
 		if _, ok := codeReloc.stkmaps[data.Sym.Name]; !ok {
@@ -159,7 +157,18 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 				err = errors.New("unknown gcobj:" + data.Sym.Name)
 			}
 		}
+		if codeReloc.stkmaps[data.Sym.Name] != nil {
+			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(codeReloc.stkmaps[data.Sym.Name][0]))))
+		} else {
+			Func.FuncData = append(Func.FuncData, (uintptr)(0))
+		}
 	}
+
+	if err = addInlineTree(codeReloc, &_func, symbol, &fd); err != nil {
+		return err
+	}
+
+	grow(&codeReloc.pclntable, alignof(len(codeReloc.pclntable), PtrSize))
 	codeReloc._func = append(codeReloc._func, _func)
 
 	for _, data := range symbol.Func.FuncData {

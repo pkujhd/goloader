@@ -86,3 +86,9 @@ func init_func(symbol *goobj.Sym, nameOff, spOff, pcfileOff, pclnOff int) _func 
 
 func readPCInline(codeReloc *CodeReloc, symbol *goobj.Sym, fd *readAtSeeker) {
 }
+
+type inlinedCall struct{}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, symbol *goobj.Sym, fd *readAtSeeker) (err error) {
+	return nil
+}

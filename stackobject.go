@@ -4,7 +4,6 @@
 package goloader
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"unsafe"
@@ -22,17 +21,24 @@ type stackObjectRecord struct {
 	typ *_type
 }
 
+func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
+	n := int(*(*uintptr)(addr))
+	slice := sliceHeader{
+		Data: uintptr(add(addr, uintptr(PtrSize))),
+		Len:  n,
+		Cap:  n,
+	}
+	return (*[]stackObjectRecord)(unsafe.Pointer(&slice))
+}
+
 func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
 	Func := codereloc.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_StackObjects &&
-		codereloc.stkmaps[Func.FuncData[_FUNCDATA_StackObjects].Sym.Name] != nil {
-		b := codereloc.stkmaps[Func.FuncData[_FUNCDATA_StackObjects].Sym.Name]
-		n := *(*int)(unsafe.Pointer(&b[0]))
-		p := unsafe.Pointer(&b[PtrSize])
-		for i := 0; i < n; i++ {
-			obj := *(*stackObjectRecord)(p)
+		Func.FuncData[_FUNCDATA_StackObjects] != 0 {
+		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[_FUNCDATA_StackObjects], 0))
+		for i, obj := range *objects {
 			name := EMPTY_STRING
-			for _, v := range Func.Var {
+			for _, v := range *Func.Var {
 				if v.Offset == (int64)(obj.off) {
 					name = v.Type.Name
 					break
@@ -44,18 +50,13 @@ func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string
 					name = symbol.Reloc[i].Sym.Name
 				}
 			}
-			if ptr, ok := symbolMap[name]; !ok {
-				err = errors.New(fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name))
+			if ptr, ok := symbolMap[name]; ok {
+				(*objects)[i].typ = (*_type)(adduintptr(ptr, 0))
 			} else {
-				off := PtrSize + i*(int)(stackObjectRecordSize) + PtrSize
-				if PtrSize == 4 {
-					binary.LittleEndian.PutUint32(b[off:], *(*uint32)(unsafe.Pointer(&ptr)))
-				} else {
-					binary.LittleEndian.PutUint64(b[off:], *(*uint64)(unsafe.Pointer(&ptr)))
-				}
+				return errors.New(fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name))
+
 			}
-			p = add(p, stackObjectRecordSize)
 		}
 	}
-	return err
+	return nil
 }

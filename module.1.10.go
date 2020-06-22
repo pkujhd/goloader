@@ -87,3 +87,23 @@ func init_func(symbol *goobj.Sym, nameOff, spOff, pcfileOff, pclnOff int) _func 
 	}
 	return fdata
 }
+
+// inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
+type inlinedCall struct {
+	parent int32 // index of parent in the inltree, or < 0
+	file   int32 // fileno index into filetab
+	line   int32 // line number of the call site
+	func_  int32 // offset into pclntab for name of called function
+}
+
+func initInlinedCall(codereloc *CodeReloc, inl goobj.InlinedCall, _func *_func) inlinedCall {
+	return inlinedCall{
+		parent: int32(inl.Parent),
+		file:   int32(findFileTab(codereloc, inl.File)),
+		line:   int32(inl.Line),
+		func_:  int32(codereloc.namemap[inl.Func.Name])}
+}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, symbol *goobj.Sym, fd *readAtSeeker) (err error) {
+	return _addInlineTree(codereloc, _func, symbol, fd)
+}

@@ -32,12 +32,18 @@ const (
 	R_CALLIND     = 11
 )
 
+type Func struct {
+	PCData   []uint32
+	FuncData []uintptr
+	Var      *[]goobj.Var
+}
+
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Sym struct
 type Sym struct {
 	Name   string
 	Kind   int
 	Offset int
-	Func   *goobj.Func
+	Func   *Func
 	Reloc  []Reloc
 }
 
@@ -99,7 +105,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 		return symbol, nil
 	}
 	objsym := objSymMap[name].sym
-	symbol := &Sym{Name: objsym.Name, Kind: int(objsym.Kind), Func: objsym.Func}
+	symbol := &Sym{Name: objsym.Name, Kind: int(objsym.Kind)}
 	codereloc.symMap[symbol.Name] = symbol
 
 	code := make([]byte, objsym.Data.Size)
@@ -113,6 +119,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 		symbol.Offset = len(codereloc.code)
 		codereloc.code = append(codereloc.code, code...)
 		bytearrayAlign(&codereloc.code, PtrSize)
+		symbol.Func = &Func{Var: &(objsym.Func.Var)}
 		if err := readFuncData(codereloc, objSymMap[name], objSymMap, symbol.Offset); err != nil {
 			return nil, err
 		}
@@ -374,23 +381,7 @@ func addFuncTab(module *moduledata, _func *_func, codereloc *CodeReloc, symbolMa
 	funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
 	_func.entry = uintptr(symbolMap[funcname])
 	Func := codereloc.symMap[funcname].Func
-	funcdata := make([]uintptr, len(Func.FuncData))
-	for k, symbol := range Func.FuncData {
-		if codereloc.stkmaps[symbol.Sym.Name] != nil {
-			funcdata[k] = (uintptr)(unsafe.Pointer(&(codereloc.stkmaps[symbol.Sym.Name][0])))
-		} else {
-			funcdata[k] = (uintptr)(0)
-		}
-	}
-	pcdata := []uint32{}
-	pcln := uint32(_func.pcln) + uint32(Func.PCLine.Size)
-	for k := 0; k < len(Func.PCData); k++ {
-		pcdata = append(pcdata, pcln)
-		pcln += uint32(Func.PCData[k].Size)
-	}
-	if err = addInlineTree(codereloc, _func, &funcdata, &pcdata, pcln); err != nil {
-		return err
-	}
+
 	if err = addStackObject(codereloc, funcname, symbolMap); err != nil {
 		return err
 	}
@@ -401,12 +392,12 @@ func addFuncTab(module *moduledata, _func *_func, codereloc *CodeReloc, symbolMa
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(_func)), _FuncSize)
 
 	if _func.npcdata > 0 {
-		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(pcdata[0]))), Uint32Size*int(_func.npcdata))
+		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(Func.PCData[0]))), Uint32Size*int(_func.npcdata))
 	}
 
 	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
 	if _func.nfuncdata > 0 {
-		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
+		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&Func.FuncData[0])), int(PtrSize*_func.nfuncdata))
 	}
 
 	return err
