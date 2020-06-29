@@ -78,6 +78,6 @@ func logPanic() {
 	if r := recover(); r != nil {
 		trace := make([]byte, 1024)
 		count := runtime.Stack(trace, false)
-		fmt.Printf("Stack of %d bytes: %s\n", count, trace)
+		fmt.Printf("Stack of %d bytes: %s\n", count, trace[:count])
 	}
 }
