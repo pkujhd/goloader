@@ -21,11 +21,3 @@ func unlock(l *mutex)
 
 //go:linkname atomicstorep runtime.atomicstorep
 func atomicstorep(ptr unsafe.Pointer, new unsafe.Pointer)
-
-func removeitabs(module *moduledata) {
-	for i := 0; i < len(module.itablinks); i++ {
-		inter := module.itablinks[i].inter
-		typ := module.itablinks[i]._type
-		removeitab(inter, typ)
-	}
-}

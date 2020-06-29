@@ -55,21 +55,25 @@ func additabs(module *moduledata) {
 	unlock(&ifaceLock)
 }
 
-func removeitab(inter *interfacetype, typ *_type) bool {
+func removeitabs(module *moduledata) bool {
 	lock(&ifaceLock)
 	defer unlock(&ifaceLock)
-	h := itabhash(inter, typ)
-	var m, last *itab = nil, nil
-	for m = (*itab)(loadp(unsafe.Pointer(&hash[h]))); m != nil; m = m.link {
-		if m.inter == inter && m._type == typ {
-			if last == nil {
-				atomicstorep(unsafe.Pointer(&hash[h]), unsafe.Pointer(nil))
-			} else {
-				last.link = m.link
+
+	//the itab alloc by runtime.persistentalloc, can't free
+	for index, h := range &hash {
+		last := h
+		for m := h; m != nil; m = m.link {
+			inter := uintptr(unsafe.Pointer(m.inter))
+			_type := uintptr(unsafe.Pointer(m._type))
+			if (inter >= module.types && inter <= module.etypes) || (_type >= module.types && _type <= module.etypes) {
+				if m == h {
+					hash[index] = m.link
+				} else {
+					last.link = m.link
+				}
 			}
-			return true
+			last = m
 		}
-		last = m
 	}
-	return false
+	return true
 }

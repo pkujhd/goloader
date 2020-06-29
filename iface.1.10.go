@@ -58,26 +58,20 @@ func additabs(module *moduledata) {
 	unlock(&itabLock)
 }
 
-func removeitab(inter *interfacetype, typ *_type) bool {
+func removeitabs(module *moduledata) bool {
 	lock(&itabLock)
 	defer unlock(&itabLock)
-	mask := itabTable.size - 1
-	h := itabHashFunc(inter, typ) & mask
-	for i := uintptr(1); ; i++ {
-		p := (**itab)(add(unsafe.Pointer(&itabTable.entries), h*PtrSize))
-		// Use atomic read here so if we see m != nil, we also see
-		// the initializations of the fields of m.
-		// m := *p
+	for i := uintptr(0); i < itabTable.size; i++ {
+		p := (**itab)(add(unsafe.Pointer(&itabTable.entries), i*PtrSize))
 		m := (*itab)(loadp(unsafe.Pointer(p)))
-		if m == nil {
-			return false
+		if m != nil {
+			inter := uintptr(unsafe.Pointer(m.inter))
+			_type := uintptr(unsafe.Pointer(m._type))
+			if (inter >= module.types && inter <= module.etypes) || (_type >= module.types && _type <= module.etypes) {
+				atomicstorep(unsafe.Pointer(p), unsafe.Pointer(nil))
+				itabTable.count = itabTable.count - 1
+			}
 		}
-		if m.inter == inter && m._type == typ {
-			atomicstorep(unsafe.Pointer(p), unsafe.Pointer(nil))
-			itabTable.count = itabTable.count - 1
-			return true
-		}
-		h += i
-		h &= mask
 	}
+	return true
 }
