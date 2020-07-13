@@ -62,4 +62,4 @@ Golang 1.8-1.14 (x64/x86, darwin, linux, windows)
 
 Golang 1.10-1.14 (arm, linux)
 
-golang 1.8-1.14 (arm64(LE) linux)
+Golang 1.8-1.14 (arm64(LE) linux)
