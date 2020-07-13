@@ -63,9 +63,11 @@ func removeitabs(module *moduledata) bool {
 	for index, h := range &hash {
 		last := h
 		for m := h; m != nil; m = m.link {
+			uintptrm := uintptr(unsafe.Pointer(m))
 			inter := uintptr(unsafe.Pointer(m.inter))
 			_type := uintptr(unsafe.Pointer(m._type))
-			if (inter >= module.types && inter <= module.etypes) || (_type >= module.types && _type <= module.etypes) {
+			if (inter >= module.types && inter <= module.etypes) || (_type >= module.types && _type <= module.etypes) ||
+				(uintptrm >= module.types && uintptrm <= module.etypes) {
 				if m == h {
 					hash[index] = m.link
 				} else {

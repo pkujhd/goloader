@@ -1,5 +1,5 @@
 // +build go1.10
-// +build !go1.15
+// +build !go1.16
 
 package goloader
 
@@ -65,9 +65,11 @@ func removeitabs(module *moduledata) bool {
 		p := (**itab)(add(unsafe.Pointer(&itabTable.entries), i*PtrSize))
 		m := (*itab)(loadp(unsafe.Pointer(p)))
 		if m != nil {
+			uintptrm := uintptr(unsafe.Pointer(m))
 			inter := uintptr(unsafe.Pointer(m.inter))
 			_type := uintptr(unsafe.Pointer(m._type))
-			if (inter >= module.types && inter <= module.etypes) || (_type >= module.types && _type <= module.etypes) {
+			if (inter >= module.types && inter <= module.etypes) || (_type >= module.types && _type <= module.etypes) ||
+				(uintptrm >= module.types && uintptrm <= module.etypes) {
 				atomicstorep(unsafe.Pointer(p), unsafe.Pointer(nil))
 				itabTable.count = itabTable.count - 1
 			}
