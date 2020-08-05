@@ -50,6 +50,18 @@ func getitab(inter *interfacetype, typ *_type, canfail bool) *itab
 //go:linkname (*uncommonType).methods reflect.(*uncommonType).methods
 func (t *uncommonType) methods() []method
 
+//go:linkname (*_type).Kind reflect.(*rtype).Kind
+func (t *_type) Kind() reflect.Kind
+
+func pkgname(pkgpath string) string {
+	slash := strings.LastIndexByte(pkgpath, '/')
+	if slash > -1 {
+		return pkgpath[slash+1:]
+	} else {
+		return pkgpath
+	}
+}
+
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
 	if ut == nil {
@@ -73,21 +85,10 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 	if v.Kind() == reflect.Func && getFunctionPtr(inter) != 0 {
 		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = getFunctionPtr(inter)
 	} else {
-		name := TYPE_PREFIX
-		symname := v.Type().String()
-		if v.Type().Kind() == reflect.Ptr {
-			name += symname[:1]
-			symname = symname[1:]
-		}
 		header := (*emptyInterface)(unsafe.Pointer(&inter))
-		pkgPath := (*_type)(header.typ).PkgPath()
-		lastSlash := strings.LastIndexByte(pkgPath, '/')
-		if lastSlash > -1 {
-			name += pkgPath[:lastSlash+1] + symname
-		} else {
-			name += symname
-		}
-		symPtr[name] = uintptr(header.typ)
+		pkgpath := (*_type)(header.typ).PkgPath()
+		name := strings.Replace(v.Type().String(), pkgname(pkgpath), pkgpath, 1)
+		symPtr[TYPE_PREFIX+name] = uintptr(header.typ)
 	}
 
 }
