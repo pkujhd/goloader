@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 	"unsafe"
 
 	"github.com/kr/pretty"
@@ -63,15 +62,12 @@ func main() {
 		return
 	}
 
-	goloader.RegTypes(symPtr, time.Duration(0), time.Unix(0, 0))
-	goloader.RegTypes(symPtr, runtime.LockOSThread)
 	// most of time you don't need to register function, but if loader complain about it, you have to.
+	w := sync.WaitGroup{}
 	goloader.RegTypes(symPtr, http.ListenAndServe, http.Dir("/"),
 		http.Handler(http.FileServer(http.Dir("/"))), http.FileServer, http.HandleFunc,
 		&http.Request{}, &http.Server{})
-	w := sync.WaitGroup{}
-	rw := sync.RWMutex{}
-	goloader.RegTypes(symPtr, &w, w.Wait, &rw)
+	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
 
 	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {
@@ -115,12 +111,10 @@ func main() {
 }
 
 func parse(file, pkgpath *string) {
-
 	if *file == "" {
 		flag.PrintDefaults()
 		return
 	}
-
 	f, err := os.Open(*file)
 	if err != nil {
 		fmt.Printf("%# v\n", err)
