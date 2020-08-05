@@ -227,11 +227,6 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 			}
 		} else {
 			symbolMap[name] = uintptr(codereloc.symMap[name].Offset + segment.dataBase)
-			if strings.HasPrefix(sym.Name, TYPE_PREFIX) {
-				if ptr, ok := symPtr[sym.Name]; ok {
-					symbolMap[name] = ptr
-				}
-			}
 		}
 	}
 	return symbolMap, err
@@ -366,6 +361,9 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate on code segment!", sym.Name))
 					}
 					offset := int(addr) - segment.codeBase + loc.Add
+					if offset > 0x7FFFFFFF || offset < -0x80000000 {
+						err = errors.New(fmt.Sprintf("symName:%s offset:%d is overflow!", sym.Name, offset))
+					}
 					binary.LittleEndian.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
 				default:
 					err = errors.New(fmt.Sprintf("unknown reloc type:%d sym:%s", loc.Type, sym.Name))
