@@ -71,6 +71,9 @@ func RegSymbol(symPtr map[string]uintptr) error {
 		if code == "B" || code == "D" {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
+		if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
+			regItab(symPtr, sym.Name, uintptr(sym.Addr))
+		}
 	}
 	return nil
 }
