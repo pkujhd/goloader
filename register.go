@@ -68,7 +68,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 	syms, err := f.Symbols()
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
-		if (code == "B" || code == "D") && strings.HasPrefix(sym.Name, RUNTIME_PREFIX) {
+		if code == "B" || code == "D" {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 	}
