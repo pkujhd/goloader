@@ -89,8 +89,9 @@ type CodeModule struct {
 }
 
 type objSym struct {
-	sym  *goobj.Sym
-	file *os.File
+	sym     *goobj.Sym
+	file    *os.File
+	pkgpath string
 }
 
 var (

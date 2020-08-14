@@ -164,7 +164,7 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 		}
 	}
 
-	if err = addInlineTree(codeReloc, &_func, symbol, &fd); err != nil {
+	if err = addInlineTree(codeReloc, &_func, objsym); err != nil {
 		return err
 	}
 

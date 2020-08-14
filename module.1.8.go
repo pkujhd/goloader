@@ -1,5 +1,5 @@
 // +build go1.8
-// +build !go1.9,!go1.10,!go1.11,!go1.12,!go1.13,!go1.14,!go1.15
+// +build !go1.9,!go1.10,!go1.11,!go1.12,!go1.13,!go1.14,!go1.15,!go1.16
 
 package goloader
 
@@ -89,6 +89,6 @@ func readPCInline(codeReloc *CodeReloc, symbol *goobj.Sym, fd *readAtSeeker) {
 
 type inlinedCall struct{}
 
-func addInlineTree(codereloc *CodeReloc, _func *_func, symbol *goobj.Sym, fd *readAtSeeker) (err error) {
+func addInlineTree(codereloc *CodeReloc, _func *_func, objsym objSym) (err error) {
 	return nil
 }

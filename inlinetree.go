@@ -1,10 +1,10 @@
 // +build go1.9
-// +build !go1.15
+// +build !go1.16
 
 package goloader
 
 import (
-	"cmd/objfile/goobj"
+	"strings"
 	"unsafe"
 )
 
@@ -18,7 +18,9 @@ func findFileTab(codereloc *CodeReloc, filename string) int32 {
 	return -1
 }
 
-func _addInlineTree(codereloc *CodeReloc, _func *_func, symbol *goobj.Sym, fd *readAtSeeker) (err error) {
+func _addInlineTree(codereloc *CodeReloc, _func *_func, objsym objSym) (err error) {
+	symbol := objsym.sym
+	fd := readAtSeeker{ReadSeeker: objsym.file}
 	funcname := symbol.Name
 	Func := symbol.Func
 	sym := codereloc.symMap[funcname]
@@ -32,10 +34,12 @@ func _addInlineTree(codereloc *CodeReloc, _func *_func, symbol *goobj.Sym, fd *r
 		sym.Func.PCData[_PCDATA_InlTreeIndex] = uint32(len(codereloc.pclntable))
 
 		fd.ReadAtWithSize(&(codereloc.pclntable), symbol.Func.PCInline.Size, symbol.Func.PCInline.Offset)
-		for _, inl := range symbol.Func.InlTree {
-			if _, ok := codereloc.namemap[inl.Func.Name]; !ok {
-				codereloc.namemap[inl.Func.Name] = len(codereloc.pclntable)
-				codereloc.pclntable = append(codereloc.pclntable, []byte(inl.Func.Name)...)
+		for index, inl := range symbol.Func.InlTree {
+			symbol.Func.InlTree[index].Func.Name = strings.Replace(inl.Func.Name, EMPTY_PKGPATH, objsym.pkgpath, -1)
+			inlname := symbol.Func.InlTree[index].Func.Name
+			if _, ok := codereloc.namemap[inlname]; !ok {
+				codereloc.namemap[inlname] = len(codereloc.pclntable)
+				codereloc.pclntable = append(codereloc.pclntable, []byte(inlname)...)
 				codereloc.pclntable = append(codereloc.pclntable, ZERO_BYTE)
 			}
 		}

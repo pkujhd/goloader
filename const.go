@@ -32,6 +32,7 @@ const (
 const (
 	EMPTY_STRING    = ""
 	DEFAULT_PKGPATH = "main"
+	EMPTY_PKGPATH   = `""`
 	ZERO_BYTE       = byte(0x00)
 )
 

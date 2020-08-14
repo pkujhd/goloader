@@ -1,5 +1,5 @@
 // +build go1.14
-// +build !go1.15
+// +build !go1.16
 
 package goloader
 
@@ -128,6 +128,6 @@ func initInlinedCall(codereloc *CodeReloc, inl goobj.InlinedCall, _func *_func) 
 		parentPc: int32(inl.ParentPC)}
 }
 
-func addInlineTree(codereloc *CodeReloc, _func *_func, symbol *goobj.Sym, fd *readAtSeeker) (err error) {
-	return _addInlineTree(codereloc, _func, symbol, fd)
+func addInlineTree(codereloc *CodeReloc, _func *_func, objsym objSym) (err error) {
+	return _addInlineTree(codereloc, _func, objsym)
 }

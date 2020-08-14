@@ -4,6 +4,7 @@ import (
 	"cmd/objfile/goobj"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath *string) error {
@@ -21,8 +22,17 @@ func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath 
 	reloc.Arch = obj.Arch
 	for _, sym := range obj.Syms {
 		objSymMap[sym.Name] = objSym{
-			sym:  sym,
-			file: f,
+			sym:     sym,
+			file:    f,
+			pkgpath: *pkgpath,
+		}
+		for index, loc := range sym.Reloc {
+			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EMPTY_PKGPATH, *pkgpath, -1)
+		}
+		if sym.Func != nil {
+			for index, FuncData := range sym.Func.FuncData {
+				sym.Func.FuncData[index].Sym.Name = strings.Replace(FuncData.Sym.Name, EMPTY_PKGPATH, *pkgpath, -1)
+			}
 		}
 	}
 	return nil
