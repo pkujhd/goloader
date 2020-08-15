@@ -74,7 +74,6 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	symPtr["os.Stdout"] = uintptr(unsafe.Pointer(&os.Stdout))
 
 	var mmapByte []byte
 	for i := 0; i < *times; i++ {
