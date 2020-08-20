@@ -72,27 +72,10 @@ func RegSymbol(symPtr map[string]uintptr) error {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 		if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
-			regItab(symPtr, sym.Name, uintptr(sym.Addr))
+			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 	}
 	return nil
-}
-
-func regItab(symPtr map[string]uintptr, name string, addr uintptr) {
-	symPtr[name] = addr
-	bss := strings.Split(strings.TrimLeft(name, ITAB_PREFIX), ",")
-	slice := sliceHeader{addr, len(bss), len(bss)}
-	ptrs := *(*[]unsafe.Pointer)(unsafe.Pointer(&slice))
-	for i, ptr := range ptrs {
-		tname := bss[len(bss)-i-1]
-		if tname[0] == '*' {
-			obj := reflect.TypeOf(0)
-			(*emptyInterface)(unsafe.Pointer(&obj)).word = ptr
-			obj = obj.(reflect.Type).Elem()
-			symPtr[TYPE_PREFIX+tname[1:]] = uintptr((*emptyInterface)(unsafe.Pointer(&obj)).word)
-		}
-		symPtr[TYPE_PREFIX+tname] = uintptr(ptr)
-	}
 }
 
 func regTLS(symPtr map[string]uintptr, offset int) {
