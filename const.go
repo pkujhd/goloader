@@ -52,4 +52,5 @@ const (
 	RUNTIME_PREFIX         = "runtime."
 	STKOBJ_SUFFIX          = ".stkobj"
 	INLINETREE_SUFFIX      = ".inlinetree"
+	OS_STDOUT              = "os.Stdout"
 )

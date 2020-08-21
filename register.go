@@ -54,7 +54,6 @@ func typelinksinit(symPtr map[string]uintptr) {
 }
 
 func RegSymbol(symPtr map[string]uintptr) error {
-	typelinksinit(symPtr)
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -65,14 +64,21 @@ func RegSymbol(symPtr map[string]uintptr) error {
 	}
 	defer f.Close()
 
+	typelinksinit(symPtr)
 	syms, err := f.Symbols()
+	for _, sym := range syms {
+		if sym.Name == OS_STDOUT {
+			symPtr[sym.Name] = uintptr(sym.Addr)
+		}
+	}
+	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OS_STDOUT])
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
 		if code == "B" || code == "D" {
-			symPtr[sym.Name] = uintptr(sym.Addr)
+			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
 		if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
-			symPtr[sym.Name] = uintptr(sym.Addr)
+			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
 	}
 	return nil
