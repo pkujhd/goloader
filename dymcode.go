@@ -133,7 +133,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 	for _, loc := range objsym.Reloc {
 		reloc := Reloc{
 			Offset: int(loc.Offset) + symbol.Offset,
-			Sym:    &Sym{Name: loc.Sym.Name, Offset: INVALID_OFFSET},
+			Sym:    &Sym{Name: loc.Sym.Name, Offset: InvalidOffset},
 			Type:   int(loc.Type),
 			Size:   int(loc.Size),
 			Add:    int(loc.Add)}
@@ -155,13 +155,12 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 			}
 			if loc.Type == R_CALLIND {
 				reloc.Sym.Offset = 0
-				reloc.Sym.Name = R_CALLIND_NAME
 			}
 			if strings.HasPrefix(loc.Sym.Name, TYPE_IMPORTPATH_PREFIX) {
 				path := strings.Trim(strings.TrimLeft(loc.Sym.Name, TYPE_IMPORTPATH_PREFIX), ".")
 				reloc.Sym.Offset = len(codereloc.data)
 				codereloc.data = append(codereloc.data, path...)
-				codereloc.data = append(codereloc.data, ZERO_BYTE)
+				codereloc.data = append(codereloc.data, ZeroByte)
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
 				bytes := make([]byte, UInt64Size)
@@ -210,11 +209,11 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 	symbolMap = make(map[string]uintptr)
 	segment := &codeModule.segment
 	for name, sym := range codereloc.symMap {
-		if sym.Offset == INVALID_OFFSET {
+		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
 			} else {
-				symbolMap[name] = INVALID_HANDLE_VALUE
+				symbolMap[name] = InvalidHandleValue
 				return nil, errors.New(fmt.Sprintf("unresolve external:%s", sym.Name))
 			}
 		} else if sym.Name == TLSNAME {
@@ -250,7 +249,7 @@ func relocatePCREL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, 
 		offset = (segment.codeBase + segment.offset) - (addrBase + loc.Offset + loc.Size)
 		bytes := relocByte[loc.Offset-2:]
 		opcode := relocByte[loc.Offset-2]
-		regsiter := ZERO_BYTE
+		regsiter := ZeroByte
 		if opcode == x86amd64LEAcode {
 			bytes[0] = x86amd64MOVcode
 		} else if opcode == x86amd64MOVcode && loc.Size >= Uint32Size {
@@ -335,7 +334,7 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 				symbolMap[loc.Sym.Name] = addr
 				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
 			}
-			if addr == INVALID_HANDLE_VALUE {
+			if addr == InvalidHandleValue {
 				//nothing todo
 			} else {
 				switch loc.Type {
@@ -370,7 +369,9 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 					err = errors.New(fmt.Sprintf("unknown reloc type:%d sym:%s", loc.Type, sym.Name))
 				}
 			}
-
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return err

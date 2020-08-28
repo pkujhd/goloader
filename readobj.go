@@ -2,14 +2,15 @@ package goloader
 
 import (
 	"cmd/objfile/goobj"
+	"cmd/objfile/sys"
 	"fmt"
 	"os"
 	"strings"
 )
 
 func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath *string) error {
-	if pkgpath == nil || *pkgpath == EMPTY_STRING {
-		defaultPkgPath := DEFAULT_PKGPATH
+	if pkgpath == nil || *pkgpath == EmptyString {
+		defaultPkgPath := DefaultPkgPath
 		pkgpath = &defaultPkgPath
 	}
 	obj, err := goobj.Parse(f, *pkgpath)
@@ -27,11 +28,11 @@ func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath 
 			pkgpath: *pkgpath,
 		}
 		for index, loc := range sym.Reloc {
-			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EMPTY_PKGPATH, *pkgpath, -1)
+			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, *pkgpath, -1)
 		}
 		if sym.Func != nil {
 			for index, FuncData := range sym.Func.FuncData {
-				sym.Func.FuncData[index].Sym.Name = strings.Replace(FuncData.Sym.Name, EMPTY_PKGPATH, *pkgpath, -1)
+				sym.Func.FuncData[index].Sym.Name = strings.Replace(FuncData.Sym.Name, EmptyPkgPath, *pkgpath, -1)
 			}
 		}
 	}
@@ -56,7 +57,8 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 			}
 		}
 	}
-	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
+	switch reloc.Arch {
+	case sys.ArchARM.Name, sys.ArchARM64.Name:
 		copy(reloc.pclntable, armmoduleHead)
 	}
 	return reloc, err
@@ -87,7 +89,8 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 			}
 		}
 	}
-	if reloc.Arch == ARCH_ARM32 || reloc.Arch == ARCH_ARM64 {
+	switch reloc.Arch {
+	case sys.ArchARM.Name, sys.ArchARM64.Name:
 		copy(reloc.pclntable, armmoduleHead)
 	}
 	return reloc, nil

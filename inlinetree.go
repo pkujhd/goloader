@@ -35,12 +35,12 @@ func _addInlineTree(codereloc *CodeReloc, _func *_func, objsym objSym) (err erro
 
 		fd.ReadAtWithSize(&(codereloc.pclntable), symbol.Func.PCInline.Size, symbol.Func.PCInline.Offset)
 		for index, inl := range symbol.Func.InlTree {
-			symbol.Func.InlTree[index].Func.Name = strings.Replace(inl.Func.Name, EMPTY_PKGPATH, objsym.pkgpath, -1)
+			symbol.Func.InlTree[index].Func.Name = strings.Replace(inl.Func.Name, EmptyPkgPath, objsym.pkgpath, -1)
 			inlname := symbol.Func.InlTree[index].Func.Name
 			if _, ok := codereloc.namemap[inlname]; !ok {
 				codereloc.namemap[inlname] = len(codereloc.pclntable)
 				codereloc.pclntable = append(codereloc.pclntable, []byte(inlname)...)
-				codereloc.pclntable = append(codereloc.pclntable, ZERO_BYTE)
+				codereloc.pclntable = append(codereloc.pclntable, ZeroByte)
 			}
 		}
 

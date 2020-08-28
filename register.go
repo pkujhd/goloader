@@ -33,7 +33,7 @@ func typelinksinit(symPtr map[string]uintptr) {
 			name := t.nameOff(t.str).name()
 			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
 			pkgpath := t.PkgPath()
-			if element != nil && pkgpath == EMPTY_STRING {
+			if element != nil && pkgpath == EmptyString {
 				pkgpath = element.PkgPath()
 			}
 			name = strings.Replace(name, pkgname(pkgpath), pkgpath, 1)

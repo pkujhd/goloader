@@ -37,7 +37,7 @@ func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string
 		Func.FuncData[_FUNCDATA_StackObjects] != 0 {
 		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[_FUNCDATA_StackObjects], 0))
 		for i, obj := range *objects {
-			name := EMPTY_STRING
+			name := EmptyString
 			for _, v := range *Func.Var {
 				if v.Offset == (int64)(obj.off) {
 					name = v.Type.Name

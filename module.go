@@ -113,7 +113,7 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 			codeReloc.namemap[fileName] = len(codeReloc.pclntable)
 			fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
 			codeReloc.pclntable = append(codeReloc.pclntable, []byte(fileName)...)
-			codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
+			codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
 		} else {
 			codeReloc.filetab = append(codeReloc.filetab, uint32(offset))
 		}
@@ -123,7 +123,7 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 	if offset, ok := codeReloc.namemap[symbol.Name]; !ok {
 		codeReloc.namemap[symbol.Name] = len(codeReloc.pclntable)
 		codeReloc.pclntable = append(codeReloc.pclntable, []byte(symbol.Name)...)
-		codeReloc.pclntable = append(codeReloc.pclntable, ZERO_BYTE)
+		codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
 	} else {
 		nameOff = offset
 	}

@@ -65,7 +65,7 @@ func pkgname(pkgpath string) string {
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
 	if ut == nil {
-		return EMPTY_STRING
+		return EmptyString
 	}
 	return t.nameOff(ut.pkgPath).name()
 }
