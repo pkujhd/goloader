@@ -8,19 +8,6 @@ import (
 	"unsafe"
 )
 
-// See reflect/value.go emptyInterface
-type emptyInterface struct {
-	typ  unsafe.Pointer
-	word unsafe.Pointer
-}
-
-// See reflect/value.go sliceHeader
-type sliceHeader struct {
-	Data uintptr
-	Len  int
-	Cap  int
-}
-
 func typelinksinit(symPtr map[string]uintptr) {
 	md := firstmoduledata
 	for _, tl := range md.typelinks {
@@ -38,16 +25,16 @@ func typelinksinit(symPtr map[string]uintptr) {
 			}
 			name = strings.Replace(name, pkgname(pkgpath), pkgpath, 1)
 			if element != nil {
-				symPtr[TYPE_PREFIX+name[1:]] = uintptr(unsafe.Pointer(element))
+				symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
 			}
-			symPtr[TYPE_PREFIX+name] = uintptr(unsafe.Pointer(t))
+			symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		default:
 		}
 	}
 	for _, f := range md.ftab {
 		_func := (*_func)(unsafe.Pointer((&md.pclntable[f.funcoff])))
 		name := gostringnocopy(&md.pclntable[_func.nameoff])
-		if !strings.HasPrefix(name, TYPE_DOUBLE_DOT_PREFIX) && _func.entry < md.etext {
+		if !strings.HasPrefix(name, TypeDoubleDotPrefix) && _func.entry < md.etext {
 			symPtr[name] = _func.entry
 		}
 	}
@@ -67,17 +54,17 @@ func RegSymbol(symPtr map[string]uintptr) error {
 	typelinksinit(symPtr)
 	syms, err := f.Symbols()
 	for _, sym := range syms {
-		if sym.Name == OS_STDOUT {
+		if sym.Name == OsStdout {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 	}
-	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OS_STDOUT])
+	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OsStdout])
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
 		if code == "B" || code == "D" {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
-		if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
+		if strings.HasPrefix(sym.Name, ItabPrefix) {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
 	}

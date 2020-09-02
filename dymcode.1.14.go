@@ -70,7 +70,7 @@ func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
 		sym := codereloc.symMap[funcname]
 		for _, r := range sym.Reloc {
-			if r.Sym == codereloc.symMap[RUNTIME_DEFERRETURN] {
+			if r.Sym == codereloc.symMap[RuntimeDeferReturn] {
 				//../cmd/link/internal/ld/pcln.go:pclntab
 				switch codereloc.Arch {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:

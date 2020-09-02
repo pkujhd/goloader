@@ -9,6 +9,19 @@ import (
 
 type tflag uint8
 
+// See reflect/value.go emptyInterface
+type emptyInterface struct {
+	typ  unsafe.Pointer
+	word unsafe.Pointer
+}
+
+// See reflect/value.go sliceHeader
+type sliceHeader struct {
+	Data uintptr
+	Len  int
+	Cap  int
+}
+
 // Method on non-interface type
 type method struct {
 	name nameOff // name of method
@@ -88,7 +101,7 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 		header := (*emptyInterface)(unsafe.Pointer(&inter))
 		pkgpath := (*_type)(header.typ).PkgPath()
 		name := strings.Replace(v.Type().String(), pkgname(pkgpath), pkgpath, 1)
-		symPtr[TYPE_PREFIX+name] = uintptr(header.typ)
+		symPtr[TypePrefix+name] = uintptr(header.typ)
 	}
 
 }

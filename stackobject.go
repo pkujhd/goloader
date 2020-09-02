@@ -45,7 +45,7 @@ func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string
 				}
 			}
 			if len(name) == 0 {
-				stkobjName := funcname + STKOBJ_SUFFIX
+				stkobjName := funcname + StkobjSuffix
 				if symbol := codereloc.symMap[stkobjName]; symbol != nil {
 					name = symbol.Reloc[i].Sym.Name
 				}

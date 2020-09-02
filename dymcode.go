@@ -156,8 +156,8 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 			if loc.Type == R_CALLIND {
 				reloc.Sym.Offset = 0
 			}
-			if strings.HasPrefix(loc.Sym.Name, TYPE_IMPORTPATH_PREFIX) {
-				path := strings.Trim(strings.TrimLeft(loc.Sym.Name, TYPE_IMPORTPATH_PREFIX), ".")
+			if strings.HasPrefix(loc.Sym.Name, TypeImportPathPrefix) {
+				path := strings.Trim(strings.TrimLeft(loc.Sym.Name, TypeImportPathPrefix), ".")
 				reloc.Sym.Offset = len(codereloc.data)
 				codereloc.data = append(codereloc.data, path...)
 				codereloc.data = append(codereloc.data, ZeroByte)
@@ -221,7 +221,7 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 		} else if sym.Kind == STEXT {
 			symbolMap[name] = uintptr(codereloc.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = uintptr(symbolMap[name])
-		} else if strings.HasPrefix(sym.Name, ITAB_PREFIX) {
+		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
 			}
@@ -329,7 +329,7 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
-			if addr == 0 && strings.HasPrefix(sym.Name, ITAB_PREFIX) {
+			if addr == 0 && strings.HasPrefix(sym.Name, ItabPrefix) {
 				addr = uintptr(segment.dataBase + loc.Sym.Offset)
 				symbolMap[loc.Sym.Name] = addr
 				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))

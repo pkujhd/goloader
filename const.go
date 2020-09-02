@@ -29,18 +29,17 @@ const (
 
 // runtime symbol
 const (
-	RUNTIME_DEFERRETURN = "runtime.deferreturn"
+	RuntimeDeferReturn = "runtime.deferreturn"
 )
 
 // string match prefix/suffix
 const (
-	FILE_SYM_PREFIX        = "gofile.."
-	TYPE_IMPORTPATH_PREFIX = "type..importpath."
-	TYPE_DOUBLE_DOT_PREFIX = "type.."
-	TYPE_PREFIX            = "type."
-	ITAB_PREFIX            = "go.itab."
-	RUNTIME_PREFIX         = "runtime."
-	STKOBJ_SUFFIX          = ".stkobj"
-	INLINETREE_SUFFIX      = ".inlinetree"
-	OS_STDOUT              = "os.Stdout"
+	FileSymPrefix        = "gofile.."
+	TypeImportPathPrefix = "type..importpath."
+	TypeDoubleDotPrefix  = "type.."
+	TypePrefix           = "type."
+	ItabPrefix           = "go.itab."
+	StkobjSuffix         = ".stkobj"
+	InlineTreeSuffix     = ".inlinetree"
+	OsStdout             = "os.Stdout"
 )

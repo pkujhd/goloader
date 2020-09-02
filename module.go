@@ -111,7 +111,7 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 		if offset, ok := codeReloc.namemap[fileName]; !ok {
 			codeReloc.filetab = append(codeReloc.filetab, (uint32)(len(codeReloc.pclntable)))
 			codeReloc.namemap[fileName] = len(codeReloc.pclntable)
-			fileName = strings.TrimLeft(fileName, FILE_SYM_PREFIX)
+			fileName = strings.TrimLeft(fileName, FileSymPrefix)
 			codeReloc.pclntable = append(codeReloc.pclntable, []byte(fileName)...)
 			codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
 		} else {

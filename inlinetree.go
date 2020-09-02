@@ -25,7 +25,7 @@ func _addInlineTree(codereloc *CodeReloc, _func *_func, objsym objSym) (err erro
 	Func := symbol.Func
 	sym := codereloc.symMap[funcname]
 	if Func != nil && len(Func.InlTree) != 0 {
-		name := funcname + INLINETREE_SUFFIX
+		name := funcname + InlineTreeSuffix
 
 		for _func.npcdata <= _PCDATA_InlTreeIndex {
 			sym.Func.PCData = append(sym.Func.PCData, uint32(0))
