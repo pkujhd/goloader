@@ -57,9 +57,6 @@ func (t *_type) typeOff(off typeOff) *_type
 //go:linkname name.name runtime.name.name
 func (n name) name() string
 
-//go:linkname getitab runtime.getitab
-func getitab(inter *interfacetype, typ *_type, canfail bool) *itab
-
 //go:linkname (*uncommonType).methods reflect.(*uncommonType).methods
 func (t *uncommonType) methods() []method
 

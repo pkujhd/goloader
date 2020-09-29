@@ -29,9 +29,6 @@ var hash [hashSize]*itab
 //go:linkname ifaceLock runtime.ifaceLock
 var ifaceLock mutex
 
-//go:linkname itabhash runtime.itabhash
-func itabhash(inter *interfacetype, typ *_type) uint32
-
 //go:linkname additab runtime.additab
 func additab(m *itab, locked, canfail bool)
 

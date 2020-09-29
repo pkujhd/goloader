@@ -34,9 +34,6 @@ var itabTable *itabTableType // pointer to current table
 //go:linkname itabLock runtime.itabLock
 var itabLock mutex
 
-//go:linkname itabHashFunc runtime.itabHashFunc
-func itabHashFunc(inter *interfacetype, typ *_type) uintptr
-
 //go:linkname itabAdd runtime.itabAdd
 func itabAdd(m *itab)
 
