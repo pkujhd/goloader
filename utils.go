@@ -2,7 +2,6 @@ package goloader
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"strconv"
 	"unsafe"
@@ -103,19 +102,19 @@ func ispreprocesssymbol(name string) bool {
 func preprocesssymbol(name string, bytes []byte) error {
 	val, err := strconv.ParseUint(name[5:], 16, 64)
 	if err != nil {
-		return errors.New(fmt.Sprintf("failed to parse $-symbol %s: %v", name, err))
+		return fmt.Errorf("failed to parse $-symbol %s: %v", name, err)
 	}
 	switch name[:5] {
 	case "$f32.":
 		if uint64(uint32(val)) != val {
-			return errors.New(fmt.Sprintf("$-symbol %s too large: %d", name, val))
+			return fmt.Errorf("$-symbol %s too large: %d", name, val)
 		}
 		binary.LittleEndian.PutUint32(bytes, uint32(val))
 		bytes = bytes[:4]
 	case "$f64.", "$i64.":
 		binary.LittleEndian.PutUint64(bytes, val)
 	default:
-		return errors.New(fmt.Sprintf("unrecognized $-symbol: %s", name))
+		return fmt.Errorf("unrecognized $-symbol: %s", name)
 	}
 	return nil
 }

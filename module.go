@@ -154,7 +154,7 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 			} else if len(data.Sym.Name) == 0 {
 				codeReloc.stkmaps[data.Sym.Name] = nil
 			} else {
-				err = errors.New("unknown gcobj:" + data.Sym.Name)
+				return errors.New("unknown gcobj:" + data.Sym.Name)
 			}
 		}
 		if codeReloc.stkmaps[data.Sym.Name] != nil {

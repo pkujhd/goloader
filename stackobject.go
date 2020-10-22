@@ -4,7 +4,6 @@
 package goloader
 
 import (
-	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -53,7 +52,7 @@ func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string
 			if ptr, ok := symbolMap[name]; ok {
 				(*objects)[i].typ = (*_type)(adduintptr(ptr, 0))
 			} else {
-				return errors.New(fmt.Sprintf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name))
+				return fmt.Errorf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name)
 
 			}
 		}

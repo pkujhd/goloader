@@ -8,6 +8,7 @@ import (
 	"unsafe"
 )
 
+//!IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
 func typelinksinit(symPtr map[string]uintptr) {
 	md := firstmoduledata
 	for _, tl := range md.typelinks {
@@ -29,8 +30,10 @@ func typelinksinit(symPtr map[string]uintptr) {
 			}
 			symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		default:
+			//NOTHING TODO
 		}
 	}
+	//register function
 	for _, f := range md.ftab {
 		_func := (*_func)(unsafe.Pointer((&md.pclntable[f.funcoff])))
 		name := gostringnocopy(&md.pclntable[_func.nameoff])
@@ -58,6 +61,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 	}
+	//golang 1.15 symbol address has offset, before 1.15 offset is 0
 	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OsStdout])
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
@@ -79,10 +83,6 @@ func regTLS(symPtr map[string]uintptr, offset int) {
 	funcptr := getFunctionPtr(regTLS)
 	tlsptr := *(*uint32)(adduintptr(funcptr, offset))
 	symPtr[TLSNAME] = uintptr(tlsptr)
-}
-
-func regFunc(symPtr map[string]uintptr, name string, function interface{}) {
-	symPtr[name] = getFunctionPtr(function)
 }
 
 func getFunctionPtr(function interface{}) uintptr {

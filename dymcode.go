@@ -3,7 +3,6 @@ package goloader
 import (
 	"cmd/objfile/goobj"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -145,7 +144,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 				if int(loc.Size) <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
-					return nil, errors.New(fmt.Sprintf("Symbol:%s size:%d>IntSize:%d", loc.Sym.Name, loc.Size, IntSize))
+					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d", loc.Sym.Name, loc.Size, IntSize)
 				}
 			}
 		} else {
@@ -214,7 +213,7 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 				symbolMap[name] = ptr
 			} else {
 				symbolMap[name] = InvalidHandleValue
-				return nil, errors.New(fmt.Sprintf("unresolve external:%s", sym.Name))
+				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
 			regTLS(symbolMap, sym.Offset)
@@ -258,7 +257,7 @@ func relocatePCREL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, 
 		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
 			copy(bytes, x86amd64JMPLcode)
 		} else {
-			err = errors.New(fmt.Sprintf("not support code:%v!", relocByte[loc.Offset-2:loc.Offset]))
+			return fmt.Errorf("not support code:%v!", relocByte[loc.Offset-2:loc.Offset])
 		}
 		binary.LittleEndian.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		if opcode == x86amd64CMPLcode || opcode == x86amd64MOVcode {
@@ -348,7 +347,7 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 					relocteCALLARM(addr, loc, segment)
 				case R_ADDRARM64:
 					if symbol.Kind != STEXT {
-						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate not in code segment!", sym.Name))
+						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!", sym.Name)
 					}
 					relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
 				case R_ADDR:
@@ -358,15 +357,15 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 					//nothing todo
 				case R_ADDROFF, R_WEAKADDROFF, R_METHODOFF:
 					if symbol.Kind == STEXT {
-						err = errors.New(fmt.Sprintf("impossible!Sym:%s locate on code segment!", sym.Name))
+						err = fmt.Errorf("impossible!Sym:%s locate on code segment!", sym.Name)
 					}
 					offset := int(addr) - segment.codeBase + loc.Add
 					if offset > 0x7FFFFFFF || offset < -0x80000000 {
-						err = errors.New(fmt.Sprintf("symName:%s offset:%d is overflow!", sym.Name, offset))
+						err = fmt.Errorf("symName:%s offset:%d is overflow!", sym.Name, offset)
 					}
 					binary.LittleEndian.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
 				default:
-					err = errors.New(fmt.Sprintf("unknown reloc type:%d sym:%s", loc.Type, sym.Name))
+					err = fmt.Errorf("unknown reloc type:%d sym:%s", loc.Type, sym.Name)
 				}
 			}
 			if err != nil {

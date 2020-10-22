@@ -5,7 +5,6 @@ package goloader
 
 import (
 	"cmd/objfile/sys"
-	"errors"
 	"fmt"
 )
 
@@ -78,7 +77,7 @@ func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
 				case sys.ArchARM.Name, sys.ArchARM64.Name:
 					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					err = errors.New(fmt.Sprintf("not support arch:%s", codereloc.Arch))
+					err = fmt.Errorf("not support arch:%s", codereloc.Arch)
 				}
 				break
 			}
