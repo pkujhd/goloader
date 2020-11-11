@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
-
-	"github.com/kr/pretty"
 	"github.com/pkujhd/goloader"
 )
 
@@ -68,6 +66,7 @@ func main() {
 		http.Handler(http.FileServer(http.Dir("/"))), http.FileServer, http.HandleFunc,
 		&http.Request{}, &http.Server{})
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
+	goloader.RegTypes(symPtr, fmt.Sprint)
 
 	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {
@@ -120,7 +119,7 @@ func parse(file, pkgpath *string) {
 		return
 	}
 	obj, err := goobj.Parse(f, *pkgpath)
-	pretty.Printf("%# v\n", obj)
+	fmt.Printf("%# v\n", obj)
 	f.Close()
 	if err != nil {
 		fmt.Printf("error reading %s: %v\n", *file, err)

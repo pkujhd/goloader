@@ -26,7 +26,6 @@ notifications:
 
 before_install:
   - cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
-  - go get github.com/kr/pretty
 
 script:
   - go build github.com/pkujhd/goloader/examples/loader
