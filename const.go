@@ -14,6 +14,7 @@ const (
 	InlinedCallSize    = int(unsafe.Sizeof(inlinedCall{}))
 	InvalidHandleValue = ^uintptr(0)
 	InvalidOffset      = int(-1)
+	PageSize           = 1 << 12 //4096
 )
 
 const (

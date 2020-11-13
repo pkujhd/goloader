@@ -333,9 +333,7 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 				symbolMap[loc.Sym.Name] = addr
 				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
 			}
-			if addr == InvalidHandleValue {
-				//nothing todo
-			} else {
+			if addr != InvalidHandleValue {
 				switch loc.Type {
 				case R_TLS_LE:
 					binary.LittleEndian.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
@@ -445,7 +443,7 @@ func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModu
 	}
 	codeModule.codeLen = len(codereloc.code)
 	codeModule.dataLen = len(codereloc.data)
-	codeModule.maxLength = (codeModule.codeLen + codeModule.dataLen) * 2
+	codeModule.maxLength = alignof((codeModule.codeLen+codeModule.dataLen)*2, PageSize)
 	codeByte, err := Mmap(codeModule.maxLength)
 	if err != nil {
 		return nil, err
