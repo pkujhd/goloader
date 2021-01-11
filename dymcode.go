@@ -34,7 +34,6 @@ const (
 type Func struct {
 	PCData   []uint32
 	FuncData []uintptr
-	Var      *[]goobj.Var
 }
 
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Sym struct
@@ -119,7 +118,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 		symbol.Offset = len(codereloc.code)
 		codereloc.code = append(codereloc.code, code...)
 		bytearrayAlign(&codereloc.code, PtrSize)
-		symbol.Func = &Func{Var: &(objsym.Func.Var)}
+		symbol.Func = &Func{}
 		if err := readFuncData(codereloc, objSymMap[name], objSymMap, symbol.Offset); err != nil {
 			return nil, err
 		}

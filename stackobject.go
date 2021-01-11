@@ -35,19 +35,11 @@ func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_StackObjects &&
 		Func.FuncData[_FUNCDATA_StackObjects] != 0 {
 		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[_FUNCDATA_StackObjects], 0))
-		for i, obj := range *objects {
+		for i := range *objects {
 			name := EmptyString
-			for _, v := range *Func.Var {
-				if v.Offset == (int64)(obj.off) {
-					name = v.Type.Name
-					break
-				}
-			}
-			if len(name) == 0 {
-				stkobjName := funcname + StkobjSuffix
-				if symbol := codereloc.symMap[stkobjName]; symbol != nil {
-					name = symbol.Reloc[i].Sym.Name
-				}
+			stkobjName := funcname + StkobjSuffix
+			if symbol := codereloc.symMap[stkobjName]; symbol != nil {
+				name = symbol.Reloc[i].Sym.Name
 			}
 			if ptr, ok := symbolMap[name]; ok {
 				(*objects)[i].typ = (*_type)(adduintptr(ptr, 0))
