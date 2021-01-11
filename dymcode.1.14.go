@@ -3,11 +3,6 @@
 
 package goloader
 
-import (
-	"cmd/objfile/sys"
-	"fmt"
-)
-
 const (
 	R_PCREL = 16
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
@@ -64,24 +59,5 @@ func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]
 }
 
 func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
-	funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
-	Func := codereloc.symMap[funcname].Func
-	if Func != nil && len(Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
-		sym := codereloc.symMap[funcname]
-		for _, r := range sym.Reloc {
-			if r.Sym == codereloc.symMap[RuntimeDeferReturn] {
-				//../cmd/link/internal/ld/pcln.go:pclntab
-				switch codereloc.Arch {
-				case sys.Arch386.Name, sys.ArchAMD64.Name:
-					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
-				case sys.ArchARM.Name, sys.ArchARM64.Name:
-					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
-				default:
-					err = fmt.Errorf("not support arch:%s", codereloc.Arch)
-				}
-				break
-			}
-		}
-	}
-	return err
+	return _addDeferReturn(codereloc, _func)
 }
