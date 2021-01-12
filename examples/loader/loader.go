@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmd/objfile/goobj"
 	"flag"
 	"fmt"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
+
 	"github.com/pkujhd/goloader"
 )
 
@@ -118,7 +118,7 @@ func parse(file, pkgpath *string) {
 		fmt.Printf("%# v\n", err)
 		return
 	}
-	obj, err := goobj.Parse(f, *pkgpath)
+	obj, err := goloader.Parse(f, pkgpath)
 	fmt.Printf("%# v\n", obj)
 	f.Close()
 	if err != nil {
