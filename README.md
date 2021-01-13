@@ -33,6 +33,7 @@ cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
 ## Examples
 
 ```
+export GO111MODULE=auto
 go build github.com/pkujhd/goloader/examples/loader
 
 go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
