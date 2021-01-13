@@ -85,7 +85,7 @@ type _func struct {
 	nfuncdata uint8
 }
 
-func init_func(symbol *goobj.Sym, nameOff, spOff, pcfileOff, pclnOff int) _func {
+func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int) _func {
 	fdata := _func{
 		entry:     uintptr(0),
 		nameoff:   int32(nameOff),
@@ -111,16 +111,32 @@ type inlinedCall struct {
 	parentPc int32 // position of an instruction whose source position is the call site (offset from entry)
 }
 
-func initInlinedCall(codereloc *CodeReloc, inl goobj.InlinedCall, _func *_func) inlinedCall {
+func initInlinedCall(codereloc *CodeReloc, inl InlTreeNode, _func *_func) inlinedCall {
 	return inlinedCall{
 		parent:   int16(inl.Parent),
 		funcID:   _func.funcID,
 		file:     int32(findFileTab(codereloc, inl.File)),
 		line:     int32(inl.Line),
-		func_:    int32(codereloc.namemap[inl.Func.Name]),
+		func_:    int32(codereloc.namemap[inl.Func]),
 		parentPc: int32(inl.ParentPC)}
 }
 
-func addInlineTree(codereloc *CodeReloc, _func *_func, objsym objSym) (err error) {
+func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
+	for _, inl := range objFunc.InlTree {
+		inline := InlTreeNode{
+			Parent:   int64(inl.Parent),
+			File:     inl.File,
+			Line:     int64(inl.Line),
+			Func:     inl.Func.Name,
+			ParentPC: int64(inl.ParentPC),
+		}
+		inline.Func = strings.Replace(inline.Func, EmptyPkgPath, pkgpath, -1)
+		Func.InlTree = append(Func.InlTree, inline)
+	}
+	Func.PCInline, err = fd.BytesAt(objFunc.PCInline.Offset, objFunc.PCInline.Size)
+	return err
+}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
 	return _addInlineTree(codereloc, _func, objsym)
 }

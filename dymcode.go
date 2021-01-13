@@ -1,10 +1,8 @@
 package goloader
 
 import (
-	"cmd/objfile/goobj"
 	"encoding/binary"
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -86,10 +84,36 @@ type CodeModule struct {
 	stkmaps map[string][]byte
 }
 
-type objSym struct {
-	sym     *goobj.Sym
-	file    *os.File
-	pkgpath string
+type InlTreeNode struct {
+	Parent   int64
+	File     string
+	Line     int64
+	Func     string
+	ParentPC int64
+}
+
+type FuncInfo struct {
+	Args     uint32
+	Locals   uint32
+	FuncID   uint8
+	PCSP     []byte
+	PCFile   []byte
+	PCLine   []byte
+	PCInline []byte
+	PCData   [][]byte
+	File     []string
+	FuncData []string
+	InlTree  []InlTreeNode
+}
+
+type ObjSymbol struct {
+	Name  string
+	Kind  int    // kind of symbol
+	DupOK bool   // are duplicate definitions okay?
+	Size  int64  // size of corresponding data
+	Data  []byte // memory image of symbol
+	Reloc []Reloc
+	Func  *FuncInfo // additional data for functions
 }
 
 var (
@@ -97,24 +121,18 @@ var (
 	modulesLock sync.Mutex
 )
 
-func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*Sym, error) {
+func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]*ObjSymbol) (symbol *Sym, err error) {
 	if symbol, ok := codereloc.symMap[name]; ok {
 		return symbol, nil
 	}
-	objsym := objSymMap[name].sym
-	symbol := &Sym{Name: objsym.Name, Kind: int(objsym.Kind)}
+	objsym := objSymMap[name]
+	symbol = &Sym{Name: objsym.Name, Kind: int(objsym.Kind)}
 	codereloc.symMap[symbol.Name] = symbol
 
-	code := make([]byte, objsym.Data.Size)
-	_, err := objSymMap[name].file.ReadAt(code, objsym.Data.Offset)
-	if err != nil {
-		return nil, err
-	}
-	grow(&code, int(objsym.Size))
 	switch symbol.Kind {
 	case STEXT:
 		symbol.Offset = len(codereloc.code)
-		codereloc.code = append(codereloc.code, code...)
+		codereloc.code = append(codereloc.code, objsym.Data...)
 		bytearrayAlign(&codereloc.code, PtrSize)
 		symbol.Func = &Func{}
 		if err := readFuncData(codereloc, objSymMap[name], objSymMap, symbol.Offset); err != nil {
@@ -122,45 +140,41 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*
 		}
 	default:
 		symbol.Offset = len(codereloc.data)
-		codereloc.data = append(codereloc.data, code...)
+		codereloc.data = append(codereloc.data, objsym.Data...)
 		bytearrayAlign(&codereloc.data, PtrSize)
 	}
 
-	for _, loc := range objsym.Reloc {
-		reloc := Reloc{
-			Offset: int(loc.Offset) + symbol.Offset,
-			Sym:    &Sym{Name: loc.Sym.Name, Offset: InvalidOffset},
-			Type:   int(loc.Type),
-			Size:   int(loc.Size),
-			Add:    int(loc.Add)}
-		if _, ok := objSymMap[loc.Sym.Name]; ok {
-			if reloc.Sym, err = relocSym(codereloc, loc.Sym.Name, objSymMap); err != nil {
+	for _, reloc := range objsym.Reloc {
+		reloc.Offset = reloc.Offset + symbol.Offset
+		if _, ok := objSymMap[reloc.Sym.Name]; ok {
+			reloc.Sym, err = relocSym(codereloc, reloc.Sym.Name, objSymMap)
+			if err != nil {
 				return nil, err
 			}
-			if objSymMap[loc.Sym.Name].sym.Data.Size == 0 && loc.Size > 0 {
-				if int(loc.Size) <= IntSize {
+			if len(objSymMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
+				if int(reloc.Size) <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
-					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d", loc.Sym.Name, loc.Size, IntSize)
+					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d", reloc.Sym.Name, reloc.Size, IntSize)
 				}
 			}
 		} else {
-			if loc.Type == R_TLS_LE {
+			if reloc.Type == R_TLS_LE {
 				reloc.Sym.Name = TLSNAME
-				reloc.Sym.Offset = int(loc.Offset)
+				reloc.Sym.Offset = reloc.Offset - symbol.Offset
 			}
-			if loc.Type == R_CALLIND {
+			if reloc.Type == R_CALLIND {
 				reloc.Sym.Offset = 0
 			}
-			if strings.HasPrefix(loc.Sym.Name, TypeImportPathPrefix) {
-				path := strings.Trim(strings.TrimLeft(loc.Sym.Name, TypeImportPathPrefix), ".")
+			if strings.HasPrefix(reloc.Sym.Name, TypeImportPathPrefix) {
+				path := strings.Trim(strings.TrimLeft(reloc.Sym.Name, TypeImportPathPrefix), ".")
 				reloc.Sym.Offset = len(codereloc.data)
 				codereloc.data = append(codereloc.data, path...)
 				codereloc.data = append(codereloc.data, ZeroByte)
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
 				bytes := make([]byte, UInt64Size)
-				if err = preprocesssymbol(reloc.Sym.Name, bytes); err != nil {
+				if err := preprocesssymbol(reloc.Sym.Name, bytes); err != nil {
 					return nil, err
 				} else {
 					reloc.Sym.Offset = len(codereloc.data)

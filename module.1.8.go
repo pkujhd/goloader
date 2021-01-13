@@ -70,7 +70,7 @@ type _func struct {
 	nfuncdata int32
 }
 
-func init_func(symbol *goobj.Sym, nameOff, spOff, pcfileOff, pclnOff int) _func {
+func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int) _func {
 	fdata := _func{
 		entry:     uintptr(0),
 		nameoff:   int32(nameOff),
@@ -86,6 +86,10 @@ func init_func(symbol *goobj.Sym, nameOff, spOff, pcfileOff, pclnOff int) _func 
 
 type inlinedCall struct{}
 
-func addInlineTree(codereloc *CodeReloc, _func *_func, objsym objSym) (err error) {
+func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
+	return nil
+}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
 	return nil
 }

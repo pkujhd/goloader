@@ -91,10 +91,7 @@ func gostringnocopy(str *byte) string
 //go:linkname moduledataverify1 runtime.moduledataverify1
 func moduledataverify1(datap *moduledata)
 
-func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objSym, codeLen int) (err error) {
-	fd := readAtSeeker{ReadSeeker: objsym.file}
-	symbol := objsym.sym
-
+func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, objSymMap map[string]*ObjSymbol, codeLen int) (err error) {
 	x := codeLen
 	b := x / pcbucketsize
 	i := x % pcbucketsize / (pcbucketsize / nsub)
@@ -129,51 +126,49 @@ func readFuncData(codeReloc *CodeReloc, objsym objSym, objSymMap map[string]objS
 	}
 
 	pcspOff := len(codeReloc.pclntable)
-	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCSP.Size, symbol.Func.PCSP.Offset)
+	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCSP...)
 
 	pcfileOff := len(codeReloc.pclntable)
 	codeReloc.pclntable = append(codeReloc.pclntable, pcFileHead[:pcFileHeadSize-1]...)
-	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCFile.Size, symbol.Func.PCFile.Offset)
+	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCFile...)
 
 	pclnOff := len(codeReloc.pclntable)
-	fd.ReadAtWithSize(&(codeReloc.pclntable), symbol.Func.PCLine.Size, symbol.Func.PCLine.Offset)
+	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCLine...)
 
 	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff)
 	Func := codeReloc.symMap[symbol.Name].Func
-	for _, data := range symbol.Func.PCData {
+	for _, pcdata := range symbol.Func.PCData {
 		Func.PCData = append(Func.PCData, uint32(len(codeReloc.pclntable)))
-		fd.ReadAtWithSize(&(codeReloc.pclntable), data.Size, data.Offset)
+		codeReloc.pclntable = append(codeReloc.pclntable, pcdata...)
 	}
 
-	for _, data := range symbol.Func.FuncData {
-		if _, ok := codeReloc.stkmaps[data.Sym.Name]; !ok {
-			if gcobj, ok := objSymMap[data.Sym.Name]; ok {
-				codeReloc.stkmaps[data.Sym.Name] = make([]byte, gcobj.sym.Data.Size)
-				fd := readAtSeeker{ReadSeeker: gcobj.file}
-				fd.ReadAt(codeReloc.stkmaps[data.Sym.Name], gcobj.sym.Data.Offset)
-			} else if len(data.Sym.Name) == 0 {
-				codeReloc.stkmaps[data.Sym.Name] = nil
+	for _, name := range symbol.Func.FuncData {
+		if _, ok := codeReloc.stkmaps[name]; !ok {
+			if gcobj, ok := objSymMap[name]; ok {
+				codeReloc.stkmaps[name] = gcobj.Data
+			} else if len(name) == 0 {
+				codeReloc.stkmaps[name] = nil
 			} else {
-				return errors.New("unknown gcobj:" + data.Sym.Name)
+				return errors.New("unknown gcobj:" + name)
 			}
 		}
-		if codeReloc.stkmaps[data.Sym.Name] != nil {
-			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(codeReloc.stkmaps[data.Sym.Name][0]))))
+		if codeReloc.stkmaps[name] != nil {
+			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(codeReloc.stkmaps[name][0]))))
 		} else {
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
 		}
 	}
 
-	if err = addInlineTree(codeReloc, &_func, objsym); err != nil {
+	if err = addInlineTree(codeReloc, &_func, symbol); err != nil {
 		return err
 	}
 
 	grow(&codeReloc.pclntable, alignof(len(codeReloc.pclntable), PtrSize))
 	codeReloc._func = append(codeReloc._func, _func)
 
-	for _, data := range symbol.Func.FuncData {
-		if _, ok := objSymMap[data.Sym.Name]; ok {
-			relocSym(codeReloc, data.Sym.Name, objSymMap)
+	for _, name := range symbol.Func.FuncData {
+		if _, ok := objSymMap[name]; ok {
+			relocSym(codeReloc, name, objSymMap)
 		}
 	}
 	return
