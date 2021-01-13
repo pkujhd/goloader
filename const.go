@@ -1,6 +1,8 @@
 package goloader
 
-import "unsafe"
+import (
+	"unsafe"
+)
 
 // size
 const (
@@ -8,7 +10,7 @@ const (
 	Uint32Size         = int(unsafe.Sizeof(uint32(0)))
 	IntSize            = int(unsafe.Sizeof(int(0)))
 	UInt64Size         = int(unsafe.Sizeof(uint64(0)))
-	_FuncSize          = int(unsafe.Sizeof(_func{}))
+	_FuncSize          = int(unsafe.Offsetof(_func{}.nfuncdata)) + int(unsafe.Sizeof(_func{}.nfuncdata))
 	ItabSize           = int(unsafe.Sizeof(itab{}))
 	FindFuncBucketSize = int(unsafe.Sizeof(findfuncbucket{}))
 	InlinedCallSize    = int(unsafe.Sizeof(inlinedCall{}))
