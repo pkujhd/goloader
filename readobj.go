@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+var (
+	x86moduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
+	armmoduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
+)
+
 func Parse(f *os.File, pkgpath *string) ([]string, error) {
 	obj, err := goobj.Parse(f, *pkgpath)
 	if err != nil {
@@ -18,6 +23,10 @@ func Parse(f *os.File, pkgpath *string) ([]string, error) {
 		symbolNames = append(symbolNames, sym.Name)
 	}
 	return symbolNames, nil
+}
+
+func addPclntableHeader(reloc *CodeReloc) {
+	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
 }
 
 func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath *string) error {
@@ -53,7 +62,7 @@ func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]objSym, pkgpath 
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
 	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), namemap: make(map[string]int)}
-	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
+	addPclntableHeader(reloc)
 	objSymMap := make(map[string]objSym)
 	err := readObj(f, reloc, objSymMap, nil)
 	if err != nil {
@@ -78,7 +87,7 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), namemap: make(map[string]int)}
-	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
+	addPclntableHeader(reloc)
 	objSymMap := make(map[string]objSym)
 	for i, file := range files {
 		f, err := os.Open(file)

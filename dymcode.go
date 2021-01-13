@@ -93,10 +93,8 @@ type objSym struct {
 }
 
 var (
-	modules       = make(map[interface{}]bool)
-	modulesLock   sync.Mutex
-	x86moduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
-	armmoduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
+	modules     = make(map[interface{}]bool)
+	modulesLock sync.Mutex
 )
 
 func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]objSym) (*Sym, error) {
