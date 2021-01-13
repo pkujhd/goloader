@@ -373,6 +373,12 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 						err = fmt.Errorf("symName:%s offset:%d is overflow!", sym.Name, offset)
 					}
 					binary.LittleEndian.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
+				case R_USEIFACE:
+					//nothing todo
+				case R_USEIFACEMETHOD:
+					//nothing todo
+				case R_ADDRCUOFF:
+					//nothing todo
 				default:
 					err = fmt.Errorf("unknown reloc type:%d sym:%s", loc.Type, sym.Name)
 				}
@@ -417,7 +423,6 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 	module.pclntable = append(module.pclntable, codereloc.pclntable...)
 	module.minpc = uintptr(segment.codeBase)
 	module.maxpc = uintptr(segment.dataBase)
-	module.filetab = codereloc.filetab
 	module.types = uintptr(segment.codeBase)
 	module.etypes = uintptr(segment.codeBase + segment.offset)
 	module.text = uintptr(segment.codeBase)
@@ -437,6 +442,7 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 	length := len(codereloc.pcfunc) * FindFuncBucketSize
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&codereloc.pcfunc[0])), length)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[len(module.pclntable)-length]))
+	_buildModule(codereloc, codeModule)
 
 	modulesLock.Lock()
 	addModule(codeModule)

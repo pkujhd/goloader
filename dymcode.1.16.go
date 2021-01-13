@@ -1,7 +1,11 @@
-// +build go1.14
-// +build !go1.16
+// +build go1.16
+// +build !go1.17
 
 package goloader
+
+import (
+	"unsafe"
+)
 
 const (
 	R_PCREL = 16
@@ -10,17 +14,26 @@ const (
 	// "local exec" model for tls access (r.Sym is not set on intel platforms but is
 	// set to a TLS symbol -- runtime.tlsg -- in the linker when externally linking).
 	R_TLS_LE = 17
+	// R_USEIFACE marks a type is converted to an interface in the function this
+	// relocation is applied to. The target is a type descriptor.
+	// This is a marker relocation (0-sized), for the linker's reachabililty
+	// analysis.
+	R_USEIFACE = 25
+	// R_USEIFACEMETHOD marks an interface method that is used in the function
+	// this relocation is applied to. The target is an interface type descriptor.
+	// The addend is the offset of the method in the type descriptor.
+	// This is a marker relocation (0-sized), for the linker's reachabililty
+	// analysis.
+	R_USEIFACEMETHOD = 26
 	// R_METHODOFF resolves to a 32-bit offset from the beginning of the section
 	// holding the data being relocated to the referenced symbol.
 	// It is a variant of R_ADDROFF used when linking from the uncommonType of a
 	// *rtype, and may be set to zero by the linker if it determines the method
 	// text is unreachable by the linked program.
-	R_METHODOFF = 25
-
-	//not used, only adapter golang 1.16
-	R_USEIFACE       = 0x10000000 - 3
-	R_USEIFACEMETHOD = 0x10000000 - 2
-	R_ADDRCUOFF      = 0x10000000 - 1
+	R_METHODOFF = 27
+	// R_ADDRCUOFF resolves to a pointer-sized offset from the start of the
+	// symbol's DWARF compile unit.
+	R_ADDRCUOFF = 58
 )
 
 // copy from $GOROOT/src/cmd/internal/objabi/symkind.go
@@ -42,7 +55,12 @@ const (
 	// Thread-local data that is initially all 0s
 	STLSBSS
 	// Debugging data
-	SDWARFINFO
+	SDWARFCUINFO
+	SDWARFCONST
+	SDWARFFCN
+	SDWARFABSFCN
+	SDWARFTYPE
+	SDWARFVAR
 	SDWARFRANGE
 	SDWARFLOC
 	SDWARFLINES
@@ -68,5 +86,12 @@ func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
 }
 
 func _buildModule(codereloc *CodeReloc, codeModule *CodeModule) {
-	codeModule.module.filetab = codereloc.filetab
+	module := codeModule.module
+	module.pcHeader = (*pcHeader)(unsafe.Pointer(&(module.pclntable[0])))
+	module.pcHeader.nfunc = len(module.ftab)
+	module.pcHeader.nfiles = (uint)(len(module.filetab))
+	module.funcnametab = module.pclntable
+	module.pctab = module.pclntable
+	module.cutab = codereloc.filetab
+	module.filetab = module.pclntable
 }
