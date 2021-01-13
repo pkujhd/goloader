@@ -33,14 +33,7 @@ func typelinksinit(symPtr map[string]uintptr) {
 			//NOTHING TODO
 		}
 	}
-	//register function
-	for _, f := range md.ftab {
-		_func := (*_func)(unsafe.Pointer((&md.pclntable[f.funcoff])))
-		name := gostringnocopy(&md.pclntable[_func.nameoff])
-		if !strings.HasPrefix(name, TypeDoubleDotPrefix) && _func.entry < md.etext {
-			symPtr[name] = _func.entry
-		}
-	}
+	registerFunc(&md, symPtr)
 }
 
 func RegSymbol(symPtr map[string]uintptr) error {
