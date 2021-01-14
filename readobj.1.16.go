@@ -105,14 +105,14 @@ func symbols(f *os.File, pkgpath string) (map[string]*ObjSymbol, string, error) 
 	return objs, Arch, nil
 }
 
-func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]string) string {
-	var i uint32
+func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]string) (string, uint32) {
+	i := InvalidIndex
 	switch p := s.PkgIdx; p {
 	case goobj.PkgIdxInvalid:
 		if s.SymIdx != 0 {
 			panic("bad sym ref")
 		}
-		return EmptyString
+		return EmptyString, i
 	case goobj.PkgIdxHashed64:
 		i = s.SymIdx + uint32(r.NSym())
 	case goobj.PkgIdxHashed:
@@ -121,34 +121,13 @@ func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]s
 		i = s.SymIdx + uint32(r.NSym()+r.NHashed64def()+r.NHasheddef())
 	case goobj.PkgIdxBuiltin:
 		name, _ := goobj.BuiltinName(int(s.SymIdx))
-		return name
+		return name, i
 	case goobj.PkgIdxSelf:
 		i = s.SymIdx
 	default:
-		return (*refNames)[s]
+		return (*refNames)[s], i
 	}
-	return r.Sym(i).Name(r)
-}
-
-func resolveSymRefIndex(s goobj.SymRef, r *goobj.Reader) uint32 {
-	var i uint32 = 0xFFFFFFFF
-	switch p := s.PkgIdx; p {
-	case goobj.PkgIdxInvalid:
-		if s.SymIdx != 0 {
-			panic("bad sym ref")
-		}
-	case goobj.PkgIdxHashed64:
-		i = s.SymIdx + uint32(r.NSym())
-	case goobj.PkgIdxHashed:
-		i = s.SymIdx + uint32(r.NSym()+r.NHashed64def())
-	case goobj.PkgIdxNone:
-		i = s.SymIdx + uint32(r.NSym()+r.NHashed64def()+r.NHasheddef())
-	case goobj.PkgIdxSelf:
-		i = s.SymIdx
-	case goobj.PkgIdxBuiltin:
-	default:
-	}
-	return i
+	return r.Sym(i).Name(r), i
 }
 
 func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.SymRef]string, o *archive.GoObj, objs map[string]*ObjSymbol) {
@@ -166,15 +145,13 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 	} else {
 		symbol.Data = make([]byte, 0)
 	}
+
 	objs[symbol.Name] = &symbol
 
 	auxs := r.Auxs(index)
 	for k := 0; k < len(auxs); k++ {
-		symref := auxs[k].Sym()
-		symindex := resolveSymRefIndex(symref, r)
-		symname := resolveSymRef(symref, r, refNames)
+		symname, symindex := resolveSymRef(auxs[k].Sym(), r, refNames)
 		switch auxs[k].Type() {
-
 		case goobj.AuxGotype:
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
@@ -186,14 +163,15 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 				symbol.Func.File = append(symbol.Func.File, r.File(int(index)))
 			}
 			for _, inl := range funcInfo.InlTree {
+				funcname, _ := resolveSymRef(inl.Func, r, refNames)
+				funcname = strings.Replace(funcname, EmptyPkgPath, *pkgpath, -1)
 				inlNode := InlTreeNode{
 					Parent:   int64(inl.Parent),
 					File:     r.File(int(inl.File)),
 					Line:     int64(inl.Line),
-					Func:     resolveSymRef(inl.Func, r, refNames),
+					Func:     funcname,
 					ParentPC: int64(inl.ParentPC),
 				}
-				inlNode.Func = strings.Replace(inlNode.Func, EmptyPkgPath, *pkgpath, -1)
 				symbol.Func.InlTree = append(symbol.Func.InlTree, inlNode)
 			}
 		case goobj.AuxFuncdata:
@@ -225,10 +203,8 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		symbol.Reloc[k].Offset = int(relocs[k].Off())
 		symbol.Reloc[k].Size = int(relocs[k].Siz())
 		symbol.Reloc[k].Type = int(relocs[k].Type())
-		symref := relocs[k].Sym()
-		symname := resolveSymRef(symref, r, refNames)
+		symname, symindex := resolveSymRef(relocs[k].Sym(), r, refNames)
 		symbol.Reloc[k].Sym = &Sym{Name: symname, Offset: InvalidOffset}
-		symindex := resolveSymRefIndex(symref, r)
 		if _, ok := objs[symname]; !ok && symindex != InvalidIndex {
 			AddSym(r, symindex, pkgpath, refNames, o, objs)
 		}
