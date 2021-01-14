@@ -153,30 +153,22 @@ func resolveSymRefIndex(s goobj.SymRef, r *goobj.Reader) uint32 {
 
 func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.SymRef]string, o *archive.GoObj, objs map[string]*ObjSymbol) {
 	s := r.Sym(index)
-	symbol := ObjSymbol{}
-	symbol.Name = s.Name(r)
-	if symbol.Name == EmptyString {
+	symbol := ObjSymbol{Name: s.Name(r), Kind: int(s.Type()), DupOK: s.Dupok(), Size: (int64)(s.Siz()), Func: &FuncInfo{}}
+	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
 		return
 	}
-	symbol.DupOK = s.Dupok()
-	symbol.Size = (int64)(s.Siz())
+	if _, ok := objs[symbol.Name]; ok {
+		return
+	}
 	if symbol.Size > 0 {
 		symbol.Data = r.BytesAt(r.DataOff(index), r.DataSize(index))
 		grow(&symbol.Data, (int)(symbol.Size))
 	} else {
 		symbol.Data = make([]byte, 0)
 	}
-	symbol.Kind = int(s.Type())
-	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || objabi.SymKind(symbol.Kind) == objabi.SDATA {
-		return
-	}
-	if _, ok := objs[symbol.Name]; ok {
-		return
-	}
 	objs[symbol.Name] = &symbol
 
 	auxs := r.Auxs(index)
-	symbol.Func = &FuncInfo{}
 	for k := 0; k < len(auxs); k++ {
 		symref := auxs[k].Sym()
 		symindex := resolveSymRefIndex(symref, r)
@@ -187,7 +179,6 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
 			funcInfo.Read(r.BytesAt(r.DataOff(symindex), r.DataSize(symindex)))
-			symbol.Func = &FuncInfo{}
 			symbol.Func.Args = funcInfo.Args
 			symbol.Func.Locals = funcInfo.Locals
 			symbol.Func.FuncID = (uint8)(funcInfo.FuncID)
@@ -222,7 +213,7 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		case goobj.AuxPcdata:
 			symbol.Func.PCData = append(symbol.Func.PCData, r.BytesAt(r.DataOff(symindex), r.DataSize(symindex)))
 		}
-		if _, ok := objs[symname]; !ok && symindex != 0xFFFFFFFF {
+		if _, ok := objs[symname]; !ok && symindex != InvalidIndex {
 			AddSym(r, symindex, pkgpath, refNames, o, objs)
 		}
 	}
@@ -238,7 +229,7 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		symname := resolveSymRef(symref, r, refNames)
 		symbol.Reloc[k].Sym = &Sym{Name: symname, Offset: InvalidOffset}
 		symindex := resolveSymRefIndex(symref, r)
-		if _, ok := objs[symname]; !ok && symindex != 0xFFFFFFFF {
+		if _, ok := objs[symname]; !ok && symindex != InvalidIndex {
 			AddSym(r, symindex, pkgpath, refNames, o, objs)
 		}
 	}
