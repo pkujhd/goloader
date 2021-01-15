@@ -93,7 +93,7 @@ func symbols(f *os.File, pkgpath string) (map[string]*ObjSymbol, string, error) 
 			Arch = arch.Name
 			nsym := r.NSym()
 			for i := 0; i < nsym; i++ {
-				AddSym(r, uint32(i), &pkgpath, &refNames, o, objs)
+				AddSym(r, uint32(i), &pkgpath, &refNames, objs)
 			}
 		default:
 			return nil, EmptyString, fmt.Errorf("Parse open %s: unrecognized archive member %s", f.Name(), e.Name)
@@ -130,7 +130,7 @@ func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]s
 	return r.Sym(i).Name(r), i
 }
 
-func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.SymRef]string, o *archive.GoObj, objs map[string]*ObjSymbol) {
+func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.SymRef]string, objs map[string]*ObjSymbol) {
 	s := r.Sym(index)
 	symbol := ObjSymbol{Name: s.Name(r), Kind: int(s.Type()), DupOK: s.Dupok(), Size: (int64)(s.Siz()), Func: &FuncInfo{}}
 	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
@@ -192,7 +192,7 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 			symbol.Func.PCData = append(symbol.Func.PCData, r.Data(index))
 		}
 		if _, ok := objs[name]; !ok && index != InvalidIndex {
-			AddSym(r, index, pkgpath, refNames, o, objs)
+			AddSym(r, index, pkgpath, refNames, objs)
 		}
 	}
 
@@ -206,7 +206,7 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		name, index := resolveSymRef(relocs[k].Sym(), r, refNames)
 		symbol.Reloc[k].Sym = &Sym{Name: name, Offset: InvalidOffset}
 		if _, ok := objs[name]; !ok && index != InvalidIndex {
-			AddSym(r, index, pkgpath, refNames, o, objs)
+			AddSym(r, index, pkgpath, refNames, objs)
 		}
 	}
 }
