@@ -140,7 +140,7 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		return
 	}
 	if symbol.Size > 0 {
-		symbol.Data = r.BytesAt(r.DataOff(index), r.DataSize(index))
+		symbol.Data = r.Data(index)
 		grow(&symbol.Data, (int)(symbol.Size))
 	} else {
 		symbol.Data = make([]byte, 0)
@@ -150,12 +150,12 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 
 	auxs := r.Auxs(index)
 	for k := 0; k < len(auxs); k++ {
-		symname, symindex := resolveSymRef(auxs[k].Sym(), r, refNames)
+		name, index := resolveSymRef(auxs[k].Sym(), r, refNames)
 		switch auxs[k].Type() {
 		case goobj.AuxGotype:
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
-			funcInfo.Read(r.BytesAt(r.DataOff(symindex), r.DataSize(symindex)))
+			funcInfo.Read(r.Data(index))
 			symbol.Func.Args = funcInfo.Args
 			symbol.Func.Locals = funcInfo.Locals
 			symbol.Func.FuncID = (uint8)(funcInfo.FuncID)
@@ -175,24 +175,24 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 				symbol.Func.InlTree = append(symbol.Func.InlTree, inlNode)
 			}
 		case goobj.AuxFuncdata:
-			symbol.Func.FuncData = append(symbol.Func.FuncData, symname)
+			symbol.Func.FuncData = append(symbol.Func.FuncData, name)
 		case goobj.AuxDwarfInfo:
 		case goobj.AuxDwarfLoc:
 		case goobj.AuxDwarfRanges:
 		case goobj.AuxDwarfLines:
 		case goobj.AuxPcsp:
-			symbol.Func.PCSP = r.BytesAt(r.DataOff(symindex), r.DataSize(symindex))
+			symbol.Func.PCSP = r.Data(index)
 		case goobj.AuxPcfile:
-			symbol.Func.PCFile = r.BytesAt(r.DataOff(symindex), r.DataSize(symindex))
+			symbol.Func.PCFile = r.Data(index)
 		case goobj.AuxPcline:
-			symbol.Func.PCLine = r.BytesAt(r.DataOff(symindex), r.DataSize(symindex))
+			symbol.Func.PCLine = r.Data(index)
 		case goobj.AuxPcinline:
-			symbol.Func.PCInline = r.BytesAt(r.DataOff(symindex), r.DataSize(symindex))
+			symbol.Func.PCInline = r.Data(index)
 		case goobj.AuxPcdata:
-			symbol.Func.PCData = append(symbol.Func.PCData, r.BytesAt(r.DataOff(symindex), r.DataSize(symindex)))
+			symbol.Func.PCData = append(symbol.Func.PCData, r.Data(index))
 		}
-		if _, ok := objs[symname]; !ok && symindex != InvalidIndex {
-			AddSym(r, symindex, pkgpath, refNames, o, objs)
+		if _, ok := objs[name]; !ok && index != InvalidIndex {
+			AddSym(r, index, pkgpath, refNames, o, objs)
 		}
 	}
 
@@ -203,10 +203,10 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		symbol.Reloc[k].Offset = int(relocs[k].Off())
 		symbol.Reloc[k].Size = int(relocs[k].Siz())
 		symbol.Reloc[k].Type = int(relocs[k].Type())
-		symname, symindex := resolveSymRef(relocs[k].Sym(), r, refNames)
-		symbol.Reloc[k].Sym = &Sym{Name: symname, Offset: InvalidOffset}
-		if _, ok := objs[symname]; !ok && symindex != InvalidIndex {
-			AddSym(r, symindex, pkgpath, refNames, o, objs)
+		name, index := resolveSymRef(relocs[k].Sym(), r, refNames)
+		symbol.Reloc[k].Sym = &Sym{Name: name, Offset: InvalidOffset}
+		if _, ok := objs[name]; !ok && index != InvalidIndex {
+			AddSym(r, index, pkgpath, refNames, o, objs)
 		}
 	}
 }
