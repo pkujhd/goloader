@@ -14,7 +14,7 @@ type Pkg struct {
 	f       *os.File
 }
 
-func readObj(pkg *Pkg, reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error {
+func readObj(pkg *Pkg, reloc *CodeReloc) error {
 	if pkg.PkgPath == EmptyString {
 		pkg.PkgPath = DefaultPkgPath
 	}
@@ -41,17 +41,17 @@ func readObj(pkg *Pkg, reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error 
 		}
 	}
 	for _, sym := range pkg.Syms {
-		objSymMap[sym.Name] = sym
+		reloc.objsymbolMap[sym.Name] = sym
 	}
 	return nil
 }
 
-func relocateSymbols(reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error {
+func relocateSymbols(reloc *CodeReloc) error {
 	//static_tmp is 0, golang compile not allocate memory.
 	reloc.data = append(reloc.data, make([]byte, IntSize)...)
-	for _, objSym := range objSymMap {
+	for _, objSym := range reloc.objsymbolMap {
 		if objSym.Kind == STEXT && objSym.DupOK == false {
-			_, err := relocSym(reloc, objSym.Name, objSymMap)
+			_, err := relocSym(reloc, objSym.Name)
 			if err != nil {
 				return err
 			}
@@ -62,12 +62,11 @@ func relocateSymbols(reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error {
 
 func ReadObj(f *os.File, pkgpath *string) (*CodeReloc, error) {
 	reloc := initCodeReloc()
-	objSymMap := make(map[string]*ObjSymbol)
 	pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: *pkgpath}
-	if err := readObj(&pkg, reloc, objSymMap); err != nil {
+	if err := readObj(&pkg, reloc); err != nil {
 		return nil, err
 	}
-	if err := relocateSymbols(reloc, objSymMap); err != nil {
+	if err := relocateSymbols(reloc); err != nil {
 		return nil, err
 	}
 	return reloc, nil
@@ -75,7 +74,6 @@ func ReadObj(f *os.File, pkgpath *string) (*CodeReloc, error) {
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 	reloc := initCodeReloc()
-	objSymMap := make(map[string]*ObjSymbol)
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
@@ -83,11 +81,11 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 		}
 		defer f.Close()
 		pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: pkgPath[i]}
-		if err := readObj(&pkg, reloc, objSymMap); err != nil {
+		if err := readObj(&pkg, reloc); err != nil {
 			return nil, err
 		}
 	}
-	if err := relocateSymbols(reloc, objSymMap); err != nil {
+	if err := relocateSymbols(reloc); err != nil {
 		return nil, err
 	}
 	return reloc, nil

@@ -51,9 +51,11 @@ func Parse(f *os.File, pkgpath *string) ([]string, error) {
 }
 
 func initCodeReloc() *CodeReloc {
-	reloc := &CodeReloc{symMap: make(map[string]*Sym),
-		stkmaps: make(map[string][]byte),
-		namemap: make(map[string]int),
+	reloc := &CodeReloc{
+		symMap:       make(map[string]*Sym),
+		objsymbolMap: make(map[string]*ObjSymbol),
+		stkmaps:      make(map[string][]byte),
+		namemap:      make(map[string]int),
 	}
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
 	copy(head, x86moduleHead)

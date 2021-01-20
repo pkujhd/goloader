@@ -65,16 +65,17 @@ type segment struct {
 }
 
 type CodeReloc struct {
-	code      []byte
-	data      []byte
-	symMap    map[string]*Sym
-	stkmaps   map[string][]byte
-	namemap   map[string]int
-	filetab   []uint32
-	pclntable []byte
-	pcfunc    []findfuncbucket
-	_func     []_func
-	Arch      string
+	code         []byte
+	data         []byte
+	symMap       map[string]*Sym
+	objsymbolMap map[string]*ObjSymbol
+	stkmaps      map[string][]byte
+	namemap      map[string]int
+	filetab      []uint32
+	pclntable    []byte
+	pcfunc       []findfuncbucket
+	_func        []_func
+	Arch         string
 }
 
 type CodeModule struct {
@@ -121,11 +122,11 @@ var (
 	modulesLock sync.Mutex
 )
 
-func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]*ObjSymbol) (symbol *Sym, err error) {
+func relocSym(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 	if symbol, ok := codereloc.symMap[name]; ok {
 		return symbol, nil
 	}
-	objsym := objSymMap[name]
+	objsym := codereloc.objsymbolMap[name]
 	symbol = &Sym{Name: objsym.Name, Kind: int(objsym.Kind)}
 	codereloc.symMap[symbol.Name] = symbol
 
@@ -135,7 +136,7 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]*ObjSymbol
 		codereloc.code = append(codereloc.code, objsym.Data...)
 		bytearrayAlign(&codereloc.code, PtrSize)
 		symbol.Func = &Func{}
-		if err := readFuncData(codereloc, objSymMap[name], objSymMap, symbol.Offset); err != nil {
+		if err := readFuncData(codereloc, codereloc.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
 		}
 	default:
@@ -146,12 +147,12 @@ func relocSym(codereloc *CodeReloc, name string, objSymMap map[string]*ObjSymbol
 
 	for _, reloc := range objsym.Reloc {
 		reloc.Offset = reloc.Offset + symbol.Offset
-		if _, ok := objSymMap[reloc.Sym.Name]; ok {
-			reloc.Sym, err = relocSym(codereloc, reloc.Sym.Name, objSymMap)
+		if _, ok := codereloc.objsymbolMap[reloc.Sym.Name]; ok {
+			reloc.Sym, err = relocSym(codereloc, reloc.Sym.Name)
 			if err != nil {
 				return nil, err
 			}
-			if len(objSymMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
+			if len(codereloc.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
 				if int(reloc.Size) <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {

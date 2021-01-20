@@ -91,7 +91,7 @@ func gostringnocopy(str *byte) string
 //go:linkname moduledataverify1 runtime.moduledataverify1
 func moduledataverify1(datap *moduledata)
 
-func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, objSymMap map[string]*ObjSymbol, codeLen int) (err error) {
+func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, codeLen int) (err error) {
 	x := codeLen
 	b := x / pcbucketsize
 	i := x % pcbucketsize / (pcbucketsize / nsub)
@@ -144,7 +144,7 @@ func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, objSymMap map[string]
 
 	for _, name := range symbol.Func.FuncData {
 		if _, ok := codeReloc.stkmaps[name]; !ok {
-			if gcobj, ok := objSymMap[name]; ok {
+			if gcobj, ok := codeReloc.objsymbolMap[name]; ok {
 				codeReloc.stkmaps[name] = gcobj.Data
 			} else if len(name) == 0 {
 				codeReloc.stkmaps[name] = nil
@@ -167,8 +167,8 @@ func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, objSymMap map[string]
 	codeReloc._func = append(codeReloc._func, _func)
 
 	for _, name := range symbol.Func.FuncData {
-		if _, ok := objSymMap[name]; ok {
-			relocSym(codeReloc, name, objSymMap)
+		if _, ok := codeReloc.objsymbolMap[name]; ok {
+			relocSym(codeReloc, name)
 		}
 	}
 	return
