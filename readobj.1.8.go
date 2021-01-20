@@ -91,6 +91,11 @@ func symbols(f *os.File, pkgpath string) (map[string]*ObjSymbol, string, error) 
 	return objs, obj.Arch, nil
 }
 
-func addPclntableHeader(reloc *CodeReloc) {
+func initCodeReloc() *CodeReloc {
+	reloc := &CodeReloc{symMap: make(map[string]*Sym),
+		stkmaps: make(map[string][]byte),
+		namemap: make(map[string]int),
+	}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
+	return reloc
 }

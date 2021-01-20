@@ -35,8 +35,7 @@ func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]*ObjSymbol, pkgp
 }
 
 func ReadObj(f *os.File) (*CodeReloc, error) {
-	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), namemap: make(map[string]int)}
-	addPclntableHeader(reloc)
+	reloc := initCodeReloc()
 	objSymMap := make(map[string]*ObjSymbol)
 	err := readObj(f, reloc, objSymMap, nil)
 	if err != nil {
@@ -60,8 +59,7 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	reloc := &CodeReloc{symMap: make(map[string]*Sym), stkmaps: make(map[string][]byte), namemap: make(map[string]int)}
-	addPclntableHeader(reloc)
+	reloc := initCodeReloc()
 	objSymMap := make(map[string]*ObjSymbol)
 	for i, file := range files {
 		f, err := os.Open(file)

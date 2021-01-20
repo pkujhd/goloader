@@ -51,10 +51,15 @@ func Parse(f *os.File, pkgpath *string) ([]string, error) {
 	return symbols, nil
 }
 
-func addPclntableHeader(reloc *CodeReloc) {
+func initCodeReloc() *CodeReloc {
+	reloc := &CodeReloc{symMap: make(map[string]*Sym),
+		stkmaps: make(map[string][]byte),
+		namemap: make(map[string]int),
+	}
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
 	copy(head, x86moduleHead)
 	reloc.pclntable = append(reloc.pclntable, head...)
+	return reloc
 }
 
 func symbols(f *os.File, pkgpath string) (map[string]*ObjSymbol, string, error) {
