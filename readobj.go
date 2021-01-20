@@ -7,38 +7,46 @@ import (
 	"strings"
 )
 
-func readObj(f *os.File, reloc *CodeReloc, objSymMap map[string]*ObjSymbol, pkgpath *string) error {
-	if pkgpath == nil || *pkgpath == EmptyString {
-		defaultPkgPath := DefaultPkgPath
-		pkgpath = &defaultPkgPath
+type Pkg struct {
+	Syms    map[string]*ObjSymbol
+	Arch    string
+	PkgPath string
+	f       *os.File
+}
+
+func readObj(pkg *Pkg, reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error {
+	if pkg.PkgPath == EmptyString {
+		pkg.PkgPath = DefaultPkgPath
 	}
-	objs, Arch, err := symbols(f, *pkgpath)
-	if err != nil {
+	if err := pkg.symbols(); err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
-	if len(reloc.Arch) != 0 && reloc.Arch != Arch {
-		return fmt.Errorf("read obj error: Arch %s != Arch %s", reloc.Arch, Arch)
+	if len(reloc.Arch) != 0 && reloc.Arch != pkg.Arch {
+		return fmt.Errorf("read obj error: Arch %s != Arch %s", reloc.Arch, pkg.Arch)
+	} else {
+		reloc.Arch = pkg.Arch
 	}
-	reloc.Arch = Arch
-	for _, sym := range objs {
-		objSymMap[sym.Name] = sym
+	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
-			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, *pkgpath, -1)
+			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
 		}
 		if sym.Func != nil {
 			for index, FuncData := range sym.Func.FuncData {
-				sym.Func.FuncData[index] = strings.Replace(FuncData, EmptyPkgPath, *pkgpath, -1)
+				sym.Func.FuncData[index] = strings.Replace(FuncData, EmptyPkgPath, pkg.PkgPath, -1)
 			}
 		}
+	}
+	for _, sym := range pkg.Syms {
+		objSymMap[sym.Name] = sym
 	}
 	return nil
 }
 
-func ReadObj(f *os.File) (*CodeReloc, error) {
+func ReadObj(f *os.File, pkgpath *string) (*CodeReloc, error) {
 	reloc := initCodeReloc()
 	objSymMap := make(map[string]*ObjSymbol)
-	err := readObj(f, reloc, objSymMap, nil)
-	if err != nil {
+	pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: *pkgpath}
+	if err := readObj(&pkg, reloc, objSymMap); err != nil {
 		return nil, err
 	}
 	//static_tmp is 0, golang compile not allocate memory.
@@ -55,7 +63,7 @@ func ReadObj(f *os.File) (*CodeReloc, error) {
 	case sys.ArchARM.Name, sys.ArchARM64.Name:
 		copy(reloc.pclntable, armmoduleHead)
 	}
-	return reloc, err
+	return reloc, nil
 }
 
 func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
@@ -67,8 +75,8 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 			return nil, err
 		}
 		defer f.Close()
-		err = readObj(f, reloc, objSymMap, &(pkgPath[i]))
-		if err != nil {
+		pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: pkgPath[i]}
+		if err := readObj(&pkg, reloc, objSymMap); err != nil {
 			return nil, err
 		}
 	}

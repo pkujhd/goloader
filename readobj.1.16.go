@@ -7,7 +7,6 @@ import (
 	"cmd/objfile/archive"
 	"cmd/objfile/goobj"
 	"cmd/objfile/objabi"
-	"cmd/objfile/sys"
 	"fmt"
 	"os"
 	"strings"
@@ -62,32 +61,22 @@ func initCodeReloc() *CodeReloc {
 	return reloc
 }
 
-func symbols(f *os.File, pkgpath string) (map[string]*ObjSymbol, string, error) {
-	a, err := archive.Parse(f, false)
+func (pkg *Pkg) symbols() error {
+	a, err := archive.Parse(pkg.f, false)
 	if err != nil {
-		return nil, EmptyString, err
+		return err
 	}
-	objs := make(map[string]*ObjSymbol, 0)
-	Arch := EmptyString
 	for _, e := range a.Entries {
 		switch e.Type {
 		case archive.EntryPkgDef:
 			//nothing todo
 		case archive.EntryGoObj:
-			o := e.Obj
-			b := make([]byte, o.Size)
-			_, err := f.ReadAt(b, o.Offset)
+			b := make([]byte, e.Obj.Size)
+			_, err := pkg.f.ReadAt(b, e.Obj.Offset)
 			if err != nil {
-				return nil, EmptyString, err
+				return err
 			}
 			r := goobj.NewReaderFromBytes(b, false)
-			var arch *sys.Arch
-			for _, a := range sys.Archs {
-				if a.Name == e.Obj.Arch {
-					arch = a
-					break
-				}
-			}
 			// Name of referenced indexed symbols.
 			nrefName := r.NRefName()
 			refNames := make(map[goobj.SymRef]string, nrefName)
@@ -95,19 +84,19 @@ func symbols(f *os.File, pkgpath string) (map[string]*ObjSymbol, string, error) 
 				rn := r.RefName(i)
 				refNames[rn.Sym()] = rn.Name(r)
 			}
-			Arch = arch.Name
+			pkg.Arch = e.Obj.Arch
 			nsym := r.NSym()
 			for i := 0; i < nsym; i++ {
-				AddSym(r, uint32(i), &pkgpath, &refNames, objs)
+				pkg.addSym(r, uint32(i), &refNames)
 			}
 		default:
-			return nil, EmptyString, fmt.Errorf("Parse open %s: unrecognized archive member %s", f.Name(), e.Name)
+			return fmt.Errorf("Parse open %s: unrecognized archive member %s", pkg.f.Name(), e.Name)
 		}
 	}
-	for _, sym := range objs {
-		sym.Name = strings.Replace(sym.Name, EmptyPkgPath, pkgpath, -1)
+	for _, sym := range pkg.Syms {
+		sym.Name = strings.Replace(sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
 	}
-	return objs, Arch, nil
+	return nil
 }
 
 func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]string) (string, uint32) {
@@ -135,13 +124,13 @@ func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]s
 	return r.Sym(i).Name(r), i
 }
 
-func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.SymRef]string, objs map[string]*ObjSymbol) {
+func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef]string) {
 	s := r.Sym(index)
 	symbol := ObjSymbol{Name: s.Name(r), Kind: int(s.Type()), DupOK: s.Dupok(), Size: (int64)(s.Siz()), Func: &FuncInfo{}}
 	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
 		return
 	}
-	if _, ok := objs[symbol.Name]; ok {
+	if _, ok := pkg.Syms[symbol.Name]; ok {
 		return
 	}
 	if symbol.Size > 0 {
@@ -151,7 +140,7 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		symbol.Data = make([]byte, 0)
 	}
 
-	objs[symbol.Name] = &symbol
+	pkg.Syms[symbol.Name] = &symbol
 
 	auxs := r.Auxs(index)
 	for k := 0; k < len(auxs); k++ {
@@ -169,7 +158,7 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 			}
 			for _, inl := range funcInfo.InlTree {
 				funcname, _ := resolveSymRef(inl.Func, r, refNames)
-				funcname = strings.Replace(funcname, EmptyPkgPath, *pkgpath, -1)
+				funcname = strings.Replace(funcname, EmptyPkgPath, pkg.PkgPath, -1)
 				inlNode := InlTreeNode{
 					Parent:   int64(inl.Parent),
 					File:     r.File(int(inl.File)),
@@ -196,8 +185,8 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		case goobj.AuxPcdata:
 			symbol.Func.PCData = append(symbol.Func.PCData, r.Data(index))
 		}
-		if _, ok := objs[name]; !ok && index != InvalidIndex {
-			AddSym(r, index, pkgpath, refNames, objs)
+		if _, ok := pkg.Syms[name]; !ok && index != InvalidIndex {
+			pkg.addSym(r, index, refNames)
 		}
 	}
 
@@ -210,8 +199,8 @@ func AddSym(r *goobj.Reader, index uint32, pkgpath *string, refNames *map[goobj.
 		symbol.Reloc[k].Type = int(relocs[k].Type())
 		name, index := resolveSymRef(relocs[k].Sym(), r, refNames)
 		symbol.Reloc[k].Sym = &Sym{Name: name, Offset: InvalidOffset}
-		if _, ok := objs[name]; !ok && index != InvalidIndex {
-			AddSym(r, index, pkgpath, refNames, objs)
+		if _, ok := pkg.Syms[name]; !ok && index != InvalidIndex {
+			pkg.addSym(r, index, refNames)
 		}
 	}
 }
