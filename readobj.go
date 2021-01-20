@@ -26,6 +26,10 @@ func readObj(pkg *Pkg, reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error 
 	} else {
 		reloc.Arch = pkg.Arch
 	}
+	switch reloc.Arch {
+	case sys.ArchARM.Name, sys.ArchARM64.Name:
+		copy(reloc.pclntable, armmoduleHead)
+	}
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
 			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
@@ -42,6 +46,20 @@ func readObj(pkg *Pkg, reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error 
 	return nil
 }
 
+func relocateSymbols(reloc *CodeReloc, objSymMap map[string]*ObjSymbol) error {
+	//static_tmp is 0, golang compile not allocate memory.
+	reloc.data = append(reloc.data, make([]byte, IntSize)...)
+	for _, objSym := range objSymMap {
+		if objSym.Kind == STEXT && objSym.DupOK == false {
+			_, err := relocSym(reloc, objSym.Name, objSymMap)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func ReadObj(f *os.File, pkgpath *string) (*CodeReloc, error) {
 	reloc := initCodeReloc()
 	objSymMap := make(map[string]*ObjSymbol)
@@ -49,19 +67,8 @@ func ReadObj(f *os.File, pkgpath *string) (*CodeReloc, error) {
 	if err := readObj(&pkg, reloc, objSymMap); err != nil {
 		return nil, err
 	}
-	//static_tmp is 0, golang compile not allocate memory.
-	reloc.data = append(reloc.data, make([]byte, IntSize)...)
-	for _, objSym := range objSymMap {
-		if objSym.Kind == STEXT && objSym.DupOK == false {
-			_, err := relocSym(reloc, objSym.Name, objSymMap)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	switch reloc.Arch {
-	case sys.ArchARM.Name, sys.ArchARM64.Name:
-		copy(reloc.pclntable, armmoduleHead)
+	if err := relocateSymbols(reloc, objSymMap); err != nil {
+		return nil, err
 	}
 	return reloc, nil
 }
@@ -80,19 +87,8 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 			return nil, err
 		}
 	}
-	//static_tmp is 0, golang compile not allocate memory.
-	reloc.data = append(reloc.data, make([]byte, IntSize)...)
-	for _, objSym := range objSymMap {
-		if objSym.Kind == STEXT && objSym.DupOK == false {
-			_, err := relocSym(reloc, objSym.Name, objSymMap)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	switch reloc.Arch {
-	case sys.ArchARM.Name, sys.ArchARM64.Name:
-		copy(reloc.pclntable, armmoduleHead)
+	if err := relocateSymbols(reloc, objSymMap); err != nil {
+		return nil, err
 	}
 	return reloc, nil
 }
