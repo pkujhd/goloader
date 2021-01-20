@@ -6,6 +6,7 @@ package goloader
 import (
 	"cmd/objfile/goobj"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -13,6 +14,19 @@ var (
 	x86moduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
 	armmoduleHead = []byte{0xFB, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
 )
+
+type readAtSeeker struct {
+	io.ReadSeeker
+}
+
+func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
+	bytes = make([]byte, size)
+	_, err = r.Seek(offset, io.SeekStart)
+	if err == nil {
+		_, err = r.Read(bytes)
+	}
+	return
+}
 
 func Parse(f *os.File, pkgpath *string) ([]string, error) {
 	obj, err := goobj.Parse(f, *pkgpath)
