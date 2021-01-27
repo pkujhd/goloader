@@ -3,10 +3,6 @@
 
 package goloader
 
-import (
-	"cmd/objfile/goobj"
-)
-
 // PCDATA and FUNCDATA table indexes.
 //
 // See funcdata.h and ../cmd/internal/obj/funcdata.go.
@@ -82,14 +78,4 @@ func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int) _func 
 		nfuncdata: int32(len(symbol.Func.FuncData)),
 	}
 	return fdata
-}
-
-type inlinedCall struct{}
-
-func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
-	return nil
-}
-
-func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
-	return nil
 }

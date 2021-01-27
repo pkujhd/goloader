@@ -3,6 +3,11 @@
 
 package goloader
 
+import (
+	"cmd/objfile/goobj"
+	"strings"
+)
+
 const (
 	R_PCREL = 15
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
@@ -55,6 +60,42 @@ func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]
 
 func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
 	return nil
+}
+
+// inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
+type inlinedCall struct {
+	parent int32 // index of parent in the inltree, or < 0
+	file   int32 // fileno index into filetab
+	line   int32 // line number of the call site
+	func_  int32 // offset into pclntab for name of called function
+}
+
+func initInlinedCall(codereloc *CodeReloc, inl InlTreeNode, _func *_func) inlinedCall {
+	return inlinedCall{
+		parent: int32(inl.Parent),
+		file:   int32(findFileTab(codereloc, inl.File)),
+		line:   int32(inl.Line),
+		func_:  int32(codereloc.namemap[inl.Func])}
+}
+
+func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
+	for _, inl := range objFunc.InlTree {
+		inline := InlTreeNode{
+			Parent:   int64(inl.Parent),
+			File:     inl.File,
+			Line:     int64(inl.Line),
+			Func:     inl.Func.Name,
+			ParentPC: 0,
+		}
+		inline.Func = strings.Replace(inline.Func, EmptyPkgPath, pkgpath, -1)
+		Func.InlTree = append(Func.InlTree, inline)
+	}
+	Func.PCInline, err = fd.BytesAt(objFunc.PCInline.Offset, objFunc.PCInline.Size)
+	return err
+}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
+	return _addInlineTree(codereloc, _func, objsym)
 }
 
 func _buildModule(codereloc *CodeReloc, codeModule *CodeModule) {

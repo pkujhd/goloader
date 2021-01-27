@@ -3,6 +3,10 @@
 
 package goloader
 
+import (
+	"cmd/objfile/goobj"
+)
+
 const (
 	R_PCREL = 15
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
@@ -77,6 +81,16 @@ func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]
 }
 
 func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
+	return nil
+}
+
+type inlinedCall struct{}
+
+func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
+	return nil
+}
+
+func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
 	return nil
 }
 
