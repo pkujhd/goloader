@@ -20,6 +20,11 @@ const (
 	// *rtype, and may be set to zero by the linker if it determines the method
 	// text is unreachable by the linked program.
 	R_METHODOFF = 24
+
+	//not used, only adapter golang 1.16
+	R_USEIFACE       = 0x10000000 - 3
+	R_USEIFACEMETHOD = 0x10000000 - 2
+	R_ADDRCUOFF      = 0x10000000 - 1
 )
 
 const (
@@ -69,11 +74,6 @@ const (
 	SHOSTOBJ
 	SDWARFSECT
 	SDWARFINFO
-
-	//not used, only adapter golang 1.16
-	R_USEIFACE       = 0x10000000 - 3
-	R_USEIFACEMETHOD = 0x10000000 - 2
-	R_ADDRCUOFF      = 0x10000000 - 1
 )
 
 func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
