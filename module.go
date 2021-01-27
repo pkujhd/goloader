@@ -1,9 +1,6 @@
 package goloader
 
 import (
-	"encoding/binary"
-	"errors"
-	"strings"
 	"unsafe"
 )
 
@@ -90,89 +87,6 @@ func gostringnocopy(str *byte) string
 
 //go:linkname moduledataverify1 runtime.moduledataverify1
 func moduledataverify1(datap *moduledata)
-
-func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, codeLen int) (err error) {
-	x := codeLen
-	b := x / pcbucketsize
-	i := x % pcbucketsize / (pcbucketsize / nsub)
-	for lb := b - len(codeReloc.pcfunc); lb >= 0; lb-- {
-		codeReloc.pcfunc = append(codeReloc.pcfunc, findfuncbucket{
-			idx: uint32(256 * len(codeReloc.pcfunc))})
-	}
-	bucket := &codeReloc.pcfunc[b]
-	bucket.subbuckets[i] = byte(len(codeReloc._func) - int(bucket.idx))
-
-	pcFileHead := make([]byte, 32)
-	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(codeReloc.filetab))<<1)
-	for _, fileName := range symbol.Func.File {
-		if offset, ok := codeReloc.namemap[fileName]; !ok {
-			codeReloc.filetab = append(codeReloc.filetab, (uint32)(len(codeReloc.pclntable)))
-			codeReloc.namemap[fileName] = len(codeReloc.pclntable)
-			fileName = strings.TrimLeft(fileName, FileSymPrefix)
-			codeReloc.pclntable = append(codeReloc.pclntable, []byte(fileName)...)
-			codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
-		} else {
-			codeReloc.filetab = append(codeReloc.filetab, uint32(offset))
-		}
-	}
-
-	nameOff := len(codeReloc.pclntable)
-	if offset, ok := codeReloc.namemap[symbol.Name]; !ok {
-		codeReloc.namemap[symbol.Name] = len(codeReloc.pclntable)
-		codeReloc.pclntable = append(codeReloc.pclntable, []byte(symbol.Name)...)
-		codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
-	} else {
-		nameOff = offset
-	}
-
-	pcspOff := len(codeReloc.pclntable)
-	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCSP...)
-
-	pcfileOff := len(codeReloc.pclntable)
-	codeReloc.pclntable = append(codeReloc.pclntable, pcFileHead[:pcFileHeadSize-1]...)
-	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCFile...)
-
-	pclnOff := len(codeReloc.pclntable)
-	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCLine...)
-
-	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff)
-	Func := codeReloc.symMap[symbol.Name].Func
-	for _, pcdata := range symbol.Func.PCData {
-		Func.PCData = append(Func.PCData, uint32(len(codeReloc.pclntable)))
-		codeReloc.pclntable = append(codeReloc.pclntable, pcdata...)
-	}
-
-	for _, name := range symbol.Func.FuncData {
-		if _, ok := codeReloc.stkmaps[name]; !ok {
-			if gcobj, ok := codeReloc.objsymbolMap[name]; ok {
-				codeReloc.stkmaps[name] = gcobj.Data
-			} else if len(name) == 0 {
-				codeReloc.stkmaps[name] = nil
-			} else {
-				return errors.New("unknown gcobj:" + name)
-			}
-		}
-		if codeReloc.stkmaps[name] != nil {
-			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(codeReloc.stkmaps[name][0]))))
-		} else {
-			Func.FuncData = append(Func.FuncData, (uintptr)(0))
-		}
-	}
-
-	if err = addInlineTree(codeReloc, &_func, symbol); err != nil {
-		return err
-	}
-
-	grow(&codeReloc.pclntable, alignof(len(codeReloc.pclntable), PtrSize))
-	codeReloc._func = append(codeReloc._func, _func)
-
-	for _, name := range symbol.Func.FuncData {
-		if _, ok := codeReloc.objsymbolMap[name]; ok {
-			addSymbol(codeReloc, name)
-		}
-	}
-	return
-}
 
 func addModule(codeModule *CodeModule) {
 	modules[codeModule.module] = true

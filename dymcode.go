@@ -2,6 +2,7 @@ package goloader
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -194,27 +195,87 @@ func addSymbol(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 	return symbol, nil
 }
 
-func relocateADRP(mCode []byte, loc Reloc, segment *segment, symAddr uintptr) {
-	offset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
-	//overflow
-	if offset > 0xFFFFFFFF || offset <= -0x100000000 {
-		//low:	MOV reg imm
-		//high: MOVK reg imm LSL#16
-		value := uint64(0xF2A00000D2800000)
-		addr := binary.LittleEndian.Uint32(mCode)
-		low := uint32(value & 0xFFFFFFFF)
-		high := uint32(value >> 32)
-		low = ((addr & 0x1F) | low) | ((uint32(symAddr) & 0xFFFF) << 5)
-		high = ((addr & 0x1F) | high) | (uint32(symAddr) >> 16 << 5)
-		binary.LittleEndian.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
-	} else {
-		// 2bit + 19bit + low(12bit) = 33bit
-		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
-		high := (uint32(offset&0xFFF) << 10)
-		value := binary.LittleEndian.Uint64(mCode)
-		value = (uint64(uint32(value>>32)|high) << 32) | uint64(uint32(value&0xFFFFFFFF)|low)
-		binary.LittleEndian.PutUint64(mCode, value)
+func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, codeLen int) (err error) {
+	x := codeLen
+	b := x / pcbucketsize
+	i := x % pcbucketsize / (pcbucketsize / nsub)
+	for lb := b - len(codeReloc.pcfunc); lb >= 0; lb-- {
+		codeReloc.pcfunc = append(codeReloc.pcfunc, findfuncbucket{
+			idx: uint32(256 * len(codeReloc.pcfunc))})
 	}
+	bucket := &codeReloc.pcfunc[b]
+	bucket.subbuckets[i] = byte(len(codeReloc._func) - int(bucket.idx))
+
+	pcFileHead := make([]byte, 32)
+	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(codeReloc.filetab))<<1)
+	for _, fileName := range symbol.Func.File {
+		if offset, ok := codeReloc.namemap[fileName]; !ok {
+			codeReloc.filetab = append(codeReloc.filetab, (uint32)(len(codeReloc.pclntable)))
+			codeReloc.namemap[fileName] = len(codeReloc.pclntable)
+			fileName = strings.TrimLeft(fileName, FileSymPrefix)
+			codeReloc.pclntable = append(codeReloc.pclntable, []byte(fileName)...)
+			codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
+		} else {
+			codeReloc.filetab = append(codeReloc.filetab, uint32(offset))
+		}
+	}
+
+	nameOff := len(codeReloc.pclntable)
+	if offset, ok := codeReloc.namemap[symbol.Name]; !ok {
+		codeReloc.namemap[symbol.Name] = len(codeReloc.pclntable)
+		codeReloc.pclntable = append(codeReloc.pclntable, []byte(symbol.Name)...)
+		codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
+	} else {
+		nameOff = offset
+	}
+
+	pcspOff := len(codeReloc.pclntable)
+	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCSP...)
+
+	pcfileOff := len(codeReloc.pclntable)
+	codeReloc.pclntable = append(codeReloc.pclntable, pcFileHead[:pcFileHeadSize-1]...)
+	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCFile...)
+
+	pclnOff := len(codeReloc.pclntable)
+	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCLine...)
+
+	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff)
+	Func := codeReloc.symMap[symbol.Name].Func
+	for _, pcdata := range symbol.Func.PCData {
+		Func.PCData = append(Func.PCData, uint32(len(codeReloc.pclntable)))
+		codeReloc.pclntable = append(codeReloc.pclntable, pcdata...)
+	}
+
+	for _, name := range symbol.Func.FuncData {
+		if _, ok := codeReloc.stkmaps[name]; !ok {
+			if gcobj, ok := codeReloc.objsymbolMap[name]; ok {
+				codeReloc.stkmaps[name] = gcobj.Data
+			} else if len(name) == 0 {
+				codeReloc.stkmaps[name] = nil
+			} else {
+				return errors.New("unknown gcobj:" + name)
+			}
+		}
+		if codeReloc.stkmaps[name] != nil {
+			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(codeReloc.stkmaps[name][0]))))
+		} else {
+			Func.FuncData = append(Func.FuncData, (uintptr)(0))
+		}
+	}
+
+	if err = addInlineTree(codeReloc, &_func, symbol); err != nil {
+		return err
+	}
+
+	grow(&codeReloc.pclntable, alignof(len(codeReloc.pclntable), PtrSize))
+	codeReloc._func = append(codeReloc._func, _func)
+
+	for _, name := range symbol.Func.FuncData {
+		if _, ok := codeReloc.objsymbolMap[name]; ok {
+			addSymbol(codeReloc, name)
+		}
+	}
+	return
 }
 
 func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule) (symbolMap map[string]uintptr, err error) {
@@ -242,6 +303,29 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 		}
 	}
 	return symbolMap, err
+}
+
+func relocateADRP(mCode []byte, loc Reloc, segment *segment, symAddr uintptr) {
+	offset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
+	//overflow
+	if offset > 0xFFFFFFFF || offset <= -0x100000000 {
+		//low:	MOV reg imm
+		//high: MOVK reg imm LSL#16
+		value := uint64(0xF2A00000D2800000)
+		addr := binary.LittleEndian.Uint32(mCode)
+		low := uint32(value & 0xFFFFFFFF)
+		high := uint32(value >> 32)
+		low = ((addr & 0x1F) | low) | ((uint32(symAddr) & 0xFFFF) << 5)
+		high = ((addr & 0x1F) | high) | (uint32(symAddr) >> 16 << 5)
+		binary.LittleEndian.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
+	} else {
+		// 2bit + 19bit + low(12bit) = 33bit
+		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
+		high := (uint32(offset&0xFFF) << 10)
+		value := binary.LittleEndian.Uint64(mCode)
+		value = (uint64(uint32(value>>32)|high) << 32) | uint64(uint32(value&0xFFFFFFFF)|low)
+		binary.LittleEndian.PutUint64(mCode, value)
+	}
 }
 
 func relocateCALL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, addrBase int) {
