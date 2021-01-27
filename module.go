@@ -168,7 +168,7 @@ func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, codeLen int) (err err
 
 	for _, name := range symbol.Func.FuncData {
 		if _, ok := codeReloc.objsymbolMap[name]; ok {
-			relocSym(codeReloc, name)
+			addSymbol(codeReloc, name)
 		}
 	}
 	return

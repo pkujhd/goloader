@@ -51,7 +51,7 @@ func relocateSymbols(reloc *CodeReloc) error {
 	reloc.data = append(reloc.data, make([]byte, IntSize)...)
 	for _, objSym := range reloc.objsymbolMap {
 		if objSym.Kind == STEXT && objSym.DupOK == false {
-			_, err := relocSym(reloc, objSym.Name)
+			_, err := addSymbol(reloc, objSym.Name)
 			if err != nil {
 				return err
 			}

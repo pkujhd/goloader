@@ -122,7 +122,7 @@ var (
 	modulesLock sync.Mutex
 )
 
-func relocSym(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
+func addSymbol(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 	if symbol, ok := codereloc.symMap[name]; ok {
 		return symbol, nil
 	}
@@ -145,10 +145,11 @@ func relocSym(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 		bytearrayAlign(&codereloc.data, PtrSize)
 	}
 
-	for _, reloc := range objsym.Reloc {
+	for _, loc := range objsym.Reloc {
+		reloc := loc
 		reloc.Offset = reloc.Offset + symbol.Offset
 		if _, ok := codereloc.objsymbolMap[reloc.Sym.Name]; ok {
-			reloc.Sym, err = relocSym(codereloc, reloc.Sym.Name)
+			reloc.Sym, err = addSymbol(codereloc, reloc.Sym.Name)
 			if err != nil {
 				return nil, err
 			}
@@ -162,7 +163,7 @@ func relocSym(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 		} else {
 			if reloc.Type == R_TLS_LE {
 				reloc.Sym.Name = TLSNAME
-				reloc.Sym.Offset = reloc.Offset - symbol.Offset
+				reloc.Sym.Offset = loc.Offset
 			}
 			if reloc.Type == R_CALLIND {
 				reloc.Sym.Offset = 0
