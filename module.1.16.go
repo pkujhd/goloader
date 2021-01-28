@@ -115,6 +115,7 @@ func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int) _func 
 		pcfile:      uint32(pcfileOff),
 		pcln:        uint32(pclnOff),
 		npcdata:     uint32(len(symbol.Func.PCData)),
+		cuOffset:    uint32(0),
 		funcID:      funcID(symbol.Func.FuncID),
 		nfuncdata:   uint8(len(symbol.Func.FuncData)),
 	}

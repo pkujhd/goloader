@@ -155,6 +155,8 @@ func addSymbol(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 				return nil, err
 			}
 			if len(codereloc.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
+				//static_tmp is 0, golang compile not allocate memory.
+				//goloader add IntSize bytes on codereloc.data[0]
 				if int(reloc.Size) <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
