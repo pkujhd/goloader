@@ -54,6 +54,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 	}
+	//Address space layout randomization(ASLR)
 	//golang 1.15 symbol address has offset, before 1.15 offset is 0
 	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OsStdout])
 	for _, sym := range syms {
