@@ -1,7 +1,7 @@
 
 # Goloader
 
-[![Build Status](https://travis-ci.org/pkujhd/goloader.svg?branch=master)](https://travis-ci.org/pkujhd/goloader)
+[![Build Status](https://travis-ci.com/pkujhd/goloader.svg?branch=master)](https://travis-ci.com/pkujhd/goloader)
 
 Goloader can load and run Golang code at runtime.
 
