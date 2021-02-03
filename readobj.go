@@ -14,21 +14,21 @@ type Pkg struct {
 	f       *os.File
 }
 
-func readObj(pkg *Pkg, reloc *CodeReloc) error {
+func readObj(pkg *Pkg, linker *Linker) error {
 	if pkg.PkgPath == EmptyString {
 		pkg.PkgPath = DefaultPkgPath
 	}
 	if err := pkg.symbols(); err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
-	if len(reloc.Arch) != 0 && reloc.Arch != pkg.Arch {
-		return fmt.Errorf("read obj error: Arch %s != Arch %s", reloc.Arch, pkg.Arch)
+	if len(linker.Arch) != 0 && linker.Arch != pkg.Arch {
+		return fmt.Errorf("read obj error: Arch %s != Arch %s", linker.Arch, pkg.Arch)
 	} else {
-		reloc.Arch = pkg.Arch
+		linker.Arch = pkg.Arch
 	}
-	switch reloc.Arch {
+	switch linker.Arch {
 	case sys.ArchARM.Name, sys.ArchARM64.Name:
-		copy(reloc.pclntable, armmoduleHead)
+		copy(linker.pclntable, armmoduleHead)
 	}
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
@@ -41,39 +41,25 @@ func readObj(pkg *Pkg, reloc *CodeReloc) error {
 		}
 	}
 	for _, sym := range pkg.Syms {
-		reloc.objsymbolMap[sym.Name] = sym
+		linker.objsymbolMap[sym.Name] = sym
 	}
 	return nil
 }
 
-func relocateSymbols(reloc *CodeReloc) error {
-	//static_tmp is 0, golang compile not allocate memory.
-	reloc.data = append(reloc.data, make([]byte, IntSize)...)
-	for _, objSym := range reloc.objsymbolMap {
-		if objSym.Kind == STEXT && objSym.DupOK == false {
-			_, err := addSymbol(reloc, objSym.Name)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func ReadObj(f *os.File, pkgpath *string) (*CodeReloc, error) {
-	reloc := initCodeReloc()
+func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
+	linker := initLinker()
 	pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: *pkgpath}
-	if err := readObj(&pkg, reloc); err != nil {
+	if err := readObj(&pkg, linker); err != nil {
 		return nil, err
 	}
-	if err := relocateSymbols(reloc); err != nil {
+	if err := linker.addSymbols(); err != nil {
 		return nil, err
 	}
-	return reloc, nil
+	return linker, nil
 }
 
-func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
-	reloc := initCodeReloc()
+func ReadObjs(files []string, pkgPath []string) (*Linker, error) {
+	linker := initLinker()
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
@@ -81,12 +67,12 @@ func ReadObjs(files []string, pkgPath []string) (*CodeReloc, error) {
 		}
 		defer f.Close()
 		pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: pkgPath[i]}
-		if err := readObj(&pkg, reloc); err != nil {
+		if err := readObj(&pkg, linker); err != nil {
 			return nil, err
 		}
 	}
-	if err := relocateSymbols(reloc); err != nil {
+	if err := linker.addSymbols(); err != nil {
 		return nil, err
 	}
-	return reloc, nil
+	return linker, nil
 }

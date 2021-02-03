@@ -8,21 +8,21 @@ import (
 	"fmt"
 )
 
-func _addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
-	funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
-	Func := codereloc.symMap[funcname].Func
+func (linker *Linker) _addDeferReturn(_func *_func) (err error) {
+	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
-		sym := codereloc.symMap[funcname]
+		sym := linker.symMap[funcname]
 		for _, r := range sym.Reloc {
-			if r.Sym == codereloc.symMap[RuntimeDeferReturn] {
+			if r.Sym == linker.symMap[RuntimeDeferReturn] {
 				//../cmd/link/internal/ld/pcln.go:pclntab
-				switch codereloc.Arch {
+				switch linker.Arch {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:
 					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
 				case sys.ArchARM.Name, sys.ArchARM64.Name:
 					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					err = fmt.Errorf("not support arch:%s", codereloc.Arch)
+					err = fmt.Errorf("not support arch:%s", linker.Arch)
 				}
 				break
 			}

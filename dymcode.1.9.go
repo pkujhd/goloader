@@ -54,11 +54,11 @@ const (
 	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
 )
 
-func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
+func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr) (err error) {
 	return nil
 }
 
-func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
+func (linker *Linker) addDeferReturn(_func *_func) (err error) {
 	return nil
 }
 
@@ -70,12 +70,12 @@ type inlinedCall struct {
 	func_  int32 // offset into pclntab for name of called function
 }
 
-func initInlinedCall(codereloc *CodeReloc, inl InlTreeNode, _func *_func) inlinedCall {
+func (linker *Linker) initInlinedCall(inl InlTreeNode, _func *_func) inlinedCall {
 	return inlinedCall{
 		parent: int32(inl.Parent),
-		file:   int32(findFileTab(codereloc, inl.File)),
+		file:   int32(findFileTab(linker, inl.File)),
 		line:   int32(inl.Line),
-		func_:  int32(codereloc.namemap[inl.Func])}
+		func_:  int32(linker.namemap[inl.Func])}
 }
 
 func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
@@ -94,10 +94,10 @@ func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtS
 	return err
 }
 
-func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
-	return _addInlineTree(codereloc, _func, objsym)
+func (linker *Linker) addInlineTree(_func *_func, objsym *ObjSymbol) (err error) {
+	return linker._addInlineTree(_func, objsym)
 }
 
-func _buildModule(codereloc *CodeReloc, codeModule *CodeModule) {
-	codeModule.module.filetab = codereloc.filetab
+func (linker *Linker) _buildModule(codeModule *CodeModule) {
+	codeModule.module.filetab = linker.filetab
 }

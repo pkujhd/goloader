@@ -65,7 +65,7 @@ type segment struct {
 	offset    int
 }
 
-type CodeReloc struct {
+type Linker struct {
 	code         []byte
 	data         []byte
 	symMap       map[string]*Sym
@@ -123,40 +123,54 @@ var (
 	modulesLock sync.Mutex
 )
 
-func addSymbol(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
-	if symbol, ok := codereloc.symMap[name]; ok {
+func (linker *Linker) addSymbols() error {
+	//static_tmp is 0, golang compile not allocate memory.
+	linker.data = append(linker.data, make([]byte, IntSize)...)
+	for _, objSym := range linker.objsymbolMap {
+		if objSym.Kind == STEXT && objSym.DupOK == false {
+			_, err := linker.addSymbol(objSym.Name)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
+	if symbol, ok := linker.symMap[name]; ok {
 		return symbol, nil
 	}
-	objsym := codereloc.objsymbolMap[name]
+	objsym := linker.objsymbolMap[name]
 	symbol = &Sym{Name: objsym.Name, Kind: int(objsym.Kind)}
-	codereloc.symMap[symbol.Name] = symbol
+	linker.symMap[symbol.Name] = symbol
 
 	switch symbol.Kind {
 	case STEXT:
-		symbol.Offset = len(codereloc.code)
-		codereloc.code = append(codereloc.code, objsym.Data...)
-		bytearrayAlign(&codereloc.code, PtrSize)
+		symbol.Offset = len(linker.code)
+		linker.code = append(linker.code, objsym.Data...)
+		bytearrayAlign(&linker.code, PtrSize)
 		symbol.Func = &Func{}
-		if err := readFuncData(codereloc, codereloc.objsymbolMap[name], symbol.Offset); err != nil {
+		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
 		}
 	default:
-		symbol.Offset = len(codereloc.data)
-		codereloc.data = append(codereloc.data, objsym.Data...)
-		bytearrayAlign(&codereloc.data, PtrSize)
+		symbol.Offset = len(linker.data)
+		linker.data = append(linker.data, objsym.Data...)
+		bytearrayAlign(&linker.data, PtrSize)
 	}
 
 	for _, loc := range objsym.Reloc {
 		reloc := loc
 		reloc.Offset = reloc.Offset + symbol.Offset
-		if _, ok := codereloc.objsymbolMap[reloc.Sym.Name]; ok {
-			reloc.Sym, err = addSymbol(codereloc, reloc.Sym.Name)
+		if _, ok := linker.objsymbolMap[reloc.Sym.Name]; ok {
+			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name)
 			if err != nil {
 				return nil, err
 			}
-			if len(codereloc.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
+			if len(linker.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
-				//goloader add IntSize bytes on codereloc.data[0]
+				//goloader add IntSize bytes on linker.data[0]
 				if int(reloc.Size) <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
@@ -173,23 +187,23 @@ func addSymbol(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 			}
 			if strings.HasPrefix(reloc.Sym.Name, TypeImportPathPrefix) {
 				path := strings.Trim(strings.TrimLeft(reloc.Sym.Name, TypeImportPathPrefix), ".")
-				reloc.Sym.Offset = len(codereloc.data)
-				codereloc.data = append(codereloc.data, path...)
-				codereloc.data = append(codereloc.data, ZeroByte)
+				reloc.Sym.Offset = len(linker.data)
+				linker.data = append(linker.data, path...)
+				linker.data = append(linker.data, ZeroByte)
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
 				bytes := make([]byte, UInt64Size)
 				if err := preprocesssymbol(reloc.Sym.Name, bytes); err != nil {
 					return nil, err
 				} else {
-					reloc.Sym.Offset = len(codereloc.data)
-					codereloc.data = append(codereloc.data, bytes...)
+					reloc.Sym.Offset = len(linker.data)
+					linker.data = append(linker.data, bytes...)
 				}
 			}
-			if _, ok := codereloc.symMap[reloc.Sym.Name]; !ok {
+			if _, ok := linker.symMap[reloc.Sym.Name]; !ok {
 				//golang1.8, some function generates more than one (MOVQ (TLS), CX)
-				//so when same name symbol in codereloc.symMap, do not update it
-				codereloc.symMap[reloc.Sym.Name] = reloc.Sym
+				//so when same name symbol in linker.symMap, do not update it
+				linker.symMap[reloc.Sym.Name] = reloc.Sym
 			}
 		}
 		symbol.Reloc = append(symbol.Reloc, reloc)
@@ -197,93 +211,93 @@ func addSymbol(codereloc *CodeReloc, name string) (symbol *Sym, err error) {
 	return symbol, nil
 }
 
-func readFuncData(codeReloc *CodeReloc, symbol *ObjSymbol, codeLen int) (err error) {
+func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 	x := codeLen
 	b := x / pcbucketsize
 	i := x % pcbucketsize / (pcbucketsize / nsub)
-	for lb := b - len(codeReloc.pcfunc); lb >= 0; lb-- {
-		codeReloc.pcfunc = append(codeReloc.pcfunc, findfuncbucket{
-			idx: uint32(256 * len(codeReloc.pcfunc))})
+	for lb := b - len(linker.pcfunc); lb >= 0; lb-- {
+		linker.pcfunc = append(linker.pcfunc, findfuncbucket{
+			idx: uint32(256 * len(linker.pcfunc))})
 	}
-	bucket := &codeReloc.pcfunc[b]
-	bucket.subbuckets[i] = byte(len(codeReloc._func) - int(bucket.idx))
+	bucket := &linker.pcfunc[b]
+	bucket.subbuckets[i] = byte(len(linker._func) - int(bucket.idx))
 
 	pcFileHead := make([]byte, 32)
-	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(codeReloc.filetab))<<1)
+	pcFileHeadSize := binary.PutUvarint(pcFileHead, uint64(len(linker.filetab))<<1)
 	for _, fileName := range symbol.Func.File {
-		if offset, ok := codeReloc.namemap[fileName]; !ok {
-			codeReloc.filetab = append(codeReloc.filetab, (uint32)(len(codeReloc.pclntable)))
-			codeReloc.namemap[fileName] = len(codeReloc.pclntable)
+		if offset, ok := linker.namemap[fileName]; !ok {
+			linker.filetab = append(linker.filetab, (uint32)(len(linker.pclntable)))
+			linker.namemap[fileName] = len(linker.pclntable)
 			fileName = strings.TrimLeft(fileName, FileSymPrefix)
-			codeReloc.pclntable = append(codeReloc.pclntable, []byte(fileName)...)
-			codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
+			linker.pclntable = append(linker.pclntable, []byte(fileName)...)
+			linker.pclntable = append(linker.pclntable, ZeroByte)
 		} else {
-			codeReloc.filetab = append(codeReloc.filetab, uint32(offset))
+			linker.filetab = append(linker.filetab, uint32(offset))
 		}
 	}
 
-	nameOff := len(codeReloc.pclntable)
-	if offset, ok := codeReloc.namemap[symbol.Name]; !ok {
-		codeReloc.namemap[symbol.Name] = len(codeReloc.pclntable)
-		codeReloc.pclntable = append(codeReloc.pclntable, []byte(symbol.Name)...)
-		codeReloc.pclntable = append(codeReloc.pclntable, ZeroByte)
+	nameOff := len(linker.pclntable)
+	if offset, ok := linker.namemap[symbol.Name]; !ok {
+		linker.namemap[symbol.Name] = len(linker.pclntable)
+		linker.pclntable = append(linker.pclntable, []byte(symbol.Name)...)
+		linker.pclntable = append(linker.pclntable, ZeroByte)
 	} else {
 		nameOff = offset
 	}
 
-	pcspOff := len(codeReloc.pclntable)
-	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCSP...)
+	pcspOff := len(linker.pclntable)
+	linker.pclntable = append(linker.pclntable, symbol.Func.PCSP...)
 
-	pcfileOff := len(codeReloc.pclntable)
-	codeReloc.pclntable = append(codeReloc.pclntable, pcFileHead[:pcFileHeadSize-1]...)
-	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCFile...)
+	pcfileOff := len(linker.pclntable)
+	linker.pclntable = append(linker.pclntable, pcFileHead[:pcFileHeadSize-1]...)
+	linker.pclntable = append(linker.pclntable, symbol.Func.PCFile...)
 
-	pclnOff := len(codeReloc.pclntable)
-	codeReloc.pclntable = append(codeReloc.pclntable, symbol.Func.PCLine...)
+	pclnOff := len(linker.pclntable)
+	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
 
 	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff)
-	Func := codeReloc.symMap[symbol.Name].Func
+	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
-		Func.PCData = append(Func.PCData, uint32(len(codeReloc.pclntable)))
-		codeReloc.pclntable = append(codeReloc.pclntable, pcdata...)
+		Func.PCData = append(Func.PCData, uint32(len(linker.pclntable)))
+		linker.pclntable = append(linker.pclntable, pcdata...)
 	}
 
 	for _, name := range symbol.Func.FuncData {
-		if _, ok := codeReloc.stkmaps[name]; !ok {
-			if gcobj, ok := codeReloc.objsymbolMap[name]; ok {
-				codeReloc.stkmaps[name] = gcobj.Data
+		if _, ok := linker.stkmaps[name]; !ok {
+			if gcobj, ok := linker.objsymbolMap[name]; ok {
+				linker.stkmaps[name] = gcobj.Data
 			} else if len(name) == 0 {
-				codeReloc.stkmaps[name] = nil
+				linker.stkmaps[name] = nil
 			} else {
 				return errors.New("unknown gcobj:" + name)
 			}
 		}
-		if codeReloc.stkmaps[name] != nil {
-			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(codeReloc.stkmaps[name][0]))))
+		if linker.stkmaps[name] != nil {
+			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(linker.stkmaps[name][0]))))
 		} else {
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
 		}
 	}
 
-	if err = addInlineTree(codeReloc, &_func, symbol); err != nil {
+	if err = linker.addInlineTree(&_func, symbol); err != nil {
 		return err
 	}
 
-	grow(&codeReloc.pclntable, alignof(len(codeReloc.pclntable), PtrSize))
-	codeReloc._func = append(codeReloc._func, _func)
+	grow(&linker.pclntable, alignof(len(linker.pclntable), PtrSize))
+	linker._func = append(linker._func, _func)
 
 	for _, name := range symbol.Func.FuncData {
-		if _, ok := codeReloc.objsymbolMap[name]; ok {
-			addSymbol(codeReloc, name)
+		if _, ok := linker.objsymbolMap[name]; ok {
+			linker.addSymbol(name)
 		}
 	}
 	return
 }
 
-func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *CodeModule) (symbolMap map[string]uintptr, err error) {
+func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeModule) (symbolMap map[string]uintptr, err error) {
 	symbolMap = make(map[string]uintptr)
 	segment := &codeModule.segment
-	for name, sym := range codereloc.symMap {
+	for name, sym := range linker.symMap {
 		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
@@ -294,14 +308,14 @@ func addSymbolMap(codereloc *CodeReloc, symPtr map[string]uintptr, codeModule *C
 		} else if sym.Name == TLSNAME {
 			regTLS(symbolMap, sym.Offset)
 		} else if sym.Kind == STEXT {
-			symbolMap[name] = uintptr(codereloc.symMap[name].Offset + segment.codeBase)
+			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = uintptr(symbolMap[name])
 		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
 			}
 		} else {
-			symbolMap[name] = uintptr(codereloc.symMap[name].Offset + segment.dataBase)
+			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 		}
 	}
 	return symbolMap, err
@@ -415,9 +429,9 @@ func relocteCALLARM(addr uintptr, loc Reloc, segment *segment) {
 	}
 }
 
-func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
-	for _, symbol := range codereloc.symMap {
+	for _, symbol := range linker.symMap {
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
 			sym := loc.Sym
@@ -479,15 +493,15 @@ func relocate(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string
 	return err
 }
 
-func addFuncTab(module *moduledata, _func *_func, codereloc *CodeReloc, symbolMap map[string]uintptr) (err error) {
-	funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
+func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map[string]uintptr) (err error) {
+	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
 	_func.entry = uintptr(symbolMap[funcname])
-	Func := codereloc.symMap[funcname].Func
+	Func := linker.symMap[funcname].Func
 
-	if err = addStackObject(codereloc, funcname, symbolMap); err != nil {
+	if err = linker.addStackObject(funcname, symbolMap); err != nil {
 		return err
 	}
-	if err = addDeferReturn(codereloc, _func); err != nil {
+	if err = linker.addDeferReturn(_func); err != nil {
 		return err
 	}
 
@@ -505,32 +519,32 @@ func addFuncTab(module *moduledata, _func *_func, codereloc *CodeReloc, symbolMa
 	return err
 }
 
-func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	module := codeModule.module
-	module.pclntable = append(module.pclntable, codereloc.pclntable...)
+	module.pclntable = append(module.pclntable, linker.pclntable...)
 	module.minpc = uintptr(segment.codeBase)
 	module.maxpc = uintptr(segment.dataBase)
 	module.types = uintptr(segment.codeBase)
 	module.etypes = uintptr(segment.codeBase + segment.offset)
 	module.text = uintptr(segment.codeBase)
-	module.etext = uintptr(segment.codeBase + len(codereloc.code))
-	codeModule.stkmaps = codereloc.stkmaps // hold reference
+	module.etext = uintptr(segment.codeBase + len(linker.code))
+	codeModule.stkmaps = linker.stkmaps // hold reference
 
 	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.minpc})
-	for index, _func := range codereloc._func {
-		funcname := gostringnocopy(&codereloc.pclntable[_func.nameoff])
+	for index, _func := range linker._func {
+		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
 		module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: uintptr(symbolMap[funcname])})
-		if err = addFuncTab(module, &(codereloc._func[index]), codereloc, symbolMap); err != nil {
+		if err = linker.addFuncTab(module, &(linker._func[index]), symbolMap); err != nil {
 			return err
 		}
 	}
 	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.maxpc})
 
-	length := len(codereloc.pcfunc) * FindFuncBucketSize
-	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&codereloc.pcfunc[0])), length)
+	length := len(linker.pcfunc) * FindFuncBucketSize
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&linker.pcfunc[0])), length)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[len(module.pclntable)-length]))
-	_buildModule(codereloc, codeModule)
+	linker._buildModule(codeModule)
 
 	modulesLock.Lock()
 	addModule(codeModule)
@@ -541,13 +555,13 @@ func buildModule(codereloc *CodeReloc, codeModule *CodeModule, symbolMap map[str
 	return err
 }
 
-func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
+func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
 		module: &moduledata{typemap: make(map[typeOff]uintptr)},
 	}
-	codeModule.codeLen = len(codereloc.code)
-	codeModule.dataLen = len(codereloc.data)
+	codeModule.codeLen = len(linker.code)
+	codeModule.dataLen = len(linker.data)
 	codeModule.maxLength = alignof((codeModule.codeLen+codeModule.dataLen)*2, PageSize)
 	codeByte, err := Mmap(codeModule.maxLength)
 	if err != nil {
@@ -556,15 +570,15 @@ func Load(codereloc *CodeReloc, symPtr map[string]uintptr) (codeModule *CodeModu
 
 	codeModule.codeByte = codeByte
 	codeModule.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	codeModule.dataBase = codeModule.codeBase + len(codereloc.code)
+	codeModule.dataBase = codeModule.codeBase + len(linker.code)
 	codeModule.offset = codeModule.codeLen + codeModule.dataLen
-	copy(codeModule.codeByte, codereloc.code)
-	copy(codeModule.codeByte[codeModule.codeLen:], codereloc.data)
+	copy(codeModule.codeByte, linker.code)
+	copy(codeModule.codeByte[codeModule.codeLen:], linker.data)
 
 	var symbolMap map[string]uintptr
-	if symbolMap, err = addSymbolMap(codereloc, symPtr, codeModule); err == nil {
-		if err = relocate(codereloc, codeModule, symbolMap); err == nil {
-			if err = buildModule(codereloc, codeModule, symbolMap); err == nil {
+	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
+		if err = linker.relocate(codeModule, symbolMap); err == nil {
+			if err = linker.buildModule(codeModule, symbolMap); err == nil {
 				return codeModule, err
 			}
 		}

@@ -64,12 +64,12 @@ const (
 
 )
 
-func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
-	return _addStackObject(codereloc, funcname, symbolMap)
+func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr) (err error) {
+	return linker._addStackObject(funcname, symbolMap)
 }
 
-func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
-	return _addDeferReturn(codereloc, _func)
+func (linker *Linker) addDeferReturn(_func *_func) (err error) {
+	return linker._addDeferReturn(_func)
 }
 
 // inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
@@ -83,13 +83,13 @@ type inlinedCall struct {
 	parentPc int32 // position of an instruction whose source position is the call site (offset from entry)
 }
 
-func initInlinedCall(codereloc *CodeReloc, inl InlTreeNode, _func *_func) inlinedCall {
+func (linker *Linker) initInlinedCall(inl InlTreeNode, _func *_func) inlinedCall {
 	return inlinedCall{
 		parent:   int16(inl.Parent),
 		funcID:   _func.funcID,
-		file:     int32(findFileTab(codereloc, inl.File)),
+		file:     int32(findFileTab(linker, inl.File)),
 		line:     int32(inl.Line),
-		func_:    int32(codereloc.namemap[inl.Func]),
+		func_:    int32(linker.namemap[inl.Func]),
 		parentPc: int32(inl.ParentPC)}
 }
 
@@ -109,10 +109,10 @@ func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtS
 	return err
 }
 
-func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
-	return _addInlineTree(codereloc, _func, objsym)
+func (linker *Linker) addInlineTree(_func *_func, objsym *ObjSymbol) (err error) {
+	return linker._addInlineTree(_func, objsym)
 }
 
-func _buildModule(codereloc *CodeReloc, codeModule *CodeModule) {
-	codeModule.module.filetab = codereloc.filetab
+func (linker *Linker) _buildModule(codeModule *CodeModule) {
+	codeModule.module.filetab = linker.filetab
 }

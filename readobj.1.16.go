@@ -50,8 +50,8 @@ func Parse(f *os.File, pkgpath *string) ([]string, error) {
 	return symbols, nil
 }
 
-func initCodeReloc() *CodeReloc {
-	reloc := &CodeReloc{
+func initLinker() *Linker {
+	reloc := &Linker{
 		symMap:       make(map[string]*Sym),
 		objsymbolMap: make(map[string]*ObjSymbol),
 		stkmaps:      make(map[string][]byte),

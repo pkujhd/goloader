@@ -68,7 +68,7 @@ func main() {
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
 	goloader.RegTypes(symPtr, fmt.Sprint)
 
-	reloc, err := goloader.ReadObjs(files.File, files.PkgPath)
+	linker, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -76,7 +76,7 @@ func main() {
 
 	var mmapByte []byte
 	for i := 0; i < *times; i++ {
-		codeModule, err := goloader.Load(reloc, symPtr)
+		codeModule, err := goloader.Load(linker, symPtr)
 		if err != nil {
 			fmt.Println("Load error:", err)
 			return

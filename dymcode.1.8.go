@@ -76,11 +76,11 @@ const (
 	SDWARFINFO
 )
 
-func addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
+func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr) (err error) {
 	return nil
 }
 
-func addDeferReturn(codereloc *CodeReloc, _func *_func) (err error) {
+func (linker *Linker) addDeferReturn(_func *_func) (err error) {
 	return nil
 }
 
@@ -90,10 +90,10 @@ func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtS
 	return nil
 }
 
-func addInlineTree(codereloc *CodeReloc, _func *_func, objsym *ObjSymbol) (err error) {
+func (linker *Linker) addInlineTree(_func *_func, objsym *ObjSymbol) (err error) {
 	return nil
 }
 
-func _buildModule(codereloc *CodeReloc, codeModule *CodeModule) {
-	codeModule.module.filetab = codereloc.filetab
+func (linker *Linker) _buildModule(codeModule *CodeModule) {
+	codeModule.module.filetab = linker.filetab
 }

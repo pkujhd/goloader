@@ -30,15 +30,15 @@ func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
 	return (*[]stackObjectRecord)(unsafe.Pointer(&slice))
 }
 
-func _addStackObject(codereloc *CodeReloc, funcname string, symbolMap map[string]uintptr) (err error) {
-	Func := codereloc.symMap[funcname].Func
+func (linker *Linker) _addStackObject(funcname string, symbolMap map[string]uintptr) (err error) {
+	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_StackObjects &&
 		Func.FuncData[_FUNCDATA_StackObjects] != 0 {
 		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[_FUNCDATA_StackObjects], 0))
 		for i := range *objects {
 			name := EmptyString
 			stkobjName := funcname + StkobjSuffix
-			if symbol := codereloc.symMap[stkobjName]; symbol != nil {
+			if symbol := linker.symMap[stkobjName]; symbol != nil {
 				name = symbol.Reloc[i].Sym.Name
 			}
 			if ptr, ok := symbolMap[name]; ok {
