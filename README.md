@@ -59,8 +59,8 @@ go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go
 
 This has currently only been tested and developed on:
 
-Golang 1.8-1.15 (x64/x86, darwin, linux, windows)
+Golang 1.8-1.16 (x64/x86, darwin, linux, windows)
 
-Golang 1.10-1.15 (arm, linux)
+Golang 1.10-1.16 (arm, linux)
 
-Golang 1.8-1.15 (arm64(LE) linux)
+Golang 1.8-1.16 (arm64(LE) linux)
