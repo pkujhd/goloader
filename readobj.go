@@ -14,6 +14,18 @@ type Pkg struct {
 	f       *os.File
 }
 
+func Parse(f *os.File, pkgpath *string) ([]string, error) {
+	pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: *pkgpath}
+	symbols := make([]string, 0)
+	if err := pkg.symbols(); err != nil {
+		return symbols, err
+	}
+	for _, sym := range pkg.Syms {
+		symbols = append(symbols, sym.Name)
+	}
+	return symbols, nil
+}
+
 func readObj(pkg *Pkg, linker *Linker) error {
 	if pkg.PkgPath == EmptyString {
 		pkg.PkgPath = DefaultPkgPath

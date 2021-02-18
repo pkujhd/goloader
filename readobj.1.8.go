@@ -7,7 +7,6 @@ import (
 	"cmd/objfile/goobj"
 	"fmt"
 	"io"
-	"os"
 )
 
 var (
@@ -26,18 +25,6 @@ func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
 		_, err = r.Read(bytes)
 	}
 	return
-}
-
-func Parse(f *os.File, pkgpath *string) ([]string, error) {
-	obj, err := goobj.Parse(f, *pkgpath)
-	if err != nil {
-		return nil, fmt.Errorf("read error: %v", err)
-	}
-	symbolNames := make([]string, 0)
-	for _, sym := range obj.Syms {
-		symbolNames = append(symbolNames, sym.Name)
-	}
-	return symbolNames, nil
 }
 
 func (pkg *Pkg) symbols() error {

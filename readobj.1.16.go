@@ -8,7 +8,6 @@ import (
 	"cmd/objfile/goobj"
 	"cmd/objfile/objabi"
 	"fmt"
-	"os"
 	"strings"
 	"unsafe"
 )
@@ -18,37 +17,6 @@ var (
 	x86moduleHead = []byte{0xFA, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
 	armmoduleHead = []byte{0xFA, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
 )
-
-func Parse(f *os.File, pkgpath *string) ([]string, error) {
-	a, err := archive.Parse(f, false)
-	if err != nil {
-		return nil, err
-	}
-	symbols := make([]string, 0)
-	for _, e := range a.Entries {
-		switch e.Type {
-		case archive.EntryPkgDef:
-			//nothing todo
-		case archive.EntryGoObj:
-			o := e.Obj
-			b := make([]byte, o.Size)
-			_, err := f.ReadAt(b, o.Offset)
-			if err != nil {
-				return nil, err
-			}
-			r := goobj.NewReaderFromBytes(b, false)
-			nsym := r.NSym()
-			for i := 0; i < nsym; i++ {
-				if r.Sym(uint32(i)).Name(r) != EmptyString {
-					symbols = append(symbols, r.Sym(uint32(i)).Name(r))
-				}
-			}
-		default:
-			return nil, fmt.Errorf("Parse open %s: unrecognized archive member %s", f.Name(), e.Name)
-		}
-	}
-	return symbols, nil
-}
 
 func initLinker() *Linker {
 	reloc := &Linker{
