@@ -14,11 +14,8 @@ compiler: go
 
 os: 
   - linux
-  - osx
-  - windows
 
 arch:
-  - amd64
   - arm64
 
 notifications:
@@ -28,6 +25,7 @@ before_install:
   - cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
 
 script:
+  - export GO111MODULE=auto
   - go build github.com/pkujhd/goloader/examples/loader
   - go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
   - go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go
