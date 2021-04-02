@@ -84,7 +84,7 @@ func (linker *Linker) initInlinedCall(inl InlTreeNode, _func *_func) inlinedCall
 	return inlinedCall{
 		parent:   int16(inl.Parent),
 		funcID:   _func.funcID,
-		file:     int32(findFileTab(linker, inl.File)),
+		file:     findFileTab(linker, inl.File),
 		line:     int32(inl.Line),
 		func_:    int32(linker.namemap[inl.Func]),
 		parentPc: int32(inl.ParentPC)}

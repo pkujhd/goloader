@@ -73,7 +73,7 @@ type inlinedCall struct {
 func (linker *Linker) initInlinedCall(inl InlTreeNode, _func *_func) inlinedCall {
 	return inlinedCall{
 		parent: int32(inl.Parent),
-		file:   int32(findFileTab(linker, inl.File)),
+		file:   findFileTab(linker, inl.File),
 		line:   int32(inl.Line),
 		func_:  int32(linker.namemap[inl.Func])}
 }
