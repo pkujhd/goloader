@@ -322,18 +322,48 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 }
 
 func relocateADRP(mCode []byte, loc Reloc, segment *segment, symAddr uintptr) {
-	offset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
+	offset := uint64(int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF))
 	//overflow
-	if offset > 0xFFFFFFFF || offset <= -0x100000000 {
-		//low:	MOV reg imm
-		//high: MOVK reg imm LSL#16
-		value := uint64(0xF2A00000D2800000)
-		addr := binary.LittleEndian.Uint32(mCode)
-		low := uint32(value & 0xFFFFFFFF)
-		high := uint32(value >> 32)
-		low = ((addr & 0x1F) | low) | ((uint32(symAddr) & 0xFFFF) << 5)
-		high = ((addr & 0x1F) | high) | (uint32(symAddr) >> 16 << 5)
-		binary.LittleEndian.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
+	if offset > 0xFFFFFFFF {
+		if symAddr < 0xFFFFFFFF {
+			addr := binary.LittleEndian.Uint32(mCode)
+			//low:	MOV reg imm
+			low := uint32(0xD2800000)
+			//high: MOVK reg imm LSL#16
+			high := uint32(0xF2A00000)
+			low = ((addr & 0x1F) | low) | ((uint32(symAddr) & 0xFFFF) << 5)
+			high = ((addr & 0x1F) | high) | (uint32(symAddr) >> 16 << 5)
+			binary.LittleEndian.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
+		} else {
+			addr := binary.LittleEndian.Uint32(mCode)
+			blcode := binary.LittleEndian.Uint32(arm64BLcode)
+			blcode |= ((uint32(segment.offset) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
+			if segment.offset-loc.Offset < 0 {
+				blcode |= 0x02000000
+			}
+			binary.LittleEndian.PutUint32(mCode, blcode)
+			//low: MOV reg imm
+			llow := uint32(0xD2800000)
+			//lhigh: MOVK reg imm LSL#16
+			lhigh := uint32(0xF2A00000)
+			//llow: MOVK reg imm LSL#32
+			hlow := uint32(0xF2C00000)
+			//lhigh: MOVK reg imm LSL#48
+			hhigh := uint32(0xF2E00000)
+			llow = ((addr & 0x1F) | llow) | ((uint32(symAddr) & 0xFFFF) << 5)
+			lhigh = ((addr & 0x1F) | lhigh) | (uint32(symAddr) >> 16 << 5)
+			putAddressAddOffset(segment.codeByte, &segment.offset, uint64(llow)|(uint64(lhigh)<<32))
+			hlow = ((addr & 0x1F) | hlow) | uint32(((uint64(symAddr)>>32)&0xFFFF)<<5)
+			hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
+			putAddressAddOffset(segment.codeByte, &segment.offset, uint64(hlow)|(uint64(hhigh)<<32))
+			blcode = binary.LittleEndian.Uint32(arm64BLcode)
+			blcode |= ((uint32(loc.Offset) - uint32(segment.offset) + 8) >> 2) & 0x01FFFFFF
+			if loc.Offset-segment.offset+8 < 0 {
+				blcode |= 0x02000000
+			}
+			binary.LittleEndian.PutUint32(segment.codeByte[segment.offset:], blcode)
+			segment.offset += Uint32Size
+		}
 	} else {
 		// 2bit + 19bit + low(12bit) = 33bit
 		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
