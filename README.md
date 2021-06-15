@@ -57,6 +57,8 @@ go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go
 
 ## Warning
 
+Don't use "-s -w" compile argument, It strips symbol table.
+
 This has currently only been tested and developed on:
 
 Golang 1.8-1.16 (x64/x86, darwin, linux, windows)
