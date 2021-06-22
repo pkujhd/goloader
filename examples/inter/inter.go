@@ -6,6 +6,10 @@ import (
 	"github.com/pkujhd/goloader/examples/basecontext"
 )
 
+func init() {
+	fmt.Println("inter package init")
+}
+
 func scontextPrint(i basecontext.ISContext) {
 	fmt.Println("IN FUNC scontextPrint start")
 	fmt.Println("scontextPrint", i.GetName())

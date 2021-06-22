@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+func init() {
+	fmt.Println("base init")
+}
+
 type Vertex struct {
 	X, Y int
 }

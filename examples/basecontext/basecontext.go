@@ -2,6 +2,10 @@ package basecontext
 
 import "fmt"
 
+func init() {
+	fmt.Println("basecontext init")
+}
+
 type IBaseContext interface {
 	PrintName()
 	GetName() string
