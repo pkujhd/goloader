@@ -315,7 +315,11 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = ptr
 			}
 		} else {
-			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+			if _, ok := symPtr[name]; !ok {
+				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+			} else {
+				symbolMap[name] = symPtr[name]
+			}
 		}
 	}
 	return symbolMap, err
