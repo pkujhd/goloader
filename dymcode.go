@@ -76,6 +76,7 @@ type Linker struct {
 	pclntable    []byte
 	pcfunc       []findfuncbucket
 	_func        []_func
+	initFuncs    []string
 	Arch         string
 }
 
@@ -128,6 +129,12 @@ func (linker *Linker) addSymbols() error {
 	linker.data = append(linker.data, make([]byte, IntSize)...)
 	for _, objSym := range linker.objsymbolMap {
 		if objSym.Kind == STEXT && objSym.DupOK == false {
+			_, err := linker.addSymbol(objSym.Name)
+			if err != nil {
+				return err
+			}
+		}
+		if objSym.Kind == SNOPTRDATA {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
 				return err
@@ -319,6 +326,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 			} else {
 				symbolMap[name] = symPtr[name]
+				if isMainInitFunc(name) {
+					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+				}
 			}
 		}
 	}
@@ -613,7 +623,9 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
 		if err = linker.relocate(codeModule, symbolMap); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
-				return codeModule, err
+				if err = linker.doInitialize(codeModule, symbolMap); err == nil {
+					return codeModule, err
+				}
 			}
 		}
 	}

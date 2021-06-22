@@ -55,6 +55,7 @@ func readObj(pkg *Pkg, linker *Linker) error {
 	for _, sym := range pkg.Syms {
 		linker.objsymbolMap[sym.Name] = sym
 	}
+	linker.initFuncs = append(linker.initFuncs, getInitFuncName(pkg.PkgPath))
 	return nil
 }
 
