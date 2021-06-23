@@ -313,7 +313,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
-			regTLS(symbolMap, sym.Offset)
+			//nothing todo
 		} else if sym.Kind == STEXT {
 			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = uintptr(symbolMap[name])
@@ -493,6 +493,9 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 			if addr != InvalidHandleValue {
 				switch loc.Type {
 				case R_TLS_LE:
+					if _, ok := symbolMap[TLSNAME]; !ok {
+						regTLS(symbolMap, segment.codeByte[symbol.Offset:loc.Offset])
+					}
 					binary.LittleEndian.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
 				case R_CALL:
 					relocateCALL(addr, loc, segment, relocByte, addrBase)
