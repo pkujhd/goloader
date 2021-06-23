@@ -39,6 +39,7 @@ const (
 // string match prefix/suffix
 const (
 	FileSymPrefix        = "gofile.."
+	MainPkgPrefix        = "main."
 	TypeImportPathPrefix = "type..importpath."
 	TypeDoubleDotPrefix  = "type.."
 	TypePrefix           = "type."

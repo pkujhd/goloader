@@ -326,7 +326,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 			} else {
 				symbolMap[name] = symPtr[name]
-				if isMainInitFunc(name) || strings.HasPrefix(name, TypePrefix) {
+				if strings.HasPrefix(name, MainPkgPrefix) || strings.HasPrefix(name, TypePrefix) {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 				}
 			}

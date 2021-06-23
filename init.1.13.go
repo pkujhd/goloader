@@ -8,19 +8,11 @@ import (
 )
 
 const (
-	_MainInitTask   = "main..inittask"
 	_InitTaskSuffix = "..inittask"
 )
 
 func getInitFuncName(packagename string) string {
 	return packagename + _InitTaskSuffix
-}
-
-func isMainInitFunc(name string) bool {
-	if name == _MainInitTask {
-		return true
-	}
-	return false
 }
 
 // doInit is defined in package runtime
