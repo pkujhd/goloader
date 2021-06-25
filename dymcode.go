@@ -10,26 +10,6 @@ import (
 	"unsafe"
 )
 
-// copy from $GOROOT/src/cmd/internal/objabi/reloctype.go
-const (
-	R_ADDR = 1
-	// R_ADDRARM64 relocates an adrp, add pair to compute the address of the
-	// referenced symbol.
-	R_ADDRARM64 = 3
-	// R_ADDROFF resolves to a 32-bit offset from the beginning of the section
-	// holding the data being relocated to the referenced symbol.
-	R_ADDROFF = 5
-	// R_WEAKADDROFF resolves just like R_ADDROFF but is a weak relocation.
-	// A weak relocation does not make the symbol it refers to reachable,
-	// and is only honored by the linker if the symbol is in some other way
-	// reachable.
-	R_WEAKADDROFF = 6
-	R_CALL        = 8
-	R_CALLARM     = 9
-	R_CALLARM64   = 10
-	R_CALLIND     = 11
-)
-
 type Func struct {
 	PCData   []uint32
 	FuncData []uintptr
@@ -506,7 +486,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!", sym.Name)
 					}
 					relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
-				case R_ADDR:
+				case R_ADDR, R_WEAKADDR:
 					address := uintptr(int(addr) + loc.Add)
 					putAddress(relocByte[loc.Offset:], uint64(address))
 				case R_CALLIND:
@@ -520,6 +500,8 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						err = fmt.Errorf("symName:%s offset:%d is overflow!", sym.Name, offset)
 					}
 					binary.LittleEndian.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
+				case R_USETYPE:
+					//nothing todo
 				case R_USEIFACE:
 					//nothing todo
 				case R_USEIFACEMETHOD:

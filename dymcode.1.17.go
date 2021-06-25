@@ -1,5 +1,5 @@
-// +build go1.16
-// +build !go1.17
+// +build go1.17
+// +build !go1.18
 
 package goloader
 
@@ -15,46 +15,55 @@ const (
 	R_ADDRARM64 = 3
 	// R_ADDROFF resolves to a 32-bit offset from the beginning of the section
 	// holding the data being relocated to the referenced symbol.
-	R_ADDROFF = 5
-	// R_WEAKADDROFF resolves just like R_ADDROFF but is a weak relocation.
-	// A weak relocation does not make the symbol it refers to reachable,
-	// and is only honored by the linker if the symbol is in some other way
-	// reachable.
-	R_WEAKADDROFF = 6
-	R_CALL        = 8
-	R_CALLARM     = 9
-	R_CALLARM64   = 10
-	R_CALLIND     = 11
-	R_PCREL       = 16
+	R_ADDROFF   = 5
+	R_CALL      = 7
+	R_CALLARM   = 8
+	R_CALLARM64 = 9
+	R_CALLIND   = 10
+	R_PCREL     = 15
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
 	// thread-local symbol from the thread local base and is used to implement the
 	// "local exec" model for tls access (r.Sym is not set on intel platforms but is
 	// set to a TLS symbol -- runtime.tlsg -- in the linker when externally linking).
-	R_TLS_LE = 17
+	R_TLS_LE = 16
+	// R_TLS_IE, used 386, amd64, and ARM resolves to the PC-relative offset to a GOT
+	// slot containing the offset from the thread-local symbol from the thread local
+	// base and is used to implemented the "initial exec" model for tls access (r.Sym
+	// is not set on intel platforms but is set to a TLS symbol -- runtime.tlsg -- in
+	// the linker when externally linking).
+	R_TLS_IE   = 17
+	R_USEFIELD = 22
+	// R_USETYPE resolves to an *rtype, but no relocation is created. The
+	// linker uses this as a signal that the pointed-to type information
+	// should be linked into the final binary, even if there are no other
+	// direct references. (This is used for types reachable by reflection.)
+	R_USETYPE = 23
 	// R_USEIFACE marks a type is converted to an interface in the function this
 	// relocation is applied to. The target is a type descriptor.
 	// This is a marker relocation (0-sized), for the linker's reachabililty
 	// analysis.
-	R_USEIFACE = 25
+	R_USEIFACE = 24
 	// R_USEIFACEMETHOD marks an interface method that is used in the function
 	// this relocation is applied to. The target is an interface type descriptor.
 	// The addend is the offset of the method in the type descriptor.
 	// This is a marker relocation (0-sized), for the linker's reachabililty
 	// analysis.
-	R_USEIFACEMETHOD = 26
+	R_USEIFACEMETHOD = 25
 	// R_METHODOFF resolves to a 32-bit offset from the beginning of the section
 	// holding the data being relocated to the referenced symbol.
 	// It is a variant of R_ADDROFF used when linking from the uncommonType of a
 	// *rtype, and may be set to zero by the linker if it determines the method
 	// text is unreachable by the linked program.
-	R_METHODOFF = 27
+	R_METHODOFF = 26
+
 	// R_ADDRCUOFF resolves to a pointer-sized offset from the start of the
 	// symbol's DWARF compile unit.
 	R_ADDRCUOFF = 58
 
-	//not used, only adapter golang 1.16
-	R_USETYPE  = 0x10000000 - 4
-	R_WEAKADDR = 0x20000000
+	R_WEAK = 0x8000
+
+	R_WEAKADDR    = R_WEAK | R_ADDR
+	R_WEAKADDROFF = R_WEAK | R_ADDROFF
 )
 
 // copy from $GOROOT/src/cmd/internal/objabi/symkind.go

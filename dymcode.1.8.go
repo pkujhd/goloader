@@ -7,8 +7,25 @@ import (
 	"cmd/objfile/goobj"
 )
 
+// copy from $GOROOT/src/cmd/internal/objabi/reloctype.go
 const (
-	R_PCREL = 15
+	R_ADDR = 1
+	// R_ADDRARM64 relocates an adrp, add pair to compute the address of the
+	// referenced symbol.
+	R_ADDRARM64 = 3
+	// R_ADDROFF resolves to a 32-bit offset from the beginning of the section
+	// holding the data being relocated to the referenced symbol.
+	R_ADDROFF = 5
+	// R_WEAKADDROFF resolves just like R_ADDROFF but is a weak relocation.
+	// A weak relocation does not make the symbol it refers to reachable,
+	// and is only honored by the linker if the symbol is in some other way
+	// reachable.
+	R_WEAKADDROFF = 6
+	R_CALL        = 8
+	R_CALLARM     = 9
+	R_CALLARM64   = 10
+	R_CALLIND     = 11
+	R_PCREL       = 15
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
 	// thread-local symbol from the thread local base and is used to implement the
 	// "local exec" model for tls access (r.Sym is not set on intel platforms but is
@@ -22,9 +39,11 @@ const (
 	R_METHODOFF = 24
 
 	//not used, only adapter golang 1.16
+	R_USETYPE        = 0x10000000 - 4
 	R_USEIFACE       = 0x10000000 - 3
 	R_USEIFACEMETHOD = 0x10000000 - 2
 	R_ADDRCUOFF      = 0x10000000 - 1
+	R_WEAKADDR       = 0x20000000
 )
 
 const (
