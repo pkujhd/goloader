@@ -1,5 +1,5 @@
 // +build go1.16
-// +build !go1.17
+// +build !go1.18
 
 package goloader
 
@@ -119,7 +119,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 		case goobj.AuxGotype:
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
-			funcInfo.Read(r.Data(index))
+			readFuncInfo(&funcInfo, r.Data(index))
 			symbol.Func.Args = funcInfo.Args
 			symbol.Func.Locals = funcInfo.Locals
 			symbol.Func.FuncID = (uint8)(funcInfo.FuncID)
