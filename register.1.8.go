@@ -15,7 +15,9 @@ func registerFunc(md *moduledata, symPtr map[string]uintptr) {
 			_func := (*_func)(unsafe.Pointer((&(md.pclntable[f.funcoff]))))
 			name := gostringnocopy(&(md.pclntable[_func.nameoff]))
 			if !strings.HasPrefix(name, TypeDoubleDotPrefix) && _func.entry < md.etext {
-				symPtr[name] = _func.entry
+				if _, ok := symPtr[name]; !ok {
+					symPtr[name] = _func.entry
+				}
 			}
 		}
 	}

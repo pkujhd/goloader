@@ -1,5 +1,5 @@
 // +build go1.16
-// +build !go1.17
+// +build !go1.18
 
 package goloader
 
@@ -16,7 +16,9 @@ func registerFunc(md *moduledata, symPtr map[string]uintptr) {
 			if int(_func.nameoff) < len(md.funcnametab) {
 				name := gostringnocopy(&(md.funcnametab[_func.nameoff]))
 				if !strings.HasPrefix(name, TypeDoubleDotPrefix) && _func.entry < md.etext {
-					symPtr[name] = _func.entry
+					if _, ok := symPtr[name]; !ok {
+						symPtr[name] = _func.entry
+					}
 				}
 			}
 		}
