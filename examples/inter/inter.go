@@ -23,6 +23,8 @@ func bcontextPrint(i basecontext.IBaseContext) {
 	i.PrintName()
 	fmt.Println("bcontextPrint", i.GetName())
 }
+
+//go:execute
 func main() {
 	var scontext basecontext.TSContext
 	var bcontext basecontext.TBaseContext

@@ -53,6 +53,11 @@ go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ $GOPATH/src/github
 go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go test2.go
 ./loader -o test.o -run main.main
 
+#execute by json file
+go build github.com/pkujhd/goloader/cmd
+./cmd -p github.com/pkujhd/goloader/examples/inter -j test.json
+go build github.com/pkujhd/goloader/examples/loaderByJson
+./loaderByJson -j test.json
 ```
 
 ## Warning
