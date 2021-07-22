@@ -229,6 +229,7 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 	bucket := &linker.pcfunc[b]
 	bucket.subbuckets[i] = byte(len(linker._func) - int(bucket.idx))
 
+	cuOffset := len(linker.filetab) - 1
 	for _, fileName := range symbol.Func.File {
 		if offset, ok := linker.namemap[fileName]; !ok {
 			linker.filetab = append(linker.filetab, (uint32)(len(linker.pclntable)))
@@ -259,7 +260,7 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 	pclnOff := len(linker.pclntable)
 	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
 
-	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff)
+	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOffset)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
 		Func.PCData = append(Func.PCData, uint32(len(linker.pclntable)))

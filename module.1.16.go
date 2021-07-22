@@ -105,7 +105,7 @@ type _func struct {
 	nfuncdata uint8   // must be last
 }
 
-func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int) _func {
+func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
 		entry:       uintptr(0),
 		nameoff:     int32(nameOff),
@@ -115,7 +115,7 @@ func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int) _func 
 		pcfile:      uint32(pcfileOff),
 		pcln:        uint32(pclnOff),
 		npcdata:     uint32(len(symbol.Func.PCData)),
-		cuOffset:    uint32(0),
+		cuOffset:    uint32(cuOff),
 		funcID:      funcID(symbol.Func.FuncID),
 		nfuncdata:   uint8(len(symbol.Func.FuncData)),
 	}
