@@ -173,7 +173,7 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 				reloc.Sym.Offset = 0
 			}
 			if strings.HasPrefix(reloc.Sym.Name, TypeImportPathPrefix) {
-				path := strings.Trim(strings.TrimLeft(reloc.Sym.Name, TypeImportPathPrefix), ".")
+				path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
 				reloc.Sym.Offset = len(linker.data)
 				linker.data = append(linker.data, path...)
 				linker.data = append(linker.data, ZeroByte)
@@ -214,7 +214,7 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 		if offset, ok := linker.namemap[fileName]; !ok {
 			linker.filetab = append(linker.filetab, (uint32)(len(linker.pclntable)))
 			linker.namemap[fileName] = len(linker.pclntable)
-			fileName = strings.TrimLeft(fileName, FileSymPrefix)
+			fileName = strings.TrimPrefix(fileName, FileSymPrefix)
 			linker.pclntable = append(linker.pclntable, []byte(fileName)...)
 			linker.pclntable = append(linker.pclntable, ZeroByte)
 		} else {
