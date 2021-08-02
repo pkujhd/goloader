@@ -172,22 +172,31 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 			if reloc.Type == R_CALLIND {
 				reloc.Sym.Offset = 0
 			}
+			_, exist := linker.symMap[reloc.Sym.Name]
 			if strings.HasPrefix(reloc.Sym.Name, TypeImportPathPrefix) {
-				path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
-				reloc.Sym.Offset = len(linker.data)
-				linker.data = append(linker.data, path...)
-				linker.data = append(linker.data, ZeroByte)
+				if exist {
+					reloc.Sym = linker.symMap[reloc.Sym.Name]
+				} else {
+					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
+					reloc.Sym.Offset = len(linker.data)
+					linker.data = append(linker.data, path...)
+					linker.data = append(linker.data, ZeroByte)
+				}
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
 				bytes := make([]byte, UInt64Size)
 				if err := preprocesssymbol(reloc.Sym.Name, bytes); err != nil {
 					return nil, err
 				} else {
-					reloc.Sym.Offset = len(linker.data)
-					linker.data = append(linker.data, bytes...)
+					if exist {
+						reloc.Sym = linker.symMap[reloc.Sym.Name]
+					} else {
+						reloc.Sym.Offset = len(linker.data)
+						linker.data = append(linker.data, bytes...)
+					}
 				}
 			}
-			if _, ok := linker.symMap[reloc.Sym.Name]; !ok {
+			if !exist {
 				//golang1.8, some function generates more than one (MOVQ (TLS), CX)
 				//so when same name symbol in linker.symMap, do not update it
 				linker.symMap[reloc.Sym.Name] = reloc.Sym
