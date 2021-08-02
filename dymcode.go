@@ -36,18 +36,25 @@ type Reloc struct {
 // ourself defined struct
 // code segment
 type segment struct {
-	codeByte  []byte
-	codeBase  int
-	dataBase  int
-	dataLen   int
-	codeLen   int
-	maxLength int
-	offset    int
+	codeByte     []byte
+	codeBase     int
+	dataBase     int
+	sumDataLen   int
+	dataLen      int
+	noptrdataLen int
+	bssLen       int
+	noptrbssLen  int
+	codeLen      int
+	maxLength    int
+	offset       int
 }
 
 type Linker struct {
 	code         []byte
 	data         []byte
+	noptrdata    []byte
+	bss          []byte
+	noptrbss     []byte
 	symMap       map[string]*Sym
 	objsymbolMap map[string]*ObjSymbol
 	stkmaps      map[string][]byte
@@ -106,7 +113,7 @@ var (
 
 func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
-	linker.data = append(linker.data, make([]byte, IntSize)...)
+	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
 	for _, objSym := range linker.objsymbolMap {
 		if objSym.Kind == STEXT && objSym.DupOK == false {
 			_, err := linker.addSymbol(objSym.Name)
@@ -118,6 +125,23 @@ func (linker *Linker) addSymbols() error {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
 				return err
+			}
+		}
+	}
+	for _, sym := range linker.symMap {
+		offset := 0
+		switch sym.Kind {
+		case SNOPTRDATA, SRODATA:
+			offset += len(linker.data)
+		case SBSS:
+			offset += len(linker.data) + len(linker.noptrdata)
+		case SNOPTRBSS:
+			offset += len(linker.data) + len(linker.noptrdata) + len(linker.bss)
+		}
+		sym.Offset += offset
+		if offset != 0 {
+			for index := range sym.Reloc {
+				sym.Reloc[index].Offset += offset
 			}
 		}
 	}
@@ -141,10 +165,20 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
 		}
-	default:
+	case SDATA:
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
-		bytearrayAlign(&linker.data, PtrSize)
+	case SNOPTRDATA, SRODATA:
+		symbol.Offset = len(linker.noptrdata)
+		linker.noptrdata = append(linker.noptrdata, objsym.Data...)
+	case SBSS:
+		symbol.Offset = len(linker.bss)
+		linker.bss = append(linker.bss, objsym.Data...)
+	case SNOPTRBSS:
+		symbol.Offset = len(linker.noptrbss)
+		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
+	default:
+		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
 
 	for _, loc := range objsym.Reloc {
@@ -157,7 +191,7 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 			}
 			if len(linker.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
-				//goloader add IntSize bytes on linker.data[0]
+				//goloader add IntSize bytes on linker.noptrdata[0]
 				if int(reloc.Size) <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
@@ -178,9 +212,10 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 					reloc.Sym = linker.symMap[reloc.Sym.Name]
 				} else {
 					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
-					reloc.Sym.Offset = len(linker.data)
-					linker.data = append(linker.data, path...)
-					linker.data = append(linker.data, ZeroByte)
+					reloc.Sym.Kind = SNOPTRDATA
+					reloc.Sym.Offset = len(linker.noptrdata)
+					linker.noptrdata = append(linker.noptrdata, path...)
+					linker.noptrdata = append(linker.noptrdata, ZeroByte)
 				}
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
@@ -191,8 +226,9 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 					if exist {
 						reloc.Sym = linker.symMap[reloc.Sym.Name]
 					} else {
-						reloc.Sym.Offset = len(linker.data)
-						linker.data = append(linker.data, bytes...)
+						reloc.Sym.Kind = SNOPTRDATA
+						reloc.Sym.Offset = len(linker.noptrdata)
+						linker.noptrdata = append(linker.noptrdata, bytes...)
 					}
 				}
 			}
@@ -565,6 +601,14 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.etypes = uintptr(segment.codeBase + segment.offset)
 	module.text = uintptr(segment.codeBase)
 	module.etext = uintptr(segment.codeBase + len(linker.code))
+	module.data = uintptr(segment.dataBase)
+	module.edata = uintptr(segment.dataBase) + uintptr(segment.dataLen)
+	module.noptrdata = module.edata
+	module.enoptrdata = module.noptrdata + uintptr(segment.noptrdataLen)
+	module.bss = module.enoptrdata
+	module.ebss = module.bss + uintptr(segment.bssLen)
+	module.noptrbss = module.ebss
+	module.enoptrbss = module.noptrbss + uintptr(segment.noptrbssLen)
 	codeModule.stkmaps = linker.stkmaps // hold reference
 
 	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.minpc})
@@ -598,7 +642,11 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	}
 	codeModule.codeLen = len(linker.code)
 	codeModule.dataLen = len(linker.data)
-	codeModule.maxLength = alignof((codeModule.codeLen+codeModule.dataLen)*2, PageSize)
+	codeModule.noptrdataLen = len(linker.noptrdata)
+	codeModule.bssLen = len(linker.bss)
+	codeModule.noptrbssLen = len(linker.noptrbss)
+	codeModule.sumDataLen = codeModule.dataLen + codeModule.noptrdataLen + codeModule.bssLen + codeModule.noptrbssLen
+	codeModule.maxLength = alignof((codeModule.codeLen+codeModule.sumDataLen)*2, PageSize)
 	codeByte, err := Mmap(codeModule.maxLength)
 	if err != nil {
 		return nil, err
@@ -606,10 +654,17 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 
 	codeModule.codeByte = codeByte
 	codeModule.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	codeModule.dataBase = codeModule.codeBase + len(linker.code)
-	codeModule.offset = codeModule.codeLen + codeModule.dataLen
+	codeModule.dataBase = codeModule.codeBase + codeModule.codeLen
 	copy(codeModule.codeByte, linker.code)
-	copy(codeModule.codeByte[codeModule.codeLen:], linker.data)
+	codeModule.offset = codeModule.codeLen
+	copy(codeModule.codeByte[codeModule.offset:], linker.data)
+	codeModule.offset += codeModule.dataLen
+	copy(codeModule.codeByte[codeModule.offset:], linker.noptrdata)
+	codeModule.offset += codeModule.noptrdataLen
+	copy(codeModule.codeByte[codeModule.offset:], linker.bss)
+	codeModule.offset += codeModule.bssLen
+	copy(codeModule.codeByte[codeModule.offset:], linker.noptrbss)
+	codeModule.offset += codeModule.noptrbssLen
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
