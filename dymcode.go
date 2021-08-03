@@ -626,6 +626,9 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	length := len(linker.pcfunc) * FindFuncBucketSize
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&linker.pcfunc[0])), length)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[len(module.pclntable)-length]))
+	if err = fillGCData(linker, codeModule, symbolMap); err != nil {
+		return err
+	}
 	linker._buildModule(codeModule)
 
 	modulesLock.Lock()
