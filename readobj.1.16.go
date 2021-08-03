@@ -97,6 +97,9 @@ func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]s
 func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef]string) {
 	s := r.Sym(index)
 	symbol := ObjSymbol{Name: s.Name(r), Kind: int(s.Type()), DupOK: s.Dupok(), Size: (int64)(s.Siz()), Func: &FuncInfo{}}
+	if _, ok := pkg.Syms[symbol.Name]; ok {
+		return
+	}
 	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
 		return
 	}
