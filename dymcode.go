@@ -103,6 +103,7 @@ type ObjSymbol struct {
 	DupOK bool   // are duplicate definitions okay?
 	Size  int64  // size of corresponding data
 	Data  []byte // memory image of symbol
+	Type  string
 	Reloc []Reloc
 	Func  *FuncInfo // additional data for functions
 }

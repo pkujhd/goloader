@@ -120,6 +120,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 		name, index := resolveSymRef(auxs[k].Sym(), r, refNames)
 		switch auxs[k].Type() {
 		case goobj.AuxGotype:
+			symbol.Type = name
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
 			readFuncInfo(&funcInfo, r.Data(index))

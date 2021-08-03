@@ -46,6 +46,9 @@ func readObj(pkg *Pkg, linker *Linker) error {
 		for index, loc := range sym.Reloc {
 			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
 		}
+		if sym.Type != EmptyString {
+			sym.Type = strings.Replace(sym.Type, EmptyPkgPath, pkg.PkgPath, -1)
+		}
 		if sym.Func != nil {
 			for index, FuncData := range sym.Func.FuncData {
 				sym.Func.FuncData[index] = strings.Replace(FuncData, EmptyPkgPath, pkg.PkgPath, -1)

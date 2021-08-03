@@ -41,6 +41,7 @@ func (pkg *Pkg) symbols() error {
 		symbol.DupOK = sym.DupOK
 		symbol.Size = int64(sym.Size)
 		symbol.Data, err = fd.BytesAt(sym.Data.Offset, sym.Data.Size)
+		symbol.Type = sym.Type.Name
 		if err != nil {
 			return fmt.Errorf("read error: %v", err)
 		}
