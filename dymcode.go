@@ -1,6 +1,7 @@
 package goloader
 
 import (
+	"cmd/objfile/sys"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -64,7 +65,7 @@ type Linker struct {
 	pcfunc       []findfuncbucket
 	_func        []_func
 	initFuncs    []string
-	Arch         string
+	Arch         *sys.Arch
 }
 
 type CodeModule struct {

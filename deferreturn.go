@@ -16,13 +16,13 @@ func (linker *Linker) _addDeferReturn(_func *_func) (err error) {
 		for _, r := range sym.Reloc {
 			if r.Sym == linker.symMap[RuntimeDeferReturn] {
 				//../cmd/link/internal/ld/pcln.go:pclntab
-				switch linker.Arch {
+				switch linker.Arch.Name {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:
 					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1
 				case sys.ArchARM.Name, sys.ArchARM64.Name:
 					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset)
 				default:
-					err = fmt.Errorf("not support arch:%s", linker.Arch)
+					err = fmt.Errorf("not support arch:%s", linker.Arch.Name)
 				}
 				break
 			}

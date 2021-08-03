@@ -33,12 +33,12 @@ func readObj(pkg *Pkg, linker *Linker) error {
 	if err := pkg.symbols(); err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
-	if len(linker.Arch) != 0 && linker.Arch != pkg.Arch {
-		return fmt.Errorf("read obj error: Arch %s != Arch %s", linker.Arch, pkg.Arch)
+	if linker.Arch != nil && linker.Arch.Name != pkg.Arch {
+		return fmt.Errorf("read obj error: Arch %s != Arch %s", linker.Arch.Name, pkg.Arch)
 	} else {
-		linker.Arch = pkg.Arch
+		linker.Arch = getArch(pkg.Arch)
 	}
-	switch linker.Arch {
+	switch linker.Arch.Name {
 	case sys.ArchARM.Name, sys.ArchARM64.Name:
 		copy(linker.pclntable, armmoduleHead)
 	}
