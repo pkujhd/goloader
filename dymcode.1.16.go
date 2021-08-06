@@ -141,4 +141,5 @@ func (linker *Linker) _buildModule(codeModule *CodeModule) {
 	module.pctab = module.pclntable
 	module.cutab = linker.filetab
 	module.filetab = module.pclntable
+	module.hasmain = 0
 }

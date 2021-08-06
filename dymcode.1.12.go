@@ -131,4 +131,5 @@ func (linker *Linker) addInlineTree(_func *_func, objsym *ObjSymbol) (err error)
 
 func (linker *Linker) _buildModule(codeModule *CodeModule) {
 	codeModule.module.filetab = linker.filetab
+	codeModule.module.hasmain = 0
 }
