@@ -34,20 +34,20 @@ func bytearrayAlign(b *[]byte, align int) {
 	}
 }
 
-func putAddressAddOffset(b []byte, offset *int, addr uint64) {
+func putAddressAddOffset(byteOrder binary.ByteOrder, b []byte, offset *int, addr uint64) {
 	if PtrSize == Uint32Size {
-		binary.LittleEndian.PutUint32(b[*offset:], uint32(addr))
+		byteOrder.PutUint32(b[*offset:], uint32(addr))
 	} else {
-		binary.LittleEndian.PutUint64(b[*offset:], uint64(addr))
+		byteOrder.PutUint64(b[*offset:], uint64(addr))
 	}
 	*offset = *offset + PtrSize
 }
 
-func putAddress(b []byte, addr uint64) {
+func putAddress(byteOrder binary.ByteOrder, b []byte, addr uint64) {
 	if PtrSize == Uint32Size {
-		binary.LittleEndian.PutUint32(b, uint32(addr))
+		byteOrder.PutUint32(b, uint32(addr))
 	} else {
-		binary.LittleEndian.PutUint64(b, uint64(addr))
+		byteOrder.PutUint64(b, uint64(addr))
 	}
 }
 
@@ -99,7 +99,7 @@ func ispreprocesssymbol(name string) bool {
 	return false
 }
 
-func preprocesssymbol(name string, bytes []byte) error {
+func preprocesssymbol(byteOrder binary.ByteOrder, name string, bytes []byte) error {
 	val, err := strconv.ParseUint(name[5:], 16, 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse $-symbol %s: %v", name, err)
@@ -109,10 +109,10 @@ func preprocesssymbol(name string, bytes []byte) error {
 		if uint64(uint32(val)) != val {
 			return fmt.Errorf("$-symbol %s too large: %d", name, val)
 		}
-		binary.LittleEndian.PutUint32(bytes, uint32(val))
+		byteOrder.PutUint32(bytes, uint32(val))
 		bytes = bytes[:4]
 	case "$f64.", "$i64.":
-		binary.LittleEndian.PutUint64(bytes, val)
+		byteOrder.PutUint64(bytes, val)
 	default:
 		return fmt.Errorf("unrecognized $-symbol: %s", name)
 	}
