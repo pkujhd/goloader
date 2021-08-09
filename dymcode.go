@@ -2,6 +2,7 @@ package goloader
 
 import (
 	"cmd/objfile/sys"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"runtime"
@@ -215,6 +216,11 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
 					reloc.Sym.Kind = SNOPTRDATA
 					reloc.Sym.Offset = len(linker.noptrdata)
+					//name memory layout
+					//name { tagLen(byte), len(uint16), str*}
+					nameLen := []byte{0, 0, 0}
+					binary.BigEndian.PutUint16(nameLen[1:], uint16(len(path)))
+					linker.noptrdata = append(linker.noptrdata, nameLen...)
 					linker.noptrdata = append(linker.noptrdata, path...)
 					linker.noptrdata = append(linker.noptrdata, ZeroByte)
 				}
