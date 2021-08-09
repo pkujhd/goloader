@@ -639,6 +639,12 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	if err = fillGCData(linker, codeModule, symbolMap); err != nil {
 		return err
 	}
+	for name, addr := range symbolMap {
+		if strings.HasPrefix(name, TypePrefix) && addr >= module.types && addr < module.etypes {
+			module.typelinks = append(module.typelinks, int32(addr-module.types))
+			module.typemap[typeOff(addr-module.types)] = addr
+		}
+	}
 	linker._buildModule(codeModule)
 
 	modulesLock.Lock()
