@@ -15,9 +15,14 @@ func main() {
 	go func() {
 		panic(http.ListenAndServe(":2300", http.FileServer(http.Dir("."))))
 	}()
-	sh := &SimpleHanle{}
+	var inter http.Handler
+	inter = &SimpleHanle{}
+	listen(inter)
+}
+
+func listen(inter interface{}) {
 	mux := http.NewServeMux()
-	mux.Handle("/", sh)
+	mux.Handle("/", inter.(http.Handler))
 	fmt.Println("start listen:9090")
 	panic(http.ListenAndServe(":9090", mux))
 }
