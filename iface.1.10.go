@@ -40,16 +40,6 @@ func itabAdd(m *itab)
 func additabs(module *moduledata) {
 	lock(&itabLock)
 	for _, itab := range module.itablinks {
-		methods := itab._type.uncommon().methods()
-		for k := 0; k < len(methods); k++ {
-			for m := 0; m < len(itab.inter.mhdr); m++ {
-				if itab.inter.typ.nameOff(itab.inter.mhdr[m].name).name() ==
-					itab._type.nameOff(methods[k].name).name() {
-					itype := uintptr(unsafe.Pointer(itab.inter.typ.typeOff(itab.inter.mhdr[m].ityp)))
-					module.typemap[methods[k].mtyp] = itype
-				}
-			}
-		}
 		itabAdd(itab)
 	}
 	unlock(&itabLock)
