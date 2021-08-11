@@ -640,7 +640,9 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 		return err
 	}
 	for name, addr := range symbolMap {
-		if strings.HasPrefix(name, TypePrefix) && addr >= module.types && addr < module.etypes {
+		if strings.HasPrefix(name, TypePrefix) &&
+			!strings.HasPrefix(name, TypeDoubleDotPrefix) &&
+			addr >= module.types && addr < module.etypes {
 			module.typelinks = append(module.typelinks, int32(addr-module.types))
 			module.typemap[typeOff(addr-module.types)] = addr
 		}
