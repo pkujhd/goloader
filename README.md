@@ -61,8 +61,8 @@ Don't use "-s -w" compile argument, It strips symbol table.
 
 This has currently only been tested and developed on:
 
-Golang 1.8-1.16 (x64/x86, darwin, linux, windows)
+Golang 1.8-1.17 (x64/x86, darwin, linux, windows)
 
-Golang 1.10-1.16 (arm, linux)
+Golang 1.10-1.17 (arm, linux)
 
-Golang 1.8-1.16 (arm64(LE) linux)
+Golang 1.8-1.17 (arm64(LE) linux)
