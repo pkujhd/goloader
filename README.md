@@ -63,6 +63,6 @@ This has currently only been tested and developed on:
 
 Golang 1.8-1.17 (x64/x86, darwin, linux, windows)
 
-Golang 1.10-1.17 (arm, linux)
+Golang 1.10-1.17 (arm, linux, android)
 
-Golang 1.8-1.17 (arm64(LE) linux)
+Golang 1.8-1.17 (arm64(LE) linux, android)
