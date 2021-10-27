@@ -128,7 +128,7 @@ func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uin
 	}
 	w.ZeroUntil(int64(module.edata-module.data) / int64(linker.Arch.PtrSize))
 	w.End()
-	module.gcdata = ((*sliceHeader)(unsafe.Pointer(&gcdata)).Data)
+	module.gcdata = (*sliceHeader)(unsafe.Pointer(&gcdata)).Data
 	module.gcdatamask = progToPointerMask((*byte)(adduintptr(module.gcdata, 0)), module.edata-module.data)
 
 	gcdata = []byte{}
@@ -144,7 +144,7 @@ func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uin
 	}
 	w.ZeroUntil(int64(module.ebss-module.bss) / int64(linker.Arch.PtrSize))
 	w.End()
-	module.gcbss = ((*sliceHeader)(unsafe.Pointer(&gcdata)).Data)
+	module.gcbss = (*sliceHeader)(unsafe.Pointer(&gcdata)).Data
 	module.gcbssmask = progToPointerMask((*byte)(adduintptr(module.gcbss, 0)), module.ebss-module.bss)
 	return nil
 }

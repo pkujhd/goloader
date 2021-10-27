@@ -11,7 +11,6 @@ const (
 	IntSize            = int(unsafe.Sizeof(int(0)))
 	UInt64Size         = int(unsafe.Sizeof(uint64(0)))
 	_FuncSize          = int(unsafe.Offsetof(_func{}.nfuncdata)) + int(unsafe.Sizeof(_func{}.nfuncdata))
-	ItabSize           = int(unsafe.Sizeof(itab{}))
 	FindFuncBucketSize = int(unsafe.Sizeof(findfuncbucket{}))
 	InlinedCallSize    = int(unsafe.Sizeof(inlinedCall{}))
 	InvalidHandleValue = ^uintptr(0)

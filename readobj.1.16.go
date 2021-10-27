@@ -60,7 +60,7 @@ func (pkg *Pkg) symbols() error {
 				pkg.addSym(r, uint32(i), &refNames)
 			}
 		default:
-			return fmt.Errorf("Parse open %s: unrecognized archive member %s", pkg.f.Name(), e.Name)
+			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.f.Name(), e.Name)
 		}
 	}
 	for _, sym := range pkg.Syms {

@@ -155,7 +155,7 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 		return symbol, nil
 	}
 	objsym := linker.objsymbolMap[name]
-	symbol = &Sym{Name: objsym.Name, Kind: int(objsym.Kind)}
+	symbol = &Sym{Name: objsym.Name, Kind: objsym.Kind}
 	linker.symMap[symbol.Name] = symbol
 
 	switch symbol.Kind {
@@ -194,10 +194,10 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 			if len(linker.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
 				//goloader add IntSize bytes on linker.noptrdata[0]
-				if int(reloc.Size) <= IntSize {
+				if reloc.Size <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
-					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d", reloc.Sym.Name, reloc.Size, IntSize)
+					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d\n", reloc.Sym.Name, reloc.Size, IntSize)
 				}
 			}
 		} else {
@@ -346,7 +346,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			//nothing todo
 		} else if sym.Kind == STEXT {
 			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
-			codeModule.Syms[sym.Name] = uintptr(symbolMap[name])
+			codeModule.Syms[sym.Name] = symbolMap[name]
 		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
@@ -412,7 +412,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc Reloc, segment *segment, sy
 	} else {
 		// 2bit + 19bit + low(12bit) = 33bit
 		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
-		high := (uint32(offset&0xFFF) << 10)
+		high := uint32(offset&0xFFF) << 10
 		value := byteorder.Uint64(mCode)
 		value = (uint64(uint32(value>>32)|high) << 32) | uint64(uint32(value&0xFFFFFFFF)|low)
 		byteorder.PutUint64(mCode, value)
@@ -447,7 +447,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc Reloc, segment *segment, r
 		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
 			copy(bytes, x86amd64JMPLcode)
 		} else {
-			return fmt.Errorf("not support code:%v!", relocByte[loc.Offset-2:loc.Offset])
+			return fmt.Errorf("not support code:%v!\n", relocByte[loc.Offset-2:loc.Offset])
 		}
 		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		if opcode == x86amd64CMPLcode || opcode == x86amd64MOVcode {
@@ -540,7 +540,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					linker.relocteCALLARM(addr, loc, segment)
 				case R_ADDRARM64:
 					if symbol.Kind != STEXT {
-						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!", sym.Name)
+						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
 					}
 					linker.relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
 				case R_ADDR, R_WEAKADDR:
@@ -550,11 +550,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					//nothing todo
 				case R_ADDROFF, R_WEAKADDROFF, R_METHODOFF:
 					if symbol.Kind == STEXT {
-						err = fmt.Errorf("impossible!Sym:%s locate on code segment!", sym.Name)
+						err = fmt.Errorf("impossible!Sym:%s locate on code segment!\n", sym.Name)
 					}
 					offset := int(addr) - segment.codeBase + loc.Add
 					if offset > 0x7FFFFFFF || offset < -0x80000000 {
-						err = fmt.Errorf("symName:%s offset:%d is overflow!", sym.Name, offset)
+						err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
 					}
 					byteorder.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
 				case R_USETYPE:
@@ -579,7 +579,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 
 func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map[string]uintptr) (err error) {
 	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
-	_func.entry = uintptr(symbolMap[funcname])
+	_func.entry = symbolMap[funcname]
 	Func := linker.symMap[funcname].Func
 
 	if err = linker.addStackObject(funcname, symbolMap); err != nil {
@@ -626,7 +626,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.minpc})
 	for index, _func := range linker._func {
 		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
-		module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: uintptr(symbolMap[funcname])})
+		module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: symbolMap[funcname]})
 		if err = linker.addFuncTab(module, &(linker._func[index]), symbolMap); err != nil {
 			return err
 		}

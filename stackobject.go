@@ -8,8 +8,6 @@ import (
 	"unsafe"
 )
 
-const stackObjectRecordSize = unsafe.Sizeof(stackObjectRecord{})
-
 func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
 	n := int(*(*uintptr)(addr))
 	slice := sliceHeader{
