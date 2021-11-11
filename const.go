@@ -37,13 +37,15 @@ const (
 
 // string match prefix/suffix
 const (
-	FileSymPrefix        = "gofile.."
-	MainPkgPrefix        = "main."
-	TypeImportPathPrefix = "type..importpath."
-	TypeDoubleDotPrefix  = "type.."
-	TypePrefix           = "type."
-	ItabPrefix           = "go.itab."
-	StkobjSuffix         = ".stkobj"
-	InlineTreeSuffix     = ".inlinetree"
-	OsStdout             = "os.Stdout"
+	FileSymPrefix              = "gofile.."
+	MainPkgPrefix              = "main."
+	TypeImportPathPrefix       = "type..importpath."
+	TypeDoubleDotPrefix        = "type.."
+	TypePrefix                 = "type."
+	ItabPrefix                 = "go.itab."
+	StkobjSuffix               = ".stkobj"
+	InlineTreeSuffix           = ".inlinetree"
+	OsStdout                   = "os.Stdout"
+	TypeStringPerfix           = "go.string."
+	DefaultStringContainerSize = 1024 * 1024 * 16
 )

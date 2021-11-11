@@ -171,8 +171,19 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
 	case SNOPTRDATA, SRODATA:
-		symbol.Offset = len(linker.noptrdata)
-		linker.noptrdata = append(linker.noptrdata, objsym.Data...)
+		//because golang string assignment is pointer assignment, so store go.string constants
+		//in a separate segment and not unload when module unload.
+		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPerfix) {
+			if stringContainer.index+len(objsym.Data) > stringContainer.size {
+				return nil, fmt.Errorf("overflow string container")
+			}
+			symbol.Offset = stringContainer.index
+			copy(stringContainer.bytes[stringContainer.index:], objsym.Data)
+			stringContainer.index += len(objsym.Data)
+		} else {
+			symbol.Offset = len(linker.noptrdata)
+			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
+		}
 	case SBSS:
 		symbol.Offset = len(linker.bss)
 		linker.bss = append(linker.bss, objsym.Data...)
@@ -353,11 +364,19 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if _, ok := symPtr[name]; !ok {
-				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+				if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPerfix) {
+					symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
+				} else {
+					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+				}
 			} else {
 				symbolMap[name] = symPtr[name]
 				if strings.HasPrefix(name, MainPkgPrefix) || strings.HasPrefix(name, TypePrefix) {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPerfix) {
+						symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
+					} else {
+						symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					}
 				}
 			}
 		}
