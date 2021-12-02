@@ -68,6 +68,10 @@ func decodetypeGcprog(linker *Linker, s *ObjSymbol) []byte {
 
 func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *Sym) error {
 	segment := &codeModule.segment
+	//if symbol is in loader, ignore generate gc data
+	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.sumDataLen) {
+		return nil
+	}
 	typeName := linker.objsymbolMap[sym.Name].Type
 	if _, ok := linker.objsymbolMap[typeName]; !ok {
 		return fmt.Errorf("type:%s not found\n", typeName)
