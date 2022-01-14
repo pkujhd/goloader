@@ -269,7 +269,9 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 			idx: uint32(256 * len(linker.pcfunc))})
 	}
 	bucket := &linker.pcfunc[b]
-	bucket.subbuckets[i] = byte(len(linker._func) - int(bucket.idx))
+	if bucket.subbuckets[i] == 0 && b != 0 && i != 0 {
+		bucket.subbuckets[i] = byte(len(linker._func) - int(bucket.idx))
+	}
 
 	cuOffset := len(linker.filetab) - 1
 	for _, fileName := range symbol.Func.File {
