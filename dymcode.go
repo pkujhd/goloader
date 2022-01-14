@@ -132,7 +132,11 @@ func (linker *Linker) addSymbols() error {
 		offset := 0
 		switch sym.Kind {
 		case SNOPTRDATA, SRODATA:
-			offset += len(linker.data)
+			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPerfix) {
+				//nothing todo
+			} else {
+				offset += len(linker.data)
+			}
 		case SBSS:
 			offset += len(linker.data) + len(linker.noptrdata)
 		case SNOPTRBSS:
