@@ -48,7 +48,7 @@ func (pkg *Pkg) symbols() error {
 				refNames[rn.Sym()] = rn.Name(r)
 			}
 			pkg.Arch = e.Obj.Arch
-			nsym := r.NSym()
+			nsym := r.NSym() + r.NHashed64def() + r.NHasheddef() + r.NNonpkgdef()
 			for i := 0; i < nsym; i++ {
 				pkg.addSym(r, uint32(i), &refNames)
 			}
