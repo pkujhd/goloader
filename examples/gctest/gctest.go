@@ -19,6 +19,7 @@ type PrintInf interface {
 
 var uptr *Vertex
 var uptra *Vertex
+var strptr *string
 
 func main() {
 	uptr = new(Vertex)
@@ -31,4 +32,12 @@ func main() {
 	runtime.GC()
 	runtime.GC()
 	fmt.Println(uptr.X, uptr.Y, uptra)
+	var str = "I am a string"
+	str = fmt.Sprintf("%s %d", str, uptra.X)
+	strptr = &str
+	fmt.Println(*strptr)
+	runtime.GC()
+	runtime.GC()
+	runtime.GC()
+	fmt.Println(*strptr)
 }
