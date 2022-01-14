@@ -44,7 +44,6 @@ const (
 	TypePrefix                 = "type."
 	ItabPrefix                 = "go.itab."
 	StkobjSuffix               = ".stkobj"
-	InlineTreeSuffix           = ".inlinetree"
 	OsStdout                   = "os.Stdout"
 	TypeStringPerfix           = "go.string."
 	DefaultStringContainerSize = 1024 * 1024 * 16

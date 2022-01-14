@@ -96,9 +96,6 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
 		return
 	}
-	if _, ok := pkg.Syms[symbol.Name]; ok {
-		return
-	}
 	if symbol.Size > 0 {
 		symbol.Data = r.Data(index)
 		grow(&symbol.Data, (int)(symbol.Size))
@@ -117,9 +114,6 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
 			readFuncInfo(&funcInfo, r.Data(index), symbol.Func)
-			symbol.Func.Args = funcInfo.Args
-			symbol.Func.Locals = funcInfo.Locals
-			symbol.Func.FuncID = (uint8)(funcInfo.FuncID)
 			for _, index := range funcInfo.File {
 				symbol.Func.File = append(symbol.Func.File, r.File(int(index)))
 			}
