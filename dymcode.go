@@ -70,6 +70,8 @@ type CodeModule struct {
 	segment
 	Syms   map[string]uintptr
 	module *moduledata
+	gcdata []byte
+	gcbss  []byte
 }
 
 type InlTreeNode struct {
@@ -259,6 +261,14 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 			}
 		}
 		symbol.Reloc = append(symbol.Reloc, reloc)
+	}
+
+	if objsym.Type != EmptyString {
+		if _, ok := linker.symMap[objsym.Type]; !ok {
+			if _, ok := linker.objsymbolMap[objsym.Type]; !ok {
+				linker.symMap[objsym.Type] = &Sym{Name: objsym.Type, Offset: InvalidOffset}
+			}
+		}
 	}
 	return symbol, nil
 }
