@@ -1,5 +1,5 @@
-// +build go1.12
-// +build !go1.17
+//go:build go1.12 && !go1.17
+// +build go1.12,!go1.17
 
 package goloader
 
@@ -17,6 +17,6 @@ type stackObjectRecord struct {
 	typ *_type
 }
 
-func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer) {
+func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, module *moduledata) {
 	obj.typ = (*_type)(ptr)
 }

@@ -1,5 +1,5 @@
-//go:build go1.12 && !go1.18
-// +build go1.12,!go1.18
+//go:build go1.12 && !go1.19
+// +build go1.12,!go1.19
 
 package goloader
 
@@ -30,7 +30,7 @@ func (linker *Linker) _addStackObject(funcname string, symbolMap map[string]uint
 				name = symbol.Reloc[i].Sym.Name
 			}
 			if ptr, ok := symbolMap[name]; ok {
-				setStackObjectPtr(&((*objects)[i]), adduintptr(ptr, 0))
+				setStackObjectPtr(&((*objects)[i]), adduintptr(ptr, 0), module)
 			} else {
 				return fmt.Errorf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name)
 

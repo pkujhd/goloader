@@ -1,5 +1,5 @@
-//go:build go1.17 && !go1.18
-// +build go1.17,!go1.18
+//go:build go1.18 && !go1.19
+// +build go1.18,!go1.19
 
 package goloader
 
@@ -13,12 +13,12 @@ type stackObjectRecord struct {
 	// offset in frame
 	// if negative, offset from varp
 	// if non-negative, offset from argp
-	off      int32
-	size     int32
-	_ptrdata int32 // ptrdata, or -ptrdata is GC prog is used
-	gcdata   *byte // pointer map or GC prog of the type
+	off       int32
+	size      int32
+	_ptrdata  int32  // ptrdata, or -ptrdata is GC prog is used
+	gcdataoff uint32 // offset to gcdata from moduledata.rodata
 }
 
 func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, module *moduledata) {
-	obj.gcdata = (*byte)(ptr)
+	obj.gcdataoff = uint32(uintptr(ptr) - module.noptrdata)
 }
