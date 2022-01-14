@@ -12,12 +12,6 @@ import (
 	"unsafe"
 )
 
-//golang 1.16 change magic number
-var (
-	x86moduleHead = []byte{0xFA, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
-	armmoduleHead = []byte{0xFA, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
-)
-
 func initLinker() *Linker {
 	reloc := &Linker{
 		symMap:       make(map[string]*Sym),
@@ -122,7 +116,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 			symbol.Type = name
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
-			readFuncInfo(&funcInfo, r.Data(index))
+			readFuncInfo(&funcInfo, r.Data(index), symbol.Func)
 			symbol.Func.Args = funcInfo.Args
 			symbol.Func.Locals = funcInfo.Locals
 			symbol.Func.FuncID = (uint8)(funcInfo.FuncID)

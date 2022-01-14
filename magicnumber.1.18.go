@@ -1,0 +1,10 @@
+//go:build go1.18 && !go1.19
+// +build go1.18,!go1.19
+
+package goloader
+
+//golang 1.18 change magic number
+var (
+	x86moduleHead = []byte{0xF0, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x1, PtrSize}
+	armmoduleHead = []byte{0xF0, 0xFF, 0xFF, 0xFF, 0x0, 0x0, 0x4, PtrSize}
+)
