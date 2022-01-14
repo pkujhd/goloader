@@ -601,7 +601,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	_func.entry = symbolMap[funcname]
 	Func := linker.symMap[funcname].Func
 
-	if err = linker.addStackObject(funcname, symbolMap); err != nil {
+	if err = linker.addStackObject(funcname, symbolMap, module); err != nil {
 		return err
 	}
 	if err = linker.addDeferReturn(_func); err != nil {

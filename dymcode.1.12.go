@@ -1,5 +1,5 @@
-// +build go1.12
-// +build !go1.14
+//go:build go1.12 && !go1.14
+// +build go1.12,!go1.14
 
 package goloader
 
@@ -80,8 +80,8 @@ const (
 	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
 )
 
-func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr) (err error) {
-	return linker._addStackObject(funcname, symbolMap)
+func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
+	return linker._addStackObject(funcname, symbolMap, module)
 }
 
 func (linker *Linker) addDeferReturn(_func *_func) (err error) {

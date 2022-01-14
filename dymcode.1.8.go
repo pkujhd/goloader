@@ -1,5 +1,5 @@
-// +build go1.8
-// +build !go1.9
+//go:build go1.8 && !go1.9
+// +build go1.8,!go1.9
 
 package goloader
 
@@ -95,7 +95,7 @@ const (
 	SDWARFINFO
 )
 
-func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr) (err error) {
+func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
 	return nil
 }
 
