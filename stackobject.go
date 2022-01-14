@@ -22,7 +22,7 @@ func (linker *Linker) _addStackObject(funcname string, symbolMap map[string]uint
 	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_StackObjects &&
 		Func.FuncData[_FUNCDATA_StackObjects] != 0 {
-		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[_FUNCDATA_StackObjects], 0))
+		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[_FUNCDATA_StackObjects], int(module.noptrdata)))
 		for i := range *objects {
 			name := EmptyString
 			stkobjName := funcname + StkobjSuffix

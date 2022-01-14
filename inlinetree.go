@@ -1,5 +1,5 @@
-// +build go1.9
-// +build !go1.18
+//go:build go1.9 && !go1.18
+// +build go1.9,!go1.18
 
 package goloader
 
@@ -22,8 +22,6 @@ func (linker *Linker) _addInlineTree(_func *_func, symbol *ObjSymbol) (err error
 	Func := symbol.Func
 	sym := linker.symMap[funcname]
 	if Func != nil && len(Func.InlTree) != 0 {
-		name := funcname + InlineTreeSuffix
-
 		for _func.npcdata <= _PCDATA_InlTreeIndex {
 			sym.Func.PCData = append(sym.Func.PCData, uint32(0))
 			_func.npcdata++
@@ -44,12 +42,14 @@ func (linker *Linker) _addInlineTree(_func *_func, symbol *ObjSymbol) (err error
 			inlinedcall := linker.initInlinedCall(inl, _func)
 			copy2Slice(bytes[k*InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedcall)), InlinedCallSize)
 		}
-		linker.stkmaps[name] = bytes
+		offset := len(linker.noptrdata)
+		linker.noptrdata = append(linker.noptrdata, bytes...)
+		bytearrayAlign(&linker.noptrdata, PtrSize)
 		for _func.nfuncdata <= _FUNCDATA_InlTree {
 			sym.Func.FuncData = append(sym.Func.FuncData, uintptr(0))
 			_func.nfuncdata++
 		}
-		sym.Func.FuncData[_FUNCDATA_InlTree] = (uintptr)(unsafe.Pointer(&(linker.stkmaps[name][0])))
+		sym.Func.FuncData[_FUNCDATA_InlTree] = (uintptr)(offset)
 	}
 	return err
 }

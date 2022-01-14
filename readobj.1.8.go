@@ -1,5 +1,5 @@
-// +build go1.8
-// +build !go1.16
+//go:build go1.8 && !go1.16
+// +build go1.8,!go1.16
 
 package goloader
 
@@ -96,7 +96,6 @@ func initLinker() *Linker {
 	reloc := &Linker{
 		symMap:       make(map[string]*Sym),
 		objsymbolMap: make(map[string]*ObjSymbol),
-		stkmaps:      make(map[string][]byte),
 		namemap:      make(map[string]int),
 	}
 	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)

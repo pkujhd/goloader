@@ -58,21 +58,19 @@ type Linker struct {
 	noptrbss     []byte
 	symMap       map[string]*Sym
 	objsymbolMap map[string]*ObjSymbol
-	stkmaps      map[string][]byte
 	namemap      map[string]int
 	filetab      []uint32
 	pclntable    []byte
 	pcfunc       []findfuncbucket
-	_func        []_func
+	_func        []*_func
 	initFuncs    []string
 	Arch         *sys.Arch
 }
 
 type CodeModule struct {
 	segment
-	Syms    map[string]uintptr
-	module  *moduledata
-	stkmaps map[string][]byte
+	Syms   map[string]uintptr
+	module *moduledata
 }
 
 type InlTreeNode struct {
@@ -304,6 +302,7 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
 
 	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOffset)
+	linker._func = append(linker._func, &_func)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
 		Func.PCData = append(Func.PCData, uint32(len(linker.pclntable)))
@@ -311,17 +310,19 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 	}
 
 	for _, name := range symbol.Func.FuncData {
-		if _, ok := linker.stkmaps[name]; !ok {
-			if gcobj, ok := linker.objsymbolMap[name]; ok {
-				linker.stkmaps[name] = gcobj.Data
+		if _, ok := linker.symMap[name]; !ok {
+			if _, ok := linker.objsymbolMap[name]; ok {
+				if _, err = linker.addSymbol(name); err != nil {
+					return err
+				}
 			} else if len(name) == 0 {
-				linker.stkmaps[name] = nil
+				//nothing todo
 			} else {
 				return errors.New("unknown gcobj:" + name)
 			}
 		}
-		if linker.stkmaps[name] != nil {
-			Func.FuncData = append(Func.FuncData, (uintptr)(unsafe.Pointer(&(linker.stkmaps[name][0]))))
+		if _, ok := linker.symMap[name]; ok {
+			Func.FuncData = append(Func.FuncData, (uintptr)(linker.symMap[name].Offset))
 		} else {
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
 		}
@@ -332,13 +333,6 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 	}
 
 	grow(&linker.pclntable, alignof(len(linker.pclntable), PtrSize))
-	linker._func = append(linker._func, _func)
-
-	for _, name := range symbol.Func.FuncData {
-		if _, ok := linker.objsymbolMap[name]; ok {
-			linker.addSymbol(name)
-		}
-	}
 	return
 }
 
@@ -616,7 +610,15 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 
 	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
 	if _func.nfuncdata > 0 {
-		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&Func.FuncData[0])), int(PtrSize*_func.nfuncdata))
+		funcdata := make([]uintptr, 0)
+		for _, v := range Func.FuncData {
+			if v != 0 {
+				funcdata = append(funcdata, v+module.noptrdata)
+			} else {
+				funcdata = append(funcdata, v)
+			}
+		}
+		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
 	}
 
 	return err
@@ -640,13 +642,12 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.ebss = module.bss + uintptr(segment.bssLen)
 	module.noptrbss = module.ebss
 	module.enoptrbss = module.noptrbss + uintptr(segment.noptrbssLen)
-	codeModule.stkmaps = linker.stkmaps // hold reference
 
 	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.minpc})
 	for index, _func := range linker._func {
 		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
 		module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: symbolMap[funcname]})
-		if err = linker.addFuncTab(module, &(linker._func[index]), symbolMap); err != nil {
+		if err = linker.addFuncTab(module, linker._func[index], symbolMap); err != nil {
 			return err
 		}
 	}
