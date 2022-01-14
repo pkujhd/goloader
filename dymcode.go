@@ -61,7 +61,6 @@ type Linker struct {
 	namemap      map[string]int
 	filetab      []uint32
 	pclntable    []byte
-	pcfunc       []findfuncbucket
 	_func        []*_func
 	initFuncs    []string
 	Arch         *sys.Arch
@@ -261,18 +260,6 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 }
 
 func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
-	x := codeLen
-	b := x / pcbucketsize
-	i := x % pcbucketsize / (pcbucketsize / nsub)
-	for lb := b - len(linker.pcfunc); lb >= 0; lb-- {
-		linker.pcfunc = append(linker.pcfunc, findfuncbucket{
-			idx: uint32(256 * len(linker.pcfunc))})
-	}
-	bucket := &linker.pcfunc[b]
-	if bucket.subbuckets[i] == 0 && b != 0 && i != 0 {
-		bucket.subbuckets[i] = byte(len(linker._func) - int(bucket.idx))
-	}
-
 	cuOffset := len(linker.filetab) - 1
 	for _, fileName := range symbol.Func.File {
 		if offset, ok := linker.namemap[fileName]; !ok {
@@ -648,9 +635,24 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	}
 	module.ftab = append(module.ftab, initfunctab(module.maxpc, uintptr(len(module.pclntable)), module.text))
 
-	length := len(linker.pcfunc) * FindFuncBucketSize
-	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&linker.pcfunc[0])), length)
+	funcbucket := []findfuncbucket{}
+	for _, _func := range linker._func {
+		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+		x := linker.symMap[funcname].Offset
+		b := x / pcbucketsize
+		i := x % pcbucketsize / (pcbucketsize / nsub)
+		for lb := b - len(funcbucket); lb >= 0; lb-- {
+			funcbucket = append(funcbucket, findfuncbucket{
+				idx: uint32(256 * len(funcbucket))})
+		}
+		if funcbucket[b].subbuckets[i] == 0 && b != 0 && i != 0 {
+			funcbucket[b].subbuckets[i] = byte(len(linker._func) - int(funcbucket[b].idx))
+		}
+	}
+	length := len(funcbucket) * FindFuncBucketSize
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcbucket[0])), length)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[len(module.pclntable)-length]))
+
 	if err = fillGCData(linker, codeModule, symbolMap); err != nil {
 		return err
 	}
