@@ -1,7 +1,16 @@
-// +build go1.8
-// +build !go1.10
+//go:build go1.8 && !go1.10
+// +build go1.8,!go1.10
 
 package goloader
+
+import (
+	"unsafe"
+)
+
+type functab struct {
+	entry   uintptr
+	funcoff uintptr
+}
 
 // PCDATA and FUNCDATA table indexes.
 //
@@ -80,4 +89,29 @@ func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int)
 		nfuncdata: int32(len(symbol.Func.FuncData)),
 	}
 	return fdata
+}
+
+func initfunctab(entry, funcoff, text uintptr) functab {
+	functabdata := functab{
+		entry:   uintptr(entry),
+		funcoff: uintptr(funcoff),
+	}
+	return functabdata
+}
+
+func setfuncentry(f *_func, entry uintptr, text uintptr) {
+	f.entry = entry
+}
+
+func addfuncdata(module *moduledata, Func *Func, _func *_func) {
+	funcdata := make([]uintptr, 0)
+	for _, v := range Func.FuncData {
+		if v != 0 {
+			funcdata = append(funcdata, v+module.noptrdata)
+		} else {
+			funcdata = append(funcdata, v)
+		}
+	}
+	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), PtrSize*int(_func.nfuncdata))
 }

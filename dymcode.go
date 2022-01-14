@@ -322,8 +322,8 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 				return errors.New("unknown gcobj:" + name)
 			}
 		}
-		if _, ok := linker.symMap[name]; ok {
-			Func.FuncData = append(Func.FuncData, (uintptr)(linker.symMap[name].Offset))
+		if sym, ok := linker.symMap[name]; ok {
+			Func.FuncData = append(Func.FuncData, (uintptr)(sym.Offset))
 		} else {
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
 		}
@@ -593,7 +593,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 
 func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map[string]uintptr) (err error) {
 	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
-	_func.entry = symbolMap[funcname]
+	setfuncentry(_func, symbolMap[funcname], module.text)
 	Func := linker.symMap[funcname].Func
 
 	if err = linker.addStackObject(funcname, symbolMap, module); err != nil {
@@ -609,17 +609,8 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(Func.PCData[0]))), Uint32Size*int(_func.npcdata))
 	}
 
-	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
 	if _func.nfuncdata > 0 {
-		funcdata := make([]uintptr, 0)
-		for _, v := range Func.FuncData {
-			if v != 0 {
-				funcdata = append(funcdata, v+module.noptrdata)
-			} else {
-				funcdata = append(funcdata, v)
-			}
-		}
-		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), int(PtrSize*_func.nfuncdata))
+		addfuncdata(module, Func, _func)
 	}
 
 	return err
@@ -643,16 +634,17 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.ebss = module.bss + uintptr(segment.bssLen)
 	module.noptrbss = module.ebss
 	module.enoptrbss = module.noptrbss + uintptr(segment.noptrbssLen)
+	module.end = uintptr(segment.codeBase + segment.offset)
 
-	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.minpc})
+	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker._func {
 		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
-		module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: symbolMap[funcname]})
+		module.ftab = append(module.ftab, initfunctab(symbolMap[funcname], uintptr(len(module.pclntable)), module.text))
 		if err = linker.addFuncTab(module, linker._func[index], symbolMap); err != nil {
 			return err
 		}
 	}
-	module.ftab = append(module.ftab, functab{funcoff: uintptr(len(module.pclntable)), entry: module.maxpc})
+	module.ftab = append(module.ftab, initfunctab(module.maxpc, uintptr(len(module.pclntable)), module.text))
 
 	length := len(linker.pcfunc) * FindFuncBucketSize
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&linker.pcfunc[0])), length)

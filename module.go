@@ -7,11 +7,6 @@ import (
 //go:linkname firstmoduledata runtime.firstmoduledata
 var firstmoduledata moduledata
 
-type functab struct {
-	entry   uintptr
-	funcoff uintptr
-}
-
 // findfunctab is an array of these structures.
 // Each bucket represents 4096 bytes of the text segment.
 // Each subbucket represents 256 bytes of the text segment.
