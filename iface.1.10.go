@@ -1,5 +1,5 @@
-// +build go1.10
-// +build !go1.18
+//go:build go1.10 && !go1.19
+// +build go1.10,!go1.19
 
 package goloader
 
