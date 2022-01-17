@@ -171,3 +171,17 @@ func addfuncdata(module *moduledata, Func *Func, _func *_func) {
 	}
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), Uint32Size*int(_func.nfuncdata))
 }
+
+func (linker *Linker) _buildModule(codeModule *CodeModule) {
+	module := codeModule.module
+	module.pcHeader = (*pcHeader)(unsafe.Pointer(&(module.pclntable[0])))
+	module.pcHeader.textStart = module.text
+	module.pcHeader.nfunc = len(module.ftab)
+	module.pcHeader.nfiles = (uint)(len(module.filetab))
+	module.funcnametab = module.pclntable
+	module.pctab = module.pclntable
+	module.cutab = linker.filetab
+	module.filetab = module.pclntable
+	module.gofunc = module.noptrdata
+	module.rodata = module.noptrdata
+}

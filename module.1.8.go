@@ -115,3 +115,7 @@ func addfuncdata(module *moduledata, Func *Func, _func *_func) {
 	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), PtrSize*int(_func.nfuncdata))
 }
+
+func (linker *Linker) _buildModule(codeModule *CodeModule) {
+	codeModule.module.filetab = linker.filetab
+}
