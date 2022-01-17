@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/objabi/symkind"
 )
 
 const (
@@ -79,7 +81,7 @@ func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uint
 		typeData := segment.codeByte[start:end]
 		nptr := decodetypePtrdata(linker, typeData) / int64(linker.Arch.PtrSize)
 		sval := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
-		if int(sym.Kind) == SBSS {
+		if int(sym.Kind) == symkind.SBSS {
 			sval = sval - int64(segment.dataLen+segment.noptrdataLen)
 		}
 		if decodetypeUsegcprog(linker, typeData) == 0 {
@@ -147,7 +149,7 @@ func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uin
 	w.Init(func(x byte) {
 		gcdata = append(gcdata, x)
 	})
-	for _, sym := range getSortSym(linker.symMap, SDATA) {
+	for _, sym := range getSortSym(linker.symMap, symkind.SDATA) {
 		err := genGCData(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
@@ -163,7 +165,7 @@ func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uin
 	w.Init(func(x byte) {
 		gcbss = append(gcbss, x)
 	})
-	for _, sym := range getSortSym(linker.symMap, SBSS) {
+	for _, sym := range getSortSym(linker.symMap, symkind.SBSS) {
 		err := genGCData(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err

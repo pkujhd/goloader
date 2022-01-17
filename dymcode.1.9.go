@@ -8,32 +8,6 @@ import (
 	"strings"
 )
 
-// copy from $GOROOT/src/cmd/internal/objabi/symkind.go
-const (
-	// An otherwise invalid zero value for the type
-	Sxxx = iota
-	// Executable instructions
-	STEXT
-	// Read only static data
-	SRODATA
-	// Static data that does not contain any pointers
-	SNOPTRDATA
-	// Static data
-	SDATA
-	// Statically data that is initially all 0s
-	SBSS
-	// Statically data that is initially all 0s and does not contain pointers
-	SNOPTRBSS
-	// Thread-local data that is initally all 0s
-	STLSBSS
-	// Debugging data
-	SDWARFINFO
-	SDWARFRANGE
-	SDWARFLOC
-	SDWARFMISC
-	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
-)
-
 func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
 	return nil
 }

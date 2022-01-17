@@ -7,47 +7,6 @@ import (
 	"unsafe"
 )
 
-// copy from $GOROOT/src/cmd/internal/objabi/symkind.go
-const (
-	// An otherwise invalid zero value for the type
-	Sxxx = iota
-	// Executable instructions
-	STEXT
-	// Read only static data
-	SRODATA
-	// Static data that does not contain any pointers
-	SNOPTRDATA
-	// Static data
-	SDATA
-	// Statically data that is initially all 0s
-	SBSS
-	// Statically data that is initially all 0s and does not contain pointers
-	SNOPTRBSS
-	// Thread-local data that is initially all 0s
-	STLSBSS
-	// Debugging data
-	SDWARFCUINFO
-	SDWARFCONST
-	SDWARFFCN
-	SDWARFABSFCN
-	SDWARFTYPE
-	SDWARFVAR
-	SDWARFRANGE
-	SDWARFLOC
-	SDWARFLINES
-	// ABI alias. An ABI alias symbol is an empty symbol with a
-	// single relocation with 0 size that references the native
-	// function implementation symbol.
-	//
-	// TODO(austin): Remove this and all uses once the compiler
-	// generates real ABI wrappers rather than symbol aliases.
-	SABIALIAS
-	// Coverage instrumentation counter for libfuzzer.
-	SLIBFUZZER_EXTRA_COUNTER
-	// Update cmd/link/internal/sym/AbiSymKindToSymKind for new SymKind values.
-
-)
-
 func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
 	return linker._addStackObject(funcname, symbolMap, module)
 }

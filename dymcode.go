@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/pkujhd/goloader/objabi/reloctype"
+	"github.com/pkujhd/goloader/objabi/symkind"
 )
 
 type Func struct {
@@ -119,13 +120,13 @@ func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
 	for _, objSym := range linker.objsymbolMap {
-		if objSym.Kind == STEXT && objSym.DupOK == false {
+		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
 				return err
 			}
 		}
-		if objSym.Kind == SNOPTRDATA {
+		if objSym.Kind == symkind.SNOPTRDATA {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
 				return err
@@ -135,15 +136,15 @@ func (linker *Linker) addSymbols() error {
 	for _, sym := range linker.symMap {
 		offset := 0
 		switch sym.Kind {
-		case SNOPTRDATA, SRODATA:
+		case symkind.SNOPTRDATA, symkind.SRODATA:
 			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPerfix) {
 				//nothing todo
 			} else {
 				offset += len(linker.data)
 			}
-		case SBSS:
+		case symkind.SBSS:
 			offset += len(linker.data) + len(linker.noptrdata)
-		case SNOPTRBSS:
+		case symkind.SNOPTRBSS:
 			offset += len(linker.data) + len(linker.noptrdata) + len(linker.bss)
 		}
 		sym.Offset += offset
@@ -165,7 +166,7 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 	linker.symMap[symbol.Name] = symbol
 
 	switch symbol.Kind {
-	case STEXT:
+	case symkind.STEXT:
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
 		bytearrayAlign(&linker.code, PtrSize)
@@ -173,10 +174,10 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
 		}
-	case SDATA:
+	case symkind.SDATA:
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
-	case SNOPTRDATA, SRODATA:
+	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants
 		//in a separate segment and not unload when module unload.
 		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPerfix) {
@@ -190,10 +191,10 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
 		}
-	case SBSS:
+	case symkind.SBSS:
 		symbol.Offset = len(linker.bss)
 		linker.bss = append(linker.bss, objsym.Data...)
-	case SNOPTRBSS:
+	case symkind.SNOPTRBSS:
 		symbol.Offset = len(linker.noptrbss)
 		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
 	default:
@@ -231,7 +232,7 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 					reloc.Sym = linker.symMap[reloc.Sym.Name]
 				} else {
 					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
-					reloc.Sym.Kind = SNOPTRDATA
+					reloc.Sym.Kind = symkind.SNOPTRDATA
 					reloc.Sym.Offset = len(linker.noptrdata)
 					//name memory layout
 					//name { tagLen(byte), len(uint16), str*}
@@ -250,7 +251,7 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 					if exist {
 						reloc.Sym = linker.symMap[reloc.Sym.Name]
 					} else {
-						reloc.Sym.Kind = SNOPTRDATA
+						reloc.Sym.Kind = symkind.SNOPTRDATA
 						reloc.Sym.Offset = len(linker.noptrdata)
 						linker.noptrdata = append(linker.noptrdata, bytes...)
 					}
@@ -355,7 +356,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else if sym.Name == TLSNAME {
 			//nothing todo
-		} else if sym.Kind == STEXT {
+		} else if sym.Kind == symkind.STEXT {
 			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
 		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
@@ -535,7 +536,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 			sym := loc.Sym
 			relocByte := segment.codeByte[segment.codeLen:]
 			addrBase := segment.dataBase
-			if symbol.Kind == STEXT {
+			if symbol.Kind == symkind.STEXT {
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
@@ -558,7 +559,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
 					linker.relocteCALLARM(addr, loc, segment)
 				case reloctype.R_ADDRARM64:
-					if symbol.Kind != STEXT {
+					if symbol.Kind != symkind.STEXT {
 						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
 					}
 					linker.relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
@@ -568,7 +569,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				case reloctype.R_CALLIND:
 					//nothing todo
 				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF, reloctype.R_METHODOFF:
-					if symbol.Kind == STEXT {
+					if symbol.Kind == symkind.STEXT {
 						err = fmt.Errorf("impossible!Sym:%s locate on code segment!\n", sym.Name)
 					}
 					offset := int(addr) - segment.codeBase + loc.Add
