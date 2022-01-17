@@ -18,7 +18,7 @@ func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
 	return (*[]stackObjectRecord)(unsafe.Pointer(&slice))
 }
 
-func (linker *Linker) _addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
+func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
 	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_StackObjects &&
 		Func.FuncData[_FUNCDATA_StackObjects] != 0 {

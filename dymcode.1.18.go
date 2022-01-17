@@ -7,10 +7,6 @@ import (
 	"unsafe"
 )
 
-func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
-	return linker._addStackObject(funcname, symbolMap, module)
-}
-
 func (linker *Linker) addDeferReturn(_func *_func) (err error) {
 	return linker._addDeferReturn(_func)
 }

@@ -7,10 +7,6 @@ import (
 	"cmd/objfile/goobj"
 )
 
-func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
-	return nil
-}
-
 func (linker *Linker) addDeferReturn(_func *_func) (err error) {
 	return nil
 }
