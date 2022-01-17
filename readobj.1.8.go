@@ -7,6 +7,8 @@ import (
 	"cmd/objfile/goobj"
 	"fmt"
 	"io"
+
+	"github.com/pkujhd/goloader/objabi/magicnumber"
 )
 
 type readAtSeeker struct {
@@ -93,6 +95,7 @@ func initLinker() *Linker {
 		objsymbolMap: make(map[string]*ObjSymbol),
 		namemap:      make(map[string]int),
 	}
-	reloc.pclntable = append(reloc.pclntable, x86moduleHead...)
+	reloc.pclntable = append(reloc.pclntable, magicnumber.ModuleHeadx86...)
+	reloc.pclntable[len(magicnumber.ModuleHeadx86)-1] = PtrSize
 	return reloc
 }

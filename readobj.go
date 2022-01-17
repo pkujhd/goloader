@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/pkujhd/goloader/objabi/magicnumber"
 )
 
 type Pkg struct {
@@ -40,8 +42,10 @@ func readObj(pkg *Pkg, linker *Linker) error {
 	}
 	switch linker.Arch.Name {
 	case sys.ArchARM.Name, sys.ArchARM64.Name:
-		copy(linker.pclntable, armmoduleHead)
+		copy(linker.pclntable, magicnumber.ModuleHeadarm)
+		linker.pclntable[len(magicnumber.ModuleHeadarm)-1] = PtrSize
 	}
+
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
 			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, pkg.PkgPath, -1)

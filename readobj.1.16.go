@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/objabi/magicnumber"
 )
 
 func initLinker() *Linker {
@@ -19,8 +21,9 @@ func initLinker() *Linker {
 		namemap:      make(map[string]int),
 	}
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
-	copy(head, x86moduleHead)
+	copy(head, magicnumber.ModuleHeadx86)
 	reloc.pclntable = append(reloc.pclntable, head...)
+	reloc.pclntable[len(magicnumber.ModuleHeadx86)-1] = PtrSize
 	return reloc
 }
 
