@@ -7,10 +7,6 @@ import (
 	"cmd/objfile/goobj"
 )
 
-func (linker *Linker) addDeferReturn(_func *_func) (err error) {
-	return nil
-}
-
 type inlinedCall struct{}
 
 func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {

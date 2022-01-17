@@ -7,10 +7,6 @@ import (
 	"unsafe"
 )
 
-func (linker *Linker) addDeferReturn(_func *_func) (err error) {
-	return linker._addDeferReturn(_func)
-}
-
 // inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
 type inlinedCall struct {
 	parent   int16  // index of parent in the inltree, or < 0

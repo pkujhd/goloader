@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-func (linker *Linker) _addDeferReturn(_func *_func) (err error) {
+func (linker *Linker) addDeferReturn(_func *_func) (err error) {
 	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
 	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {

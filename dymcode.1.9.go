@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-func (linker *Linker) addDeferReturn(_func *_func) (err error) {
-	return nil
-}
-
 // inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
 type inlinedCall struct {
 	parent int32 // index of parent in the inltree, or < 0
