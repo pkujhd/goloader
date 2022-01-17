@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/objabi/reloctype"
 )
 
 type Func struct {
@@ -216,11 +218,11 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 				}
 			}
 		} else {
-			if reloc.Type == R_TLS_LE {
+			if reloc.Type == reloctype.R_TLS_LE {
 				reloc.Sym.Name = TLSNAME
 				reloc.Sym.Offset = loc.Offset
 			}
-			if reloc.Type == R_CALLIND {
+			if reloc.Type == reloctype.R_CALLIND {
 				reloc.Sym.Offset = 0
 			}
 			_, exist := linker.symMap[reloc.Sym.Name]
@@ -493,19 +495,19 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc Reloc, segment *segment, r
 func (linker *Linker) relocteCALLARM(addr uintptr, loc Reloc, segment *segment) {
 	byteorder := linker.Arch.ByteOrder
 	add := loc.Add
-	if loc.Type == R_CALLARM {
+	if loc.Type == reloctype.R_CALLARM {
 		add = int(signext24(int64(loc.Add&0xFFFFFF)) * 4)
 	}
 	offset := (int(addr) + add - (segment.codeBase + loc.Offset)) / 4
 	if offset > 0x7FFFFF || offset < -0x800000 {
 		segment.offset = alignof(segment.offset, PtrSize)
 		off := uint32(segment.offset-loc.Offset) / 4
-		if loc.Type == R_CALLARM {
+		if loc.Type == reloctype.R_CALLARM {
 			add = int(signext24(int64(loc.Add&0xFFFFFF)+2) * 4)
 			off = uint32(segment.offset-loc.Offset-8) / 4
 		}
 		putUint24(segment.codeByte[loc.Offset:], off)
-		if loc.Type == R_CALLARM64 {
+		if loc.Type == reloctype.R_CALLARM64 {
 			copy(segment.codeByte[segment.offset:], arm64code)
 			segment.offset += len(arm64code)
 		} else {
@@ -515,7 +517,7 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc Reloc, segment *segment) 
 		putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(int(addr)+add))
 	} else {
 		val := byteorder.Uint32(segment.codeByte[loc.Offset:])
-		if loc.Type == R_CALLARM {
+		if loc.Type == reloctype.R_CALLARM {
 			val |= uint32(offset) & 0x00FFFFFF
 		} else {
 			val |= uint32(offset) & 0x03FFFFFF
@@ -544,28 +546,28 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 			}
 			if addr != InvalidHandleValue {
 				switch loc.Type {
-				case R_TLS_LE:
+				case reloctype.R_TLS_LE:
 					if _, ok := symbolMap[TLSNAME]; !ok {
 						regTLS(symbolMap, segment.codeByte[symbol.Offset:loc.Offset])
 					}
 					byteorder.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
-				case R_CALL:
+				case reloctype.R_CALL:
 					linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
-				case R_PCREL:
+				case reloctype.R_PCREL:
 					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
-				case R_CALLARM, R_CALLARM64:
+				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
 					linker.relocteCALLARM(addr, loc, segment)
-				case R_ADDRARM64:
+				case reloctype.R_ADDRARM64:
 					if symbol.Kind != STEXT {
 						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
 					}
 					linker.relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
-				case R_ADDR, R_WEAKADDR:
+				case reloctype.R_ADDR, reloctype.R_WEAKADDR:
 					address := uintptr(int(addr) + loc.Add)
 					putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
-				case R_CALLIND:
+				case reloctype.R_CALLIND:
 					//nothing todo
-				case R_ADDROFF, R_WEAKADDROFF, R_METHODOFF:
+				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF, reloctype.R_METHODOFF:
 					if symbol.Kind == STEXT {
 						err = fmt.Errorf("impossible!Sym:%s locate on code segment!\n", sym.Name)
 					}
@@ -574,13 +576,13 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
 					}
 					byteorder.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
-				case R_USETYPE:
+				case reloctype.R_USETYPE:
 					//nothing todo
-				case R_USEIFACE:
+				case reloctype.R_USEIFACE:
 					//nothing todo
-				case R_USEIFACEMETHOD:
+				case reloctype.R_USEIFACEMETHOD:
 					//nothing todo
-				case R_ADDRCUOFF:
+				case reloctype.R_ADDRCUOFF:
 					//nothing todo
 				default:
 					err = fmt.Errorf("unknown reloc type:%d sym:%s", loc.Type, sym.Name)
