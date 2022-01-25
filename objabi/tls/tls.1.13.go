@@ -47,6 +47,6 @@ func GetTLSOffset(arch *sys.Arch, ptrsize int) uintptr {
 			panic(fmt.Sprintf("unknown thread-local storage offset for darwin/%s", arch.Name))
 		}
 	default:
-		panic(fmt.Sprintf("undealed regTLS on os:%s", runtime.GOOS))
+		panic(fmt.Sprintf("undealed GetTLSOffset on os:%s", runtime.GOOS))
 	}
 }
