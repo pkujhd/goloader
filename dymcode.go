@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
+	"github.com/pkujhd/goloader/objabi/tls"
 )
 
 type Func struct {
@@ -549,7 +550,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				switch loc.Type {
 				case reloctype.R_TLS_LE:
 					if _, ok := symbolMap[TLSNAME]; !ok {
-						regTLS(symbolMap, segment.codeByte[symbol.Offset:loc.Offset])
+						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 					}
 					byteorder.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
 				case reloctype.R_CALL:

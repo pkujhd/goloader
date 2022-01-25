@@ -77,33 +77,6 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 	return nil
 }
 
-func regTLS(symPtr map[string]uintptr, oper []byte) {
-	//FUNCTION HEADER
-	//x86/amd64
-	//asm:		MOVQ (TLS), CX
-	//bytes:	0x64488b0c2500000000	or	0x65488b0c2500000000
-	//FS(0x64) or GS(0x65) segment register, on golang 1.8, FS/GS all generate.
-	//asm:		MOVQ OFF(IP), CX
-	//bytes:	0x488b0d00000000
-	//MOVQ OFF(IP), CX will be generated when goloader is a c-typed dynamic lib(only on linux/amd64)
-	funcptr := getFunctionPtr(regTLS)
-	for i := 0; i < len(oper); i++ {
-		if *(*byte)(adduintptr(funcptr, i)) != oper[i] {
-			//function header modified
-			if *(*uint32)(unsafe.Pointer(funcptr))&0x00FFFFFF == 0x000d8b48 {
-				ptr := *(*uint32)(adduintptr(funcptr, 3))
-				ptr = *(*uint32)(adduintptr(funcptr, int(ptr)+7))
-				symPtr[TLSNAME] = uintptr(ptr)
-				return
-			} else {
-				panic("function header modified, can not relocate TLS")
-			}
-		}
-	}
-	tlsptr := *(*uint32)(adduintptr(funcptr, len(oper)))
-	symPtr[TLSNAME] = uintptr(tlsptr)
-}
-
 func getFunctionPtr(function interface{}) uintptr {
 	return *(*uintptr)((*emptyInterface)(unsafe.Pointer(&function)).word)
 }
