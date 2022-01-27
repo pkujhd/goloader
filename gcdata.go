@@ -75,15 +75,15 @@ func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uint
 		return nil
 	}
 	typeName := linker.objsymbolMap[sym.Name].Type
+	sval := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
+	if int(sym.Kind) == symkind.SBSS {
+		sval = sval - int64(segment.dataLen+segment.noptrdataLen)
+	}
 	if _, ok := linker.objsymbolMap[typeName]; ok {
 		start := int(symbolMap[typeName]) - (segment.codeBase)
 		end := start + len(linker.objsymbolMap[typeName].Data)
 		typeData := segment.codeByte[start:end]
 		nptr := decodetypePtrdata(linker, typeData) / int64(linker.Arch.PtrSize)
-		sval := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
-		if int(sym.Kind) == symkind.SBSS {
-			sval = sval - int64(segment.dataLen+segment.noptrdataLen)
-		}
 		if decodetypeUsegcprog(linker, typeData) == 0 {
 			// Copy pointers from mask into program.
 			mask := decodetypeGcmask(linker, linker.objsymbolMap[typeName])
@@ -101,13 +101,10 @@ func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uint
 		//!IMPORTANT
 		//These codes are written without understanding the mechanism of golang and need to be reviewed
 		typ := (*_type)(adduintptr(ptr, 0))
-		var typeData []byte
-		append2Slice(&typeData, ptr, int(unsafe.Sizeof(_type{})))
-		nptr := decodetypePtrdata(linker, typeData) / int64(linker.Arch.PtrSize)
-		sval := int64(typ.ptrToThis)
+		nptr := int64(typ.ptrdata) / int64(linker.Arch.PtrSize)
 		if typ.kind&KindGCProg == 0 {
-			mask := make([]byte, (typ.ptrdata/PtrSize+7)/8)
-			append2Slice(&mask, uintptr(unsafe.Pointer(typ.gcdata)), int(typ.ptrdata/PtrSize+7)/8)
+			var mask []byte
+			append2Slice(&mask, uintptr(unsafe.Pointer(typ.gcdata)), int(nptr+7)/8)
 			for i := int64(0); i < nptr; i++ {
 				if (mask[i/8]>>uint(i%8))&1 != 0 {
 					w.Ptr(sval/int64(linker.Arch.PtrSize) + i)
@@ -144,10 +141,9 @@ func getSortSym(symMap map[string]*Sym, kind int) []*Sym {
 
 func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr) error {
 	module := codeModule.module
-	gcdata := codeModule.gcdata
 	w := gcprog.Writer{}
 	w.Init(func(x byte) {
-		gcdata = append(gcdata, x)
+		codeModule.gcdata = append(codeModule.gcdata, x)
 	})
 	for _, sym := range getSortSym(linker.symMap, symkind.SDATA) {
 		err := genGCData(linker, codeModule, symbolMap, &w, sym)
@@ -157,14 +153,14 @@ func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uin
 	}
 	w.ZeroUntil(int64(module.edata-module.data) / int64(linker.Arch.PtrSize))
 	w.End()
-	module.gcdata = (*sliceHeader)(unsafe.Pointer(&gcdata)).Data
+	module.gcdata = (*sliceHeader)(unsafe.Pointer(&codeModule.gcdata)).Data
 	module.gcdatamask = progToPointerMask((*byte)(adduintptr(module.gcdata, 0)), module.edata-module.data)
 
-	gcbss := codeModule.gcbss
 	w = gcprog.Writer{}
 	w.Init(func(x byte) {
-		gcbss = append(gcbss, x)
+		codeModule.gcbss = append(codeModule.gcbss, x)
 	})
+
 	for _, sym := range getSortSym(linker.symMap, symkind.SBSS) {
 		err := genGCData(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
@@ -173,7 +169,7 @@ func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uin
 	}
 	w.ZeroUntil(int64(module.ebss-module.bss) / int64(linker.Arch.PtrSize))
 	w.End()
-	module.gcbss = (*sliceHeader)(unsafe.Pointer(&gcbss)).Data
+	module.gcbss = (*sliceHeader)(unsafe.Pointer(&codeModule.gcbss)).Data
 	module.gcbssmask = progToPointerMask((*byte)(adduintptr(module.gcbss, 0)), module.ebss-module.bss)
 	return nil
 }
