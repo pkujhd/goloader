@@ -83,6 +83,9 @@ func gostringnocopy(str *byte) string
 //go:linkname moduledataverify1 runtime.moduledataverify1
 func moduledataverify1(datap *moduledata)
 
+//go:linkname modulesinit runtime.modulesinit
+func modulesinit()
+
 //go:linkname progToPointerMask runtime.progToPointerMask
 func progToPointerMask(prog *byte, size uintptr) bitvector
 

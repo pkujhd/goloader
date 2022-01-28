@@ -689,6 +689,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	modulesLock.Unlock()
 	additabs(codeModule.module)
 	moduledataverify1(codeModule.module)
+	modulesinit()
 
 	return err
 }
@@ -743,5 +744,6 @@ func (cm *CodeModule) Unload() {
 	modulesLock.Lock()
 	removeModule(cm.module)
 	modulesLock.Unlock()
+	modulesinit()
 	Munmap(cm.codeByte)
 }
