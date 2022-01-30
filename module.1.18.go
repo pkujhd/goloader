@@ -7,11 +7,6 @@ import (
 	"unsafe"
 )
 
-type functab struct {
-	entry   uint32
-	funcoff uint32
-}
-
 // PCDATA and FUNCDATA table indexes.
 //
 // See funcdata.h and ../cmd/internal/objabi/funcdata.go.
@@ -148,28 +143,8 @@ func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int)
 	return fdata
 }
 
-func initfunctab(entry, funcoff, text uintptr) functab {
-	functabdata := functab{
-		entry:   uint32(entry - text),
-		funcoff: uint32(funcoff),
-	}
-	return functabdata
-}
-
 func setfuncentry(f *_func, entry uintptr, text uintptr) {
 	f.entryoff = uint32(entry - text)
-}
-
-func addfuncdata(module *moduledata, Func *Func, _func *_func) {
-	funcdata := make([]uint32, 0)
-	for _, v := range Func.FuncData {
-		if v != 0 {
-			funcdata = append(funcdata, (uint32)(v))
-		} else {
-			funcdata = append(funcdata, ^uint32(0))
-		}
-	}
-	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), Uint32Size*int(_func.nfuncdata))
 }
 
 func (linker *Linker) _buildModule(codeModule *CodeModule) {
