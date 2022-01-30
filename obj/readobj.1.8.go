@@ -1,14 +1,12 @@
 //go:build go1.8 && !go1.16
 // +build go1.8,!go1.16
 
-package goloader
+package obj
 
 import (
 	"cmd/objfile/goobj"
 	"fmt"
 	"io"
-
-	"github.com/pkujhd/goloader/objabi/magicnumber"
 )
 
 type readAtSeeker struct {
@@ -24,13 +22,13 @@ func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
 	return
 }
 
-func (pkg *Pkg) symbols() error {
-	obj, err := goobj.Parse(pkg.f, pkg.PkgPath)
+func (pkg *Pkg) Symbols() error {
+	obj, err := goobj.Parse(pkg.F, pkg.PkgPath)
 	if err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
 	pkg.Arch = obj.Arch
-	fd := readAtSeeker{ReadSeeker: pkg.f}
+	fd := readAtSeeker{ReadSeeker: pkg.F}
 	for _, sym := range obj.Syms {
 		symbol := &ObjSymbol{}
 		symbol.Name = sym.Name
@@ -87,15 +85,4 @@ func (pkg *Pkg) symbols() error {
 		pkg.Syms[sym.Name] = symbol
 	}
 	return nil
-}
-
-func initLinker() *Linker {
-	reloc := &Linker{
-		symMap:       make(map[string]*Sym),
-		objsymbolMap: make(map[string]*ObjSymbol),
-		namemap:      make(map[string]int),
-	}
-	reloc.pclntable = append(reloc.pclntable, magicnumber.ModuleHeadx86...)
-	reloc.pclntable[len(magicnumber.ModuleHeadx86)-1] = PtrSize
-	return reloc
 }

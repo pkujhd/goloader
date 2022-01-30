@@ -6,6 +6,7 @@ package goloader
 import (
 	"unsafe"
 
+	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/dataindex"
 )
 
@@ -19,7 +20,7 @@ func findFileTab(linker *Linker, filename string) int32 {
 	return -1
 }
 
-func (linker *Linker) _addInlineTree(_func *_func, symbol *ObjSymbol) (err error) {
+func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err error) {
 	funcname := symbol.Name
 	Func := symbol.Func
 	sym := linker.symMap[funcname]

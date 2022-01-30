@@ -4,8 +4,7 @@
 package goloader
 
 import (
-	"cmd/objfile/goobj"
-	"strings"
+	"github.com/pkujhd/goloader/obj"
 )
 
 // inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
@@ -16,30 +15,10 @@ type inlinedCall struct {
 	func_  int32 // offset into pclntab for name of called function
 }
 
-func (linker *Linker) initInlinedCall(inl InlTreeNode, _func *_func) inlinedCall {
+func (linker *Linker) initInlinedCall(inl obj.InlTreeNode, _func *_func) inlinedCall {
 	return inlinedCall{
 		parent: int32(inl.Parent),
 		file:   findFileTab(linker, inl.File),
 		line:   int32(inl.Line),
 		func_:  int32(linker.namemap[inl.Func])}
-}
-
-func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
-	for _, inl := range objFunc.InlTree {
-		inline := InlTreeNode{
-			Parent:   int64(inl.Parent),
-			File:     inl.File,
-			Line:     int64(inl.Line),
-			Func:     inl.Func.Name,
-			ParentPC: 0,
-		}
-		inline.Func = strings.Replace(inline.Func, EmptyPkgPath, pkgpath, -1)
-		Func.InlTree = append(Func.InlTree, inline)
-	}
-	Func.PCInline, err = fd.BytesAt(objFunc.PCInline.Offset, objFunc.PCInline.Size)
-	return err
-}
-
-func (linker *Linker) addInlineTree(_func *_func, objsym *ObjSymbol) (err error) {
-	return linker._addInlineTree(_func, objsym)
 }

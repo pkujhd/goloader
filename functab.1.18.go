@@ -3,7 +3,11 @@
 
 package goloader
 
-import "unsafe"
+import (
+	"unsafe"
+
+	"github.com/pkujhd/goloader/obj"
+)
 
 type functab struct {
 	entry   uint32
@@ -18,7 +22,7 @@ func initfunctab(entry, funcoff, text uintptr) functab {
 	return functabdata
 }
 
-func addfuncdata(module *moduledata, Func *Func, _func *_func) {
+func addfuncdata(module *moduledata, Func *obj.Func, _func *_func) {
 	funcdata := make([]uint32, 0)
 	for _, v := range Func.FuncData {
 		if v != 0 {

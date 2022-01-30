@@ -6,6 +6,7 @@ import (
 	"sort"
 	"unsafe"
 
+	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/symkind"
 )
 
@@ -13,7 +14,7 @@ const (
 	KindGCProg = 1 << 6
 )
 
-func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *Sym) error {
+func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
 	segment := &codeModule.segment
 	//if symbol is in loader, ignore generate gc data
 	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.sumDataLen) {
@@ -48,8 +49,8 @@ func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uint
 	return nil
 }
 
-func getSortSym(symMap map[string]*Sym, kind int) []*Sym {
-	syms := make(map[int]*Sym)
+func getSortSym(symMap map[string]*obj.Sym, kind int) []*obj.Sym {
+	syms := make(map[int]*obj.Sym)
 	keys := []int{}
 	for _, sym := range symMap {
 		if sym.Kind == kind {
@@ -58,7 +59,7 @@ func getSortSym(symMap map[string]*Sym, kind int) []*Sym {
 		}
 	}
 	sort.Ints(keys)
-	symbols := []*Sym{}
+	symbols := []*obj.Sym{}
 	for _, key := range keys {
 		symbols = append(symbols, syms[key])
 	}

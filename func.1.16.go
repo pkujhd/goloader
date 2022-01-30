@@ -3,6 +3,8 @@
 
 package goloader
 
+import "github.com/pkujhd/goloader/obj"
+
 // A funcID identifies particular functions that need to be treated
 // specially by the runtime.
 // Note that in some situations involving plugins, there may be multiple
@@ -31,7 +33,7 @@ type _func struct {
 	nfuncdata uint8   // must be last
 }
 
-func initfunc(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
+func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
 		entry:       uintptr(0),
 		nameoff:     int32(nameOff),

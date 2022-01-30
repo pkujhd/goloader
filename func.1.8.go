@@ -3,6 +3,8 @@
 
 package goloader
 
+import "github.com/pkujhd/goloader/obj"
+
 type _func struct {
 	entry   uintptr // start pc
 	nameoff int32   // function name
@@ -17,7 +19,7 @@ type _func struct {
 	nfuncdata int32
 }
 
-func initfunc(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
+func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
 		entry:     uintptr(0),
 		nameoff:   int32(nameOff),

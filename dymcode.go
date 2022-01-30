@@ -10,33 +10,11 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"github.com/pkujhd/goloader/objabi/tls"
 )
-
-type Func struct {
-	PCData   []uint32
-	FuncData []uintptr
-}
-
-// copy from $GOROOT/src/cmd/internal/goobj/read.go type Sym struct
-type Sym struct {
-	Name   string
-	Kind   int
-	Offset int
-	Func   *Func
-	Reloc  []Reloc
-}
-
-// copy from $GOROOT/src/cmd/internal/goobj/read.go type Reloc struct
-type Reloc struct {
-	Offset int
-	Sym    *Sym
-	Size   int
-	Type   int
-	Add    int
-}
 
 // ourself defined struct
 // code segment
@@ -60,8 +38,8 @@ type Linker struct {
 	noptrdata    []byte
 	bss          []byte
 	noptrbss     []byte
-	symMap       map[string]*Sym
-	objsymbolMap map[string]*ObjSymbol
+	symMap       map[string]*obj.Sym
+	objsymbolMap map[string]*obj.ObjSymbol
 	namemap      map[string]int
 	filetab      []uint32
 	pclntable    []byte
@@ -76,40 +54,6 @@ type CodeModule struct {
 	module *moduledata
 	gcdata []byte
 	gcbss  []byte
-}
-
-type InlTreeNode struct {
-	Parent   int64
-	File     string
-	Line     int64
-	Func     string
-	ParentPC int64
-}
-
-type FuncInfo struct {
-	Args     uint32
-	Locals   uint32
-	FuncID   uint8
-	FuncFlag uint8
-	PCSP     []byte
-	PCFile   []byte
-	PCLine   []byte
-	PCInline []byte
-	PCData   [][]byte
-	File     []string
-	FuncData []string
-	InlTree  []InlTreeNode
-}
-
-type ObjSymbol struct {
-	Name  string
-	Kind  int    // kind of symbol
-	DupOK bool   // are duplicate definitions okay?
-	Size  int64  // size of corresponding data
-	Data  []byte // memory image of symbol
-	Type  string
-	Reloc []Reloc
-	Func  *FuncInfo // additional data for functions
 }
 
 var (
@@ -158,12 +102,12 @@ func (linker *Linker) addSymbols() error {
 	return nil
 }
 
-func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
+func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	if symbol, ok := linker.symMap[name]; ok {
 		return symbol, nil
 	}
 	objsym := linker.objsymbolMap[name]
-	symbol = &Sym{Name: objsym.Name, Kind: objsym.Kind}
+	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind}
 	linker.symMap[symbol.Name] = symbol
 
 	switch symbol.Kind {
@@ -171,7 +115,7 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
 		bytearrayAlign(&linker.code, PtrSize)
-		symbol.Func = &Func{}
+		symbol.Func = &obj.Func{}
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
 		}
@@ -270,14 +214,14 @@ func (linker *Linker) addSymbol(name string) (symbol *Sym, err error) {
 	if objsym.Type != EmptyString {
 		if _, ok := linker.symMap[objsym.Type]; !ok {
 			if _, ok := linker.objsymbolMap[objsym.Type]; !ok {
-				linker.symMap[objsym.Type] = &Sym{Name: objsym.Type, Offset: InvalidOffset}
+				linker.symMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
 			}
 		}
 	}
 	return symbol, nil
 }
 
-func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
+func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err error) {
 	cuOffset := len(linker.filetab) - 1
 	for _, fileName := range symbol.Func.File {
 		if offset, ok := linker.namemap[fileName]; !ok {
@@ -386,7 +330,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 	return symbolMap, err
 }
 
-func (linker *Linker) relocateADRP(mCode []byte, loc Reloc, segment *segment, symAddr uintptr) {
+func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) {
 	byteorder := linker.Arch.ByteOrder
 	offset := uint64(int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF))
 	//overflow
@@ -440,7 +384,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc Reloc, segment *segment, sy
 	}
 }
 
-func (linker *Linker) relocateCALL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, addrBase int) {
+func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) {
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
@@ -452,7 +396,7 @@ func (linker *Linker) relocateCALL(addr uintptr, loc Reloc, segment *segment, re
 	byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 }
 
-func (linker *Linker) relocatePCREL(addr uintptr, loc Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
+func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
@@ -494,7 +438,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc Reloc, segment *segment, r
 	return err
 }
 
-func (linker *Linker) relocteCALLARM(addr uintptr, loc Reloc, segment *segment) {
+func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segment) {
 	byteorder := linker.Arch.ByteOrder
 	add := loc.Add
 	if loc.Type == reloctype.R_CALLARM {

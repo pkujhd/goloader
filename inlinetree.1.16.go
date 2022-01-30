@@ -3,6 +3,8 @@
 
 package goloader
 
+import "github.com/pkujhd/goloader/obj"
+
 // inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
 type inlinedCall struct {
 	parent   int16  // index of parent in the inltree, or < 0
@@ -14,7 +16,7 @@ type inlinedCall struct {
 	parentPc int32 // position of an instruction whose source position is the call site (offset from entry)
 }
 
-func (linker *Linker) initInlinedCall(inl InlTreeNode, _func *_func) inlinedCall {
+func (linker *Linker) initInlinedCall(inl obj.InlTreeNode, _func *_func) inlinedCall {
 	inlname := inl.Func
 	return inlinedCall{
 		parent:   int16(inl.Parent),
@@ -23,8 +25,4 @@ func (linker *Linker) initInlinedCall(inl InlTreeNode, _func *_func) inlinedCall
 		line:     int32(inl.Line),
 		func_:    int32(linker.namemap[inlname]),
 		parentPc: int32(inl.ParentPC)}
-}
-
-func (linker *Linker) addInlineTree(_func *_func, objsym *ObjSymbol) (err error) {
-	return linker._addInlineTree(_func, objsym)
 }

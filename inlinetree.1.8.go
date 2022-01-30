@@ -3,16 +3,10 @@
 
 package goloader
 
-import (
-	"cmd/objfile/goobj"
-)
+import "github.com/pkujhd/goloader/obj"
 
 type inlinedCall struct{}
 
-func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
-	return nil
-}
-
-func (linker *Linker) addInlineTree(_func *_func, objsym *ObjSymbol) (err error) {
+func (linker *Linker) addInlineTree(_func *_func, objsym *obj.ObjSymbol) (err error) {
 	return nil
 }

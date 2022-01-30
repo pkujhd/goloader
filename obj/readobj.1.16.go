@@ -1,7 +1,7 @@
 //go:build go1.16 && !go1.19
 // +build go1.16,!go1.19
 
-package goloader
+package obj
 
 import (
 	"cmd/objfile/archive"
@@ -9,26 +9,10 @@ import (
 	"cmd/objfile/objabi"
 	"fmt"
 	"strings"
-	"unsafe"
-
-	"github.com/pkujhd/goloader/objabi/magicnumber"
 )
 
-func initLinker() *Linker {
-	reloc := &Linker{
-		symMap:       make(map[string]*Sym),
-		objsymbolMap: make(map[string]*ObjSymbol),
-		namemap:      make(map[string]int),
-	}
-	head := make([]byte, unsafe.Sizeof(pcHeader{}))
-	copy(head, magicnumber.ModuleHeadx86)
-	reloc.pclntable = append(reloc.pclntable, head...)
-	reloc.pclntable[len(magicnumber.ModuleHeadx86)-1] = PtrSize
-	return reloc
-}
-
-func (pkg *Pkg) symbols() error {
-	a, err := archive.Parse(pkg.f, false)
+func (pkg *Pkg) Symbols() error {
+	a, err := archive.Parse(pkg.F, false)
 	if err != nil {
 		return err
 	}
@@ -38,7 +22,7 @@ func (pkg *Pkg) symbols() error {
 			//nothing todo
 		case archive.EntryGoObj:
 			b := make([]byte, e.Obj.Size)
-			_, err := pkg.f.ReadAt(b, e.Obj.Offset)
+			_, err := pkg.F.ReadAt(b, e.Obj.Offset)
 			if err != nil {
 				return err
 			}
@@ -56,7 +40,7 @@ func (pkg *Pkg) symbols() error {
 				pkg.addSym(r, uint32(i), &refNames)
 			}
 		default:
-			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.f.Name(), e.Name)
+			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.F.Name(), e.Name)
 		}
 	}
 	for _, sym := range pkg.Syms {

@@ -6,20 +6,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkujhd/goloader/objabi/magicnumber"
+	"github.com/pkujhd/goloader/obj"
 )
 
-type Pkg struct {
-	Syms    map[string]*ObjSymbol
-	Arch    string
-	PkgPath string
-	f       *os.File
-}
-
 func Parse(f *os.File, pkgpath *string) ([]string, error) {
-	pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: *pkgpath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: *pkgpath}
 	symbols := make([]string, 0)
-	if err := pkg.symbols(); err != nil {
+	if err := pkg.Symbols(); err != nil {
 		return symbols, err
 	}
 	for _, sym := range pkg.Syms {
@@ -28,11 +21,11 @@ func Parse(f *os.File, pkgpath *string) ([]string, error) {
 	return symbols, nil
 }
 
-func readObj(pkg *Pkg, linker *Linker) error {
+func readObj(pkg *obj.Pkg, linker *Linker) error {
 	if pkg.PkgPath == EmptyString {
 		pkg.PkgPath = DefaultPkgPath
 	}
-	if err := pkg.symbols(); err != nil {
+	if err := pkg.Symbols(); err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
 	if linker.Arch != nil && linker.Arch.Name != pkg.Arch {
@@ -42,8 +35,8 @@ func readObj(pkg *Pkg, linker *Linker) error {
 	}
 	switch linker.Arch.Name {
 	case sys.ArchARM.Name, sys.ArchARM64.Name:
-		copy(linker.pclntable, magicnumber.ModuleHeadarm)
-		linker.pclntable[len(magicnumber.ModuleHeadarm)-1] = PtrSize
+		copy(linker.pclntable, obj.ModuleHeadarm)
+		linker.pclntable[len(obj.ModuleHeadarm)-1] = PtrSize
 	}
 
 	for _, sym := range pkg.Syms {
@@ -68,7 +61,7 @@ func readObj(pkg *Pkg, linker *Linker) error {
 
 func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
 	linker := initLinker()
-	pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: *pkgpath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: *pkgpath}
 	if err := readObj(&pkg, linker); err != nil {
 		return nil, err
 	}
@@ -86,7 +79,7 @@ func ReadObjs(files []string, pkgPath []string) (*Linker, error) {
 			return nil, err
 		}
 		defer f.Close()
-		pkg := Pkg{Syms: make(map[string]*ObjSymbol, 0), f: f, PkgPath: pkgPath[i]}
+		pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: pkgPath[i]}
 		if err := readObj(&pkg, linker); err != nil {
 			return nil, err
 		}

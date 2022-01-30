@@ -1,7 +1,7 @@
 //go:build go1.16 && !go1.17
 // +build go1.16,!go1.17
 
-package goloader
+package obj
 
 import (
 	"cmd/objfile/goobj"

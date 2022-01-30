@@ -5,6 +5,7 @@ package goloader
 
 import (
 	"cmd/objfile/objabi"
+	"github.com/pkujhd/goloader/obj"
 	"strings"
 )
 
@@ -31,7 +32,7 @@ type _func struct {
 	nfuncdata uint8
 }
 
-func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
+func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
 		entry:     uintptr(0),
 		nameoff:   int32(nameOff),

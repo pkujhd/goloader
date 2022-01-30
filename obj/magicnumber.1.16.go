@@ -1,7 +1,7 @@
 //go:build go1.16 && !go1.18
 // +build go1.16,!go1.18
 
-package magicnumber
+package obj
 
 //golang 1.16 change magic number
 var (
