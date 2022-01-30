@@ -1,5 +1,5 @@
-//go:build go1.12 && !go1.13
-// +build go1.12,!go1.13
+//go:build go1.12 && !go1.14
+// +build go1.12,!go1.14
 
 package goloader
 
@@ -7,44 +7,6 @@ import (
 	"cmd/objfile/objabi"
 	"strings"
 )
-
-type moduledata struct {
-	pclntable    []byte
-	ftab         []functab
-	filetab      []uint32
-	findfunctab  uintptr
-	minpc, maxpc uintptr
-
-	text, etext           uintptr
-	noptrdata, enoptrdata uintptr
-	data, edata           uintptr
-	bss, ebss             uintptr
-	noptrbss, enoptrbss   uintptr
-	end, gcdata, gcbss    uintptr
-	types, etypes         uintptr
-
-	textsectmap []textsect
-	typelinks   []int32 // offsets from types
-	itablinks   []*itab
-
-	ptab []ptabEntry
-
-	pluginpath string
-	pkghashes  []modulehash
-
-	modulename   string
-	modulehashes []modulehash
-
-	hasmain uint8 // 1 if module contains the main function, 0 otherwise
-
-	gcdatamask, gcbssmask bitvector
-
-	typemap map[typeOff]uintptr // offset to *_rtype in previous module
-
-	bad bool // module failed to load and should be ignored
-
-	next *moduledata
-}
 
 // A funcID identifies particular functions that need to be treated
 // specially by the runtime.
@@ -86,9 +48,4 @@ func init_func(symbol *ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int)
 
 func setfuncentry(f *_func, entry uintptr, text uintptr) {
 	f.entry = entry
-}
-
-func (linker *Linker) _buildModule(codeModule *CodeModule) {
-	codeModule.module.filetab = linker.filetab
-	codeModule.module.hasmain = 0
 }

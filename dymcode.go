@@ -309,7 +309,7 @@ func (linker *Linker) readFuncData(symbol *ObjSymbol, codeLen int) (err error) {
 	pclnOff := len(linker.pclntable)
 	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
 
-	_func := init_func(symbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOffset)
+	_func := initfunc(symbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOffset)
 	linker._func = append(linker._func, &_func)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
