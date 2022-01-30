@@ -5,6 +5,8 @@ package goloader
 
 import (
 	"unsafe"
+
+	"github.com/pkujhd/goloader/objabi/dataindex"
 )
 
 func findFileTab(linker *Linker, filename string) int32 {
@@ -22,11 +24,11 @@ func (linker *Linker) _addInlineTree(_func *_func, symbol *ObjSymbol) (err error
 	Func := symbol.Func
 	sym := linker.symMap[funcname]
 	if Func != nil && len(Func.InlTree) != 0 {
-		for _func.npcdata <= _PCDATA_InlTreeIndex {
+		for _func.npcdata <= dataindex.PCDATA_InlTreeIndex {
 			sym.Func.PCData = append(sym.Func.PCData, uint32(0))
 			_func.npcdata++
 		}
-		sym.Func.PCData[_PCDATA_InlTreeIndex] = uint32(len(linker.pclntable))
+		sym.Func.PCData[dataindex.PCDATA_InlTreeIndex] = uint32(len(linker.pclntable))
 
 		linker.pclntable = append(linker.pclntable, symbol.Func.PCInline...)
 		for _, inl := range symbol.Func.InlTree {
@@ -45,11 +47,11 @@ func (linker *Linker) _addInlineTree(_func *_func, symbol *ObjSymbol) (err error
 		offset := len(linker.noptrdata)
 		linker.noptrdata = append(linker.noptrdata, bytes...)
 		bytearrayAlign(&linker.noptrdata, PtrSize)
-		for _func.nfuncdata <= _FUNCDATA_InlTree {
+		for _func.nfuncdata <= dataindex.FUNCDATA_InlTree {
 			sym.Func.FuncData = append(sym.Func.FuncData, uintptr(0))
 			_func.nfuncdata++
 		}
-		sym.Func.FuncData[_FUNCDATA_InlTree] = (uintptr)(offset)
+		sym.Func.FuncData[dataindex.FUNCDATA_InlTree] = (uintptr)(offset)
 	}
 	return err
 }

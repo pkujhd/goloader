@@ -1,6 +1,10 @@
 package goloader
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/pkujhd/goloader/objabi/dataindex"
+)
 
 func dumpPCData(b []byte, prefix string) {
 	fmt.Println(prefix, b)
@@ -21,6 +25,6 @@ func dumpPCData(b []byte, prefix string) {
 func dumpStackMap(f interface{}) {
 	finfo := findfunc(getFunctionPtr(f))
 	fmt.Println(funcname(finfo))
-	stkmap := (*stackmap)(funcdata(finfo, _FUNCDATA_LocalsPointerMaps))
+	stkmap := (*stackmap)(funcdata(finfo, dataindex.FUNCDATA_LocalsPointerMaps))
 	fmt.Printf("%v %p\n", stkmap, stkmap)
 }

@@ -6,6 +6,8 @@ package goloader
 import (
 	"fmt"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/objabi/dataindex"
 )
 
 func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
@@ -20,9 +22,9 @@ func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
 
 func (linker *Linker) addStackObject(funcname string, symbolMap map[string]uintptr, module *moduledata) (err error) {
 	Func := linker.symMap[funcname].Func
-	if Func != nil && len(Func.FuncData) > _FUNCDATA_StackObjects &&
-		Func.FuncData[_FUNCDATA_StackObjects] != 0 {
-		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[_FUNCDATA_StackObjects], int(module.noptrdata)))
+	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_StackObjects &&
+		Func.FuncData[dataindex.FUNCDATA_StackObjects] != 0 {
+		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[dataindex.FUNCDATA_StackObjects], int(module.noptrdata)))
 		for i := range *objects {
 			name := EmptyString
 			stkobjName := funcname + StkobjSuffix

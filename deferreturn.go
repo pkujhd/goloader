@@ -6,12 +6,14 @@ package goloader
 import (
 	"cmd/objfile/sys"
 	"fmt"
+
+	"github.com/pkujhd/goloader/objabi/dataindex"
 )
 
 func (linker *Linker) addDeferReturn(_func *_func) (err error) {
 	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
 	Func := linker.symMap[funcname].Func
-	if Func != nil && len(Func.FuncData) > _FUNCDATA_OpenCodedDeferInfo {
+	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
 		sym := linker.symMap[funcname]
 		for _, r := range sym.Reloc {
 			if r.Sym == linker.symMap[RuntimeDeferReturn] {

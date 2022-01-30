@@ -3,18 +3,6 @@
 
 package goloader
 
-// PCDATA and FUNCDATA table indexes.
-//
-// See funcdata.h and ../cmd/internal/obj/funcdata.go.
-const (
-	_PCDATA_StackMapIndex       = 0
-	_PCDATA_InlTreeIndex        = 1
-	_FUNCDATA_ArgsPointerMaps   = 0
-	_FUNCDATA_LocalsPointerMaps = 1
-	_FUNCDATA_InlTree           = 2
-	_ArgsSizeUnknown            = -0x80000000
-)
-
 // moduledata records information about the layout of the executable
 // image. It is written by the linker. Any changes here must be
 // matched changes to the code in cmd/internal/ld/symtab.go:symtab.

@@ -7,23 +7,6 @@ import (
 	"unsafe"
 )
 
-// PCDATA and FUNCDATA table indexes.
-//
-// See funcdata.h and ../cmd/internal/objabi/funcdata.go.
-const (
-	_PCDATA_UnsafePoint   = 0
-	_PCDATA_StackMapIndex = 1
-	_PCDATA_InlTreeIndex  = 2
-
-	_FUNCDATA_ArgsPointerMaps    = 0
-	_FUNCDATA_LocalsPointerMaps  = 1
-	_FUNCDATA_StackObjects       = 2
-	_FUNCDATA_InlTree            = 3
-	_FUNCDATA_OpenCodedDeferInfo = 4
-
-	_ArgsSizeUnknown = -0x80000000
-)
-
 // pcHeader holds data used by the pclntab lookups.
 type pcHeader struct {
 	magic          uint32  // 0xFFFFFFFA
