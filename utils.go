@@ -1,6 +1,7 @@
 package goloader
 
 import (
+	"cmd/objfile/sys"
 	"encoding/binary"
 	"fmt"
 	"strconv"
@@ -85,6 +86,16 @@ func grow(bytes *[]byte, size int) {
 	if len(*bytes) < size {
 		*bytes = append(*bytes, make([]byte, size-len(*bytes))...)
 	}
+}
+
+func getArch(archName string) *sys.Arch {
+	arch := &sys.Arch{}
+	for index := range sys.Archs {
+		if archName == sys.Archs[index].Name {
+			arch = sys.Archs[index]
+		}
+	}
+	return arch
 }
 
 //see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
