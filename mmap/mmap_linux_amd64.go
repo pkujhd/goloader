@@ -1,6 +1,7 @@
-// +build darwin dragonfly freebsd linux,!amd64 openbsd solaris netbsd
+//go:build linux && amd64
+// +build linux,amd64
 
-package goloader
+package mmap
 
 import (
 	"os"
@@ -13,7 +14,7 @@ func Mmap(size int) ([]byte, error) {
 		0,
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC,
-		syscall.MAP_PRIVATE|syscall.MAP_ANON)
+		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_32BIT)
 	if err != nil {
 		err = os.NewSyscallError("syscall.Mmap", err)
 	}

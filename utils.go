@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/mmap"
 )
 
 //go:linkname add runtime.add
@@ -96,6 +98,14 @@ func getArch(archName string) *sys.Arch {
 		}
 	}
 	return arch
+}
+
+func Mmap(size int) ([]byte, error) {
+	return mmap.Mmap(size)
+}
+
+func Munmap(b []byte) (err error) {
+	return mmap.Munmap(b)
 }
 
 //see $GOROOT/src/cmd/internal/loader/loader.go:preprocess

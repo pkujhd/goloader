@@ -1,12 +1,20 @@
+//go:build windows
 // +build windows
 
-package goloader
+package mmap
 
 import (
 	"os"
 	"syscall"
 	"unsafe"
 )
+
+// See reflect/value.go sliceHeader
+type sliceHeader struct {
+	Data uintptr
+	Len  int
+	Cap  int
+}
 
 func Mmap(size int) ([]byte, error) {
 
