@@ -60,6 +60,20 @@ var (
 	modulesLock sync.Mutex
 )
 
+//initialize Linker
+func initLinker() *Linker {
+	linker := &Linker{
+		symMap:       make(map[string]*obj.Sym),
+		objsymbolMap: make(map[string]*obj.ObjSymbol),
+		namemap:      make(map[string]int),
+	}
+	head := make([]byte, unsafe.Sizeof(pcHeader{}))
+	copy(head, obj.ModuleHeadx86)
+	linker.pclntable = append(linker.pclntable, head...)
+	linker.pclntable[len(obj.ModuleHeadx86)-1] = PtrSize
+	return linker
+}
+
 func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
