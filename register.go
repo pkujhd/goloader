@@ -33,7 +33,18 @@ func typelinksinit(symPtr map[string]uintptr) {
 			//NOTHING TODO
 		}
 	}
-	registerFunc(&md, symPtr)
+	//register function
+	for _, f := range md.ftab {
+		if int(f.funcoff) < len(md.pclntable) {
+			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
+			name := getfuncname(_func, &md)
+			if !strings.HasPrefix(name, TypeDoubleDotPrefix) && name != EmptyString {
+				if _, ok := symPtr[name]; !ok {
+					symPtr[name] = getfuncentry(_func, md.text)
+				}
+			}
+		}
+	}
 }
 
 func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {

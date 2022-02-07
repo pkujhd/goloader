@@ -55,3 +55,14 @@ func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int, cuO
 func setfuncentry(f *_func, entry uintptr, text uintptr) {
 	f.entry = entry
 }
+
+func getfuncentry(f *_func, text uintptr) uintptr {
+	return f.entry
+}
+
+func getfuncname(f *_func, md *moduledata) string {
+	if f.nameoff <= 0 || f.nameoff >= int32(len(md.pclntable)) {
+		return EmptyString
+	}
+	return gostringnocopy(&(md.pclntable[f.nameoff]))
+}
