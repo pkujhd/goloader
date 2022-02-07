@@ -69,8 +69,7 @@ type moduledata struct {
 	next *moduledata
 }
 
-func (linker *Linker) _buildModule(codeModule *CodeModule) {
-	module := codeModule.module
+func initmodule(module *moduledata, linker *Linker) {
 	module.pcHeader = (*pcHeader)(unsafe.Pointer(&(module.pclntable[0])))
 	module.pcHeader.nfunc = len(module.ftab)
 	module.pcHeader.nfiles = (uint)(len(module.filetab))
@@ -79,4 +78,5 @@ func (linker *Linker) _buildModule(codeModule *CodeModule) {
 	module.cutab = linker.filetab
 	module.filetab = module.pclntable
 	module.hasmain = 0
+	module.bad = false
 }

@@ -416,7 +416,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcbucket[0])), length)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[len(module.pclntable)-length]))
 
-	if err = fillGCData(linker, codeModule, symbolMap); err != nil {
+	if err = linker.addgcdata(codeModule, symbolMap); err != nil {
 		return err
 	}
 	for name, addr := range symbolMap {
@@ -427,7 +427,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 			module.typemap[typeOff(addr-module.types)] = addr
 		}
 	}
-	linker._buildModule(codeModule)
+	initmodule(codeModule.module, linker)
 
 	modulesLock.Lock()
 	addModule(codeModule)

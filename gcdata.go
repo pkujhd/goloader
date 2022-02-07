@@ -14,7 +14,7 @@ const (
 	KindGCProg = 1 << 6
 )
 
-func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
+func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
 	segment := &codeModule.segment
 	//if symbol is in loader, ignore generate gc data
 	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.sumDataLen) {
@@ -49,7 +49,7 @@ func genGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uint
 	return nil
 }
 
-func getSortSym(symMap map[string]*obj.Sym, kind int) []*obj.Sym {
+func sortSym(symMap map[string]*obj.Sym, kind int) []*obj.Sym {
 	syms := make(map[int]*obj.Sym)
 	keys := []int{}
 	for _, sym := range symMap {
@@ -66,14 +66,14 @@ func getSortSym(symMap map[string]*obj.Sym, kind int) []*obj.Sym {
 	return symbols
 }
 
-func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr) error {
+func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uintptr) error {
 	module := codeModule.module
 	w := gcprog.Writer{}
 	w.Init(func(x byte) {
 		codeModule.gcdata = append(codeModule.gcdata, x)
 	})
-	for _, sym := range getSortSym(linker.symMap, symkind.SDATA) {
-		err := genGCData(linker, codeModule, symbolMap, &w, sym)
+	for _, sym := range sortSym(linker.symMap, symkind.SDATA) {
+		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
 		}
@@ -88,8 +88,8 @@ func fillGCData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uin
 		codeModule.gcbss = append(codeModule.gcbss, x)
 	})
 
-	for _, sym := range getSortSym(linker.symMap, symkind.SBSS) {
-		err := genGCData(linker, codeModule, symbolMap, &w, sym)
+	for _, sym := range sortSym(linker.symMap, symkind.SBSS) {
+		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
 		}

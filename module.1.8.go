@@ -50,6 +50,6 @@ type moduledata struct {
 	next *moduledata
 }
 
-func (linker *Linker) _buildModule(codeModule *CodeModule) {
-	codeModule.module.filetab = linker.filetab
+func initmodule(module *moduledata, linker *Linker) {
+	module.filetab = linker.filetab
 }
