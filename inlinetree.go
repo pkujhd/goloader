@@ -1,6 +1,3 @@
-//go:build go1.9 && !go1.19
-// +build go1.9,!go1.19
-
 package goloader
 
 import (
@@ -9,16 +6,6 @@ import (
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/dataindex"
 )
-
-func findFileTab(linker *Linker, filename string) int32 {
-	tab := linker.namemap[filename]
-	for index, value := range linker.filetab {
-		if uint32(tab) == value {
-			return int32(index)
-		}
-	}
-	return -1
-}
 
 func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err error) {
 	funcname := symbol.Name
@@ -40,10 +27,10 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 			}
 		}
 
-		bytes := make([]byte, len(Func.InlTree)*InlinedCallSize)
+		bytes := make([]byte, len(Func.InlTree)*obj.InlinedCallSize)
 		for k, inl := range Func.InlTree {
-			inlinedcall := linker.initInlinedCall(inl, _func)
-			copy2Slice(bytes[k*InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedcall)), InlinedCallSize)
+			inlinedcall := obj.InitInlinedCall(inl, getfuncID(_func), linker.namemap, linker.filetab)
+			copy2Slice(bytes[k*obj.InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedcall)), obj.InlinedCallSize)
 		}
 		offset := len(linker.noptrdata)
 		linker.noptrdata = append(linker.noptrdata, bytes...)

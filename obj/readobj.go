@@ -67,9 +67,3 @@ type Reloc struct {
 	Type   int
 	Add    int
 }
-
-func grow(bytes *[]byte, size int) {
-	if len(*bytes) < size {
-		*bytes = append(*bytes, make([]byte, size-len(*bytes))...)
-	}
-}

@@ -1,14 +1,12 @@
 //go:build go1.12 && !go1.19
 // +build go1.12,!go1.19
 
-package goloader
+package obj
 
-import (
-	"github.com/pkujhd/goloader/obj"
-)
+type funcID uint8
 
 // inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
-type inlinedCall struct {
+type InlinedCall struct {
 	parent   int16  // index of parent in the inltree, or < 0
 	funcID   funcID // type of the called function
 	_        byte
@@ -18,12 +16,12 @@ type inlinedCall struct {
 	parentPc int32 // position of an instruction whose source position is the call site (offset from entry)
 }
 
-func (linker *Linker) initInlinedCall(inl obj.InlTreeNode, _func *_func) inlinedCall {
-	return inlinedCall{
+func InitInlinedCall(inl InlTreeNode, funcid uint8, namemap map[string]int, filetab []uint32) InlinedCall {
+	return InlinedCall{
 		parent:   int16(inl.Parent),
-		funcID:   _func.funcID,
-		file:     findFileTab(linker, inl.File),
+		funcID:   funcID(funcid),
+		file:     findFileTab(inl.File, namemap, filetab),
 		line:     int32(inl.Line),
-		func_:    int32(linker.namemap[inl.Func]),
+		func_:    int32(namemap[inl.Func]),
 		parentPc: int32(inl.ParentPC)}
 }

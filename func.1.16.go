@@ -64,3 +64,7 @@ func getfuncname(f *_func, md *moduledata) string {
 	}
 	return gostringnocopy(&(md.funcnametab[f.nameoff]))
 }
+
+func getfuncID(f *_func) uint8 {
+	return uint8(f.funcID)
+}
