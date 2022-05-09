@@ -1,7 +1,7 @@
 //go:build go1.18 && !go1.19
 // +build go1.18,!go1.19
 
-package goloader
+package stackobject
 
 import (
 	"unsafe"
@@ -19,6 +19,6 @@ type stackObjectRecord struct {
 	gcdataoff uint32 // offset to gcdata from moduledata.rodata
 }
 
-func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, module *moduledata) {
-	obj.gcdataoff = uint32(uintptr(ptr) - module.noptrdata)
+func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, noptrdata uintptr) {
+	obj.gcdataoff = uint32(uintptr(ptr) - noptrdata)
 }

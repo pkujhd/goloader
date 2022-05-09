@@ -13,6 +13,7 @@ import (
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
+	"github.com/pkujhd/goloader/stackobject"
 )
 
 // ourself defined struct
@@ -348,7 +349,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	setfuncentry(_func, symbolMap[funcname], module.text)
 	Func := linker.symMap[funcname].Func
 
-	if err = linker.addStackObject(funcname, symbolMap, module); err != nil {
+	if err = stackobject.AddStackObject(funcname, linker.symMap, symbolMap, module.noptrdata); err != nil {
 		return err
 	}
 	if err = linker.addDeferReturn(_func); err != nil {

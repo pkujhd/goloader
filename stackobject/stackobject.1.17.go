@@ -1,7 +1,7 @@
 //go:build go1.17 && !go1.18
 // +build go1.17,!go1.18
 
-package goloader
+package stackobject
 
 import (
 	"unsafe"
@@ -19,6 +19,6 @@ type stackObjectRecord struct {
 	gcdata   *byte // pointer map or GC prog of the type
 }
 
-func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, module *moduledata) {
+func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, noptrdata uintptr) {
 	obj.gcdata = (*byte)(ptr)
 }

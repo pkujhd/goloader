@@ -1,7 +1,7 @@
 //go:build go1.12 && !go1.17
 // +build go1.12,!go1.17
 
-package goloader
+package stackobject
 
 import (
 	"unsafe"
@@ -14,9 +14,9 @@ type stackObjectRecord struct {
 	// if negative, offset from varp
 	// if non-negative, offset from argp
 	off int
-	typ *_type
+	typ unsafe.Pointer
 }
 
-func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, module *moduledata) {
-	obj.typ = (*_type)(ptr)
+func setStackObjectPtr(obj *stackObjectRecord, ptr unsafe.Pointer, noptrdata uintptr) {
+	obj.typ = ptr
 }
