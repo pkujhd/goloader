@@ -41,7 +41,9 @@ func readObj(pkg *obj.Pkg, linker *Linker) error {
 
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
-			sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
+			if !strings.HasPrefix(sym.Reloc[index].Sym.Name, TypeStringPerfix) {
+				sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
+			}
 		}
 		if sym.Type != EmptyString {
 			sym.Type = strings.Replace(sym.Type, EmptyPkgPath, pkg.PkgPath, -1)
