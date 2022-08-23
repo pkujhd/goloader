@@ -399,18 +399,22 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	}
 	module.ftab = append(module.ftab, initfunctab(module.maxpc, uintptr(len(module.pclntable)), module.text))
 
+	//see:^src/cmd/link/internal/ld/pcln.go findfunctab
 	funcbucket := []findfuncbucket{}
-	for _, _func := range linker._func {
+	for k, _func := range linker._func {
 		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
 		x := linker.symMap[funcname].Offset
 		b := x / pcbucketsize
 		i := x % pcbucketsize / (pcbucketsize / nsub)
 		for lb := b - len(funcbucket); lb >= 0; lb-- {
 			funcbucket = append(funcbucket, findfuncbucket{
-				idx: uint32(256 * len(funcbucket))})
+				idx: uint32(k)})
 		}
 		if funcbucket[b].subbuckets[i] == 0 && b != 0 && i != 0 {
-			funcbucket[b].subbuckets[i] = byte(len(linker._func) - int(funcbucket[b].idx))
+			if k-int(funcbucket[b].idx) >= pcbucketsize/minfunc {
+				return fmt.Errorf("over %d func in one funcbuckets", k-int(funcbucket[b].idx))
+			}
+			funcbucket[b].subbuckets[i] = byte(k - int(funcbucket[b].idx))
 		}
 	}
 	length := len(funcbucket) * FindFuncBucketSize
