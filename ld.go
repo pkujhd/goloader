@@ -374,7 +374,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module := codeModule.module
 	module.pclntable = append(module.pclntable, linker.pclntable...)
 	module.minpc = uintptr(segment.codeBase)
-	module.maxpc = uintptr(segment.dataBase)
+	module.maxpc = uintptr(segment.codeBase + segment.offset)
 	module.types = uintptr(segment.codeBase)
 	module.etypes = uintptr(segment.codeBase + segment.offset)
 	module.text = uintptr(segment.codeBase)
