@@ -9,6 +9,12 @@ import (
 
 type tflag uint8
 
+// See runtime/type.go _typePair
+type _typePair struct {
+	t1 *_type
+	t2 *_type
+}
+
 // See reflect/value.go emptyInterface
 type emptyInterface struct {
 	typ  unsafe.Pointer
@@ -47,6 +53,9 @@ type name struct {
 
 //go:linkname _uncommon runtime.(*_type).uncommon
 func _uncommon(t *_type) *uncommonType
+
+//go:linkname typesEqual runtime.typesEqual
+func typesEqual(t, v *_type, seen map[_typePair]struct{}) bool
 
 //go:linkname _nameOff runtime.(*_type).nameOff
 func _nameOff(t *_type, off nameOff) name
@@ -107,7 +116,7 @@ func (t *_type) PkgPath() string {
 	if ut == nil {
 		return EmptyString
 	}
-	return t.nameOff(ut.pkgPath).name()
+	return t.nameOff(ut.pkgpath).name()
 }
 
 func RegTypes(symPtr map[string]uintptr, interfaces ...interface{}) {

@@ -7,6 +7,9 @@ import (
 	"unsafe"
 )
 
+//go:linkname activeModules runtime.activeModules
+func activeModules() []*moduledata
+
 // pcHeader holds data used by the pclntab lookups.
 type pcHeader struct {
 	magic          uint32  // 0xFFFFFFF0
