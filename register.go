@@ -8,13 +8,16 @@ import (
 	"unsafe"
 )
 
-//!IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
-func typelinksinit(symPtr map[string]uintptr) {
+//go:linkname typelinksinit runtime.typelinksinit
+func typelinksinit()
+
+// !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
+func typelinksregister(symPtr map[string]uintptr) {
 	md := firstmoduledata
 	for _, tl := range md.typelinks {
 		t := (*_type)(adduintptr(md.types, int(tl)))
 		if md.typemap != nil {
-			t = (*_type)(adduintptr(md.typemap[typeOff(tl)], 0))
+			t = md.typemap[typeOff(tl)]
 		}
 		switch t.Kind() {
 		case reflect.Ptr:
@@ -66,7 +69,7 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 	}
 	defer f.Close()
 
-	typelinksinit(symPtr)
+	typelinksregister(symPtr)
 	syms, err := f.Symbols()
 	for _, sym := range syms {
 		if sym.Name == OsStdout {

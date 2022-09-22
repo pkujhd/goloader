@@ -61,7 +61,7 @@ var (
 	modulesLock sync.Mutex
 )
 
-//initialize Linker
+// initialize Linker
 func initLinker() *Linker {
 	linker := &Linker{
 		symMap:       make(map[string]*obj.Sym),
@@ -96,7 +96,7 @@ func (linker *Linker) addSymbols() error {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPerfix) {
+			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPrefix) {
 				//nothing todo
 			} else {
 				offset += len(linker.data)
@@ -139,7 +139,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants
 		//in a separate segment and not unload when module unload.
-		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPerfix) {
+		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
 			if stringContainer.index+len(objsym.Data) > stringContainer.size {
 				return nil, fmt.Errorf("overflow string container")
 			}
@@ -324,7 +324,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if _, ok := symPtr[name]; !ok {
-				if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPerfix) {
+				if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
 				} else {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
@@ -332,7 +332,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			} else {
 				symbolMap[name] = symPtr[name]
 				if strings.HasPrefix(name, MainPkgPrefix) || strings.HasPrefix(name, TypePrefix) {
-					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPerfix) {
+					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
 						symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
 					} else {
 						symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
@@ -429,7 +429,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 			!strings.HasPrefix(name, TypeDoubleDotPrefix) &&
 			addr >= module.types && addr < module.etypes {
 			module.typelinks = append(module.typelinks, int32(addr-module.types))
-			module.typemap[typeOff(addr-module.types)] = addr
+			module.typemap[typeOff(addr-module.types)] = (*_type)(unsafe.Pointer(addr))
 		}
 	}
 	initmodule(codeModule.module, linker)
@@ -440,14 +440,111 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	additabs(codeModule.module)
 	moduledataverify1(codeModule.module)
 	modulesinit()
+	typelinksinit() // Deduplicate typelinks across all modules
+	return err
+}
 
+func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+	// Having called addModule and runtime.modulesinit(), we can now safely use typesEqual()
+	// (which depended on the module being in the linked list for safe name resolution of types).
+	// This means we can now deduplicate type descriptors in the actual code
+	// by relocating their addresses to the equivalent *_type in the main module
+
+	// We need to deduplicate type symbols with the main module according to type hash, since type assertion
+	// uses *_type pointer equality and many overlapping or builtin types may be included twice
+	// We have to do this after adding the module to the linked list since deduplication
+	// depends on symbol resolution across all modules
+	typehash := make(map[uint32][]*_type, len(firstmoduledata.typelinks))
+
+	firstModule := activeModules()[0]
+collect:
+	for _, tl := range firstModule.typelinks {
+		var t *_type
+		if firstModule.typemap == nil {
+			t = (*_type)(unsafe.Pointer(firstModule.types + uintptr(tl)))
+		} else {
+			t = firstModule.typemap[typeOff(tl)]
+		}
+
+		// Add to typehash if not seen before.
+		tlist := typehash[t.hash]
+		for _, tcur := range tlist {
+			if tcur == t {
+				continue collect
+			}
+		}
+		typehash[t.hash] = append(tlist, t)
+	}
+
+	segment := &codeModule.segment
+	byteorder := linker.Arch.ByteOrder
+	for _, symbol := range linker.symMap {
+		for _, loc := range symbol.Reloc {
+			addr := symbolMap[loc.Sym.Name]
+			sym := loc.Sym
+			relocByte := segment.codeByte[segment.codeLen:]
+			addrBase := segment.dataBase
+			if symbol.Kind == symkind.STEXT {
+				addrBase = segment.codeBase
+				relocByte = segment.codeByte
+			}
+			if addr != InvalidHandleValue && sym.Kind == symkind.SRODATA &&
+				strings.HasPrefix(sym.Name, TypePrefix) &&
+				!strings.HasPrefix(sym.Name, TypeDoubleDotPrefix) && sym.Offset != -1 {
+
+				// if this is pointing to a type descriptor at an offset inside this binary, we should deduplicate it against
+				// already known types from other modules to allow fast type assertion using *_type pointer equality
+				t := (*_type)(unsafe.Pointer(addr))
+				for _, candidate := range typehash[t.hash] {
+					seen := map[_typePair]struct{}{}
+					if typesEqual(t, candidate, seen) {
+						t = candidate
+						break
+					}
+				}
+
+				// Only relocate code if the type is a duplicate
+				if uintptr(unsafe.Pointer(t)) != addr {
+					addr = uintptr(unsafe.Pointer(t))
+					switch loc.Type {
+					case reloctype.R_PCREL:
+						// The replaced t from another module will probably yield a massive negative offset, but that's ok as
+						// PC-relative addressing is allowed to be negative (even if not very cache friendly)
+						offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
+						if offset > 0x7FFFFFFF || offset < -0x80000000 {
+							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
+						}
+						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
+						// TODO - sanity check this
+						address := uintptr(int(addr) + loc.Add)
+						putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
+					case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF, reloctype.R_METHODOFF:
+						if symbol.Kind == symkind.STEXT {
+							err = fmt.Errorf("impossible! Sym: %s located on code segment!\n", sym.Name)
+						}
+						// TODO - sanity check this
+						offset := int(addr) - segment.codeBase + loc.Add
+						if offset > 0x7FFFFFFF || offset < -0x80000000 {
+							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
+						}
+						byteorder.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
+					case reloctype.R_USETYPE, reloctype.R_USEIFACE, reloctype.R_USEIFACEMETHOD, reloctype.R_ADDRCUOFF:
+						// nothing to do
+					default:
+						// TODO - should we attempt to rewrite other relocations which point at *_types too?
+					}
+				}
+			}
+		}
+	}
 	return err
 }
 
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
-		module: &moduledata{typemap: make(map[typeOff]uintptr)},
+		module: &moduledata{typemap: make(map[typeOff]*_type)},
 	}
 	codeModule.codeLen = len(linker.code)
 	codeModule.dataLen = len(linker.data)
@@ -479,8 +576,10 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
 		if err = linker.relocate(codeModule, symbolMap); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
-				if err = linker.doInitialize(codeModule, symbolMap); err == nil {
-					return codeModule, err
+				if err = linker.deduplicateTypeDescriptors(codeModule, symbolMap); err == nil {
+					if err = linker.doInitialize(codeModule, symbolMap); err == nil {
+						return codeModule, err
+					}
 				}
 			}
 		}

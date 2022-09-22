@@ -7,6 +7,9 @@ import (
 	"unsafe"
 )
 
+//go:linkname activeModules runtime.activeModules
+func activeModules() []*moduledata
+
 // pcHeader holds data used by the pclntab lookups.
 type pcHeader struct {
 	magic          uint32  // 0xFFFFFFFA
@@ -62,7 +65,7 @@ type moduledata struct {
 
 	gcdatamask, gcbssmask bitvector
 
-	typemap map[typeOff]uintptr // offset to *_rtype in previous module
+	typemap map[typeOff]*_type // offset to *_rtype in previous module
 
 	bad bool // module failed to load and should be ignored
 
