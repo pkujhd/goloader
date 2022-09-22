@@ -35,7 +35,7 @@ type _type struct {
 // Using a pointer to this struct reduces the overall size required
 // to describe an unnamed type with no methods.
 type uncommonType struct {
-	pkgPath nameOff
+	pkgpath nameOff
 	mcount  uint16 // number of methods
 	xcount  uint16 // number of exported methods
 	moff    uint32 // offset from this uncommontype to [mcount]method
