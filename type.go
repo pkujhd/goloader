@@ -72,20 +72,50 @@ func _methods(t *uncommonType) []method
 //go:linkname _Kind reflect.(*rtype).Kind
 func _Kind(t *_type) reflect.Kind
 
+//go:linkname _Elem reflect.(*rtype).Elem
+func _Elem(t *_type) *_type
+
 func (t *_type) uncommon() *uncommonType    { return _uncommon(t) }
 func (t *_type) nameOff(off nameOff) name   { return _nameOff(t, off) }
 func (t *_type) typeOff(off typeOff) *_type { return _typeOff(t, off) }
 func (n name) name() string                 { return _name(n) }
 func (t *uncommonType) methods() []method   { return _methods(t) }
 func (t *_type) Kind() reflect.Kind         { return _Kind(t) }
+func (t *_type) Elem() *_type               { return _Elem(t) }
 
-func pkgname(pkgpath string) string {
-	slash := strings.LastIndexByte(pkgpath, '/')
-	if slash > -1 {
-		return pkgpath[slash+1:]
-	} else {
-		return pkgpath
+// This replaces local package names with import paths, including where the package name doesn't match the last part of the import path e.g.
+//
+//	import "github.com/org/somepackage/v4" + somepackage.SomeStruct
+//	 =>  github.com/org/somepackage/v4.SomeStruct
+func fullyQualifiedName(t *_type, pkgpath string) string {
+	// If pkgpath is empty, it's either:
+	//  1) a builtin type
+	//  2) an anonymous struct
+	//  3) another anonymous composite type (e.g. array or slice)
+	// For 2 and 3), we probably don't need to fully qualify the types as fully supporting cross-binary anonymous types will be awkward
+	name := t.nameOff(t.str).name()
+	if pkgpath == "" {
+		return name
 	}
+
+	// Find the first dot, and read backwards until we find a '*' or a ']'
+	dot := strings.IndexByte(name, '.')
+
+	if dot == -1 {
+		return name
+	}
+	start := dot
+loop:
+	for ; start >= 0; start-- {
+		switch name[start] {
+		case ']', '*', ' ':
+			start++
+			break loop
+		}
+	}
+	localPkgName := name[start:dot]
+	name = strings.Replace(name, localPkgName, pkgpath, 1)
+	return name
 }
 
 func funcPkgPath(funcName string) string {
@@ -135,8 +165,30 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = getFunctionPtr(inter)
 	} else {
 		header := (*emptyInterface)(unsafe.Pointer(&inter))
-		pkgpath := (*_type)(header.typ).PkgPath()
-		name := strings.Replace(v.Type().String(), pkgname(pkgpath), pkgpath, 1)
+		t := (*_type)(header.typ)
+		pkgpath := t.PkgPath()
+		var element *_type
+		var elementElem *_type
+		if v.Kind() == reflect.Ptr {
+			element = *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+			if element != nil && pkgpath == EmptyString {
+				switch element.Kind() {
+				case reflect.Ptr, reflect.Array, reflect.Slice:
+					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
+				}
+				pkgpath = element.PkgPath()
+				if elementElem != nil && pkgpath == EmptyString {
+					pkgpath = elementElem.PkgPath()
+				}
+			}
+		}
+		name := fullyQualifiedName(t, pkgpath)
+		if element != nil {
+			symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
+			if elementElem != nil {
+				symPtr[TypePrefix+name[2:]] = uintptr(unsafe.Pointer(elementElem))
+			}
+		}
 		symPtr[TypePrefix+name] = uintptr(header.typ)
 	}
 

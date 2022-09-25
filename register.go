@@ -22,7 +22,6 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 
 		switch t.Kind() {
 		case reflect.Ptr:
-			name := t.nameOff(t.str).name()
 			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
 			var elementElem *_type
 			pkgpath := t.PkgPath()
@@ -37,7 +36,7 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 				}
 			}
 			pkgSet[pkgpath] = struct{}{}
-			name = strings.Replace(name, pkgname(pkgpath), pkgpath, 1)
+			name := fullyQualifiedName(t, pkgpath)
 			if element != nil {
 				symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
 				if elementElem != nil {
