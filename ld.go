@@ -311,7 +311,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = ptr
 			} else {
 				symbolMap[name] = InvalidHandleValue
-				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
+				return nil, fmt.Errorf("unresolved external symbol: %s", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
 			//nothing todo

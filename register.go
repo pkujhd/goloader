@@ -19,17 +19,28 @@ func typelinksregister(symPtr map[string]uintptr) {
 		if md.typemap != nil {
 			t = md.typemap[typeOff(tl)]
 		}
+
 		switch t.Kind() {
 		case reflect.Ptr:
-			name := t.nameOff(t.str).name()
 			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+			var elementElem *_type
 			pkgpath := t.PkgPath()
 			if element != nil && pkgpath == EmptyString {
+				switch element.Kind() {
+				case reflect.Ptr, reflect.Array, reflect.Slice:
+					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
+				}
 				pkgpath = element.PkgPath()
+				if elementElem != nil && pkgpath == EmptyString {
+					pkgpath = elementElem.PkgPath()
+				}
 			}
-			name = strings.Replace(name, pkgname(pkgpath), pkgpath, 1)
+			name := fullyQualifiedName(t, pkgpath)
 			if element != nil {
 				symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
+				if elementElem != nil {
+					symPtr[TypePrefix+name[2:]] = uintptr(unsafe.Pointer(elementElem))
+				}
 			}
 			symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		default:
