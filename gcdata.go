@@ -49,7 +49,7 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 			w.Append(prog[4:], nptr)
 		}
 	} else {
-		return fmt.Errorf("type:%s not found\n", typeName)
+		return fmt.Errorf("type: %s not found\n", typeName)
 	}
 	return nil
 }
