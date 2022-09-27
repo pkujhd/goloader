@@ -85,7 +85,7 @@ func (linker *Linker) addSymbols() error {
 				return err
 			}
 		}
-		if objSym.Kind == symkind.SNOPTRDATA {
+		if objSym.Kind == symkind.SNOPTRDATA || objSym.Kind == symkind.SRODATA {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
 				return err
