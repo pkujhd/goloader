@@ -58,6 +58,10 @@ const (
 	// symbol's DWARF compile unit.
 	R_ADDRCUOFF = (int)(objabi.R_ADDRCUOFF)
 
+	// R_KEEP tells the linker to keep the referred-to symbol in the final binary
+	// if the symbol containing the R_KEEP relocation is in the final binary.
+	R_KEEP = (int)(objabi.R_KEEP)
+
 	R_WEAK = 0x8000
 
 	R_WEAKADDR    = R_WEAK | R_ADDR

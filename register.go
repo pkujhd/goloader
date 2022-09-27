@@ -12,7 +12,7 @@ import (
 func typelinksinit()
 
 // !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
-func typelinksregister(symPtr map[string]uintptr) {
+func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 	md := firstmoduledata
 	for _, tl := range md.typelinks {
 		t := (*_type)(adduintptr(md.types, int(tl)))
@@ -35,6 +35,7 @@ func typelinksregister(symPtr map[string]uintptr) {
 					pkgpath = elementElem.PkgPath()
 				}
 			}
+			pkgSet[pkgpath] = struct{}{}
 			name := fullyQualifiedName(t, pkgpath)
 			if element != nil {
 				symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
@@ -52,8 +53,10 @@ func typelinksregister(symPtr map[string]uintptr) {
 		if int(f.funcoff) < len(md.pclntable) {
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
 			name := getfuncname(_func, &md)
-			if !strings.HasPrefix(name, TypeDoubleDotPrefix) && name != EmptyString {
+			if name != EmptyString {
 				if _, ok := symPtr[name]; !ok {
+					pkgpath := funcPkgPath(name)
+					pkgSet[pkgpath] = struct{}{}
 					symPtr[name] = getfuncentry(_func, md.text)
 				}
 			}
@@ -61,26 +64,26 @@ func typelinksregister(symPtr map[string]uintptr) {
 	}
 }
 
-func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
-	return regSymbol(symPtr, path)
+func RegSymbolWithSo(symPtr map[string]uintptr, pkgSet map[string]struct{}, path string) error {
+	return regSymbol(symPtr, pkgSet, path)
 }
 
-func RegSymbol(symPtr map[string]uintptr) error {
+func RegSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}) error {
 	path, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	return regSymbol(symPtr, path)
+	return regSymbol(symPtr, pkgSet, path)
 }
 
-func regSymbol(symPtr map[string]uintptr, path string) error {
+func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path string) error {
 	f, err := objfile.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	typelinksregister(symPtr)
+	typelinksregister(symPtr, pkgSet)
 	syms, err := f.Symbols()
 	for _, sym := range syms {
 		if sym.Name == OsStdout {

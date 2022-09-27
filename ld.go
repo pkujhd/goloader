@@ -541,6 +541,20 @@ collect:
 	return err
 }
 
+func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr) map[string]*obj.Sym {
+	symMap := make(map[string]*obj.Sym)
+	for symName, sym := range linker.symMap {
+		if sym.Offset == InvalidOffset {
+			if _, ok := symbolMap[symName]; !ok {
+				if _, ok := linker.objsymbolMap[symName]; !ok {
+					symMap[symName] = sym
+				}
+			}
+		}
+	}
+	return symMap
+}
+
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
@@ -582,6 +596,12 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 					}
 				}
 			}
+		}
+	}
+	if err != nil {
+		err2 := Munmap(codeByte)
+		if err2 != nil {
+			err = fmt.Errorf("failed to munmap (%s) after linker error: %w", err2, err)
 		}
 	}
 	return nil, err

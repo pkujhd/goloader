@@ -1,6 +1,7 @@
 package goloader
 
 import (
+	"cmd/objfile/objabi"
 	"fmt"
 	"strings"
 
@@ -210,8 +211,10 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					//nothing todo
 				case reloctype.R_ADDRCUOFF:
 					//nothing todo
+				case reloctype.R_KEEP:
+					//nothing todo
 				default:
-					err = fmt.Errorf("unknown reloc type:%d sym:%s", loc.Type, sym.Name)
+					err = fmt.Errorf("unknown reloc type: %s sym: %s", objabi.RelocType(loc.Type).String(), sym.Name)
 				}
 			}
 			if err != nil {
