@@ -8,25 +8,41 @@ import (
 	"unsafe"
 )
 
-//!IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
-func typelinksinit(symPtr map[string]uintptr) {
+//go:linkname typelinksinit runtime.typelinksinit
+func typelinksinit()
+
+// !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
+func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 	md := firstmoduledata
 	for _, tl := range md.typelinks {
 		t := (*_type)(adduintptr(md.types, int(tl)))
 		if md.typemap != nil {
-			t = (*_type)(adduintptr(md.typemap[typeOff(tl)], 0))
+			t = md.typemap[typeOff(tl)]
 		}
+
 		switch t.Kind() {
 		case reflect.Ptr:
 			name := t.nameOff(t.str).name()
 			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+			var elementElem *_type
 			pkgpath := t.PkgPath()
 			if element != nil && pkgpath == EmptyString {
+				switch element.Kind() {
+				case reflect.Ptr, reflect.Array, reflect.Slice:
+					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
+				}
 				pkgpath = element.PkgPath()
+				if elementElem != nil && pkgpath == EmptyString {
+					pkgpath = elementElem.PkgPath()
+				}
 			}
+			pkgSet[pkgpath] = struct{}{}
 			name = strings.Replace(name, pkgname(pkgpath), pkgpath, 1)
 			if element != nil {
 				symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
+				if elementElem != nil {
+					symPtr[TypePrefix+name[2:]] = uintptr(unsafe.Pointer(elementElem))
+				}
 			}
 			symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		default:
@@ -38,8 +54,10 @@ func typelinksinit(symPtr map[string]uintptr) {
 		if int(f.funcoff) < len(md.pclntable) {
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
 			name := getfuncname(_func, &md)
-			if !strings.HasPrefix(name, TypeDoubleDotPrefix) && name != EmptyString {
+			if name != EmptyString {
 				if _, ok := symPtr[name]; !ok {
+					pkgpath := funcPkgPath(name)
+					pkgSet[pkgpath] = struct{}{}
 					symPtr[name] = getfuncentry(_func, md.text)
 				}
 			}
@@ -47,26 +65,26 @@ func typelinksinit(symPtr map[string]uintptr) {
 	}
 }
 
-func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
-	return regSymbol(symPtr, path)
+func RegSymbolWithSo(symPtr map[string]uintptr, pkgSet map[string]struct{}, path string) error {
+	return regSymbol(symPtr, pkgSet, path)
 }
 
-func RegSymbol(symPtr map[string]uintptr) error {
+func RegSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}) error {
 	path, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	return regSymbol(symPtr, path)
+	return regSymbol(symPtr, pkgSet, path)
 }
 
-func regSymbol(symPtr map[string]uintptr, path string) error {
+func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path string) error {
 	f, err := objfile.Open(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	typelinksinit(symPtr)
+	typelinksregister(symPtr, pkgSet)
 	syms, err := f.Symbols()
 	for _, sym := range syms {
 		if sym.Name == OsStdout {

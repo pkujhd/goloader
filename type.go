@@ -79,6 +79,29 @@ func pkgname(pkgpath string) string {
 	}
 }
 
+func funcPkgPath(funcName string) string {
+	// Anonymous struct methods can't have a package
+	if strings.HasPrefix(funcName, "go.struct {") || strings.HasPrefix(funcName, "go.(*struct {") {
+		return ""
+	}
+	lastSlash := strings.LastIndexByte(funcName, '/')
+	if lastSlash == -1 {
+		lastSlash = 0
+	}
+	// Methods on structs embedding structs from other packages look funny, e.g.:
+	// regexp.(*onePassInst).regexp/syntax.op
+	firstBracket := strings.LastIndex(funcName, ".(")
+	if firstBracket > 0 && lastSlash > firstBracket {
+		lastSlash = firstBracket
+	}
+
+	dot := lastSlash
+	for ; dot < len(funcName) && funcName[dot] != '.' && funcName[dot] != '('; dot++ {
+	}
+	pkgPath := funcName[:dot]
+	return strings.TrimPrefix(strings.TrimPrefix(pkgPath, "type..eq."), "[...]")
+}
+
 func (t *_type) PkgPath() string {
 	ut := t.uncommon()
 	if ut == nil {
