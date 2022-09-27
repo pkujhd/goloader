@@ -61,7 +61,7 @@ var (
 	modulesLock sync.Mutex
 )
 
-//initialize Linker
+// initialize Linker
 func initLinker() *Linker {
 	linker := &Linker{
 		symMap:       make(map[string]*obj.Sym),
@@ -429,7 +429,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 			!strings.HasPrefix(name, TypeDoubleDotPrefix) &&
 			addr >= module.types && addr < module.etypes {
 			module.typelinks = append(module.typelinks, int32(addr-module.types))
-			module.typemap[typeOff(addr-module.types)] = addr
+			module.typemap[typeOff(addr-module.types)] = (*_type)(unsafe.Pointer(addr))
 		}
 	}
 	initmodule(codeModule.module, linker)
@@ -444,10 +444,24 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	return err
 }
 
+func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr) map[string]*obj.Sym {
+	symMap := make(map[string]*obj.Sym)
+	for symName, sym := range linker.symMap {
+		if sym.Offset == InvalidOffset {
+			if _, ok := symbolMap[symName]; !ok {
+				if _, ok := linker.objsymbolMap[symName]; !ok {
+					symMap[symName] = sym
+				}
+			}
+		}
+	}
+	return symMap
+}
+
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
-		module: &moduledata{typemap: make(map[typeOff]uintptr)},
+		module: &moduledata{typemap: make(map[typeOff]*_type)},
 	}
 	codeModule.codeLen = len(linker.code)
 	codeModule.dataLen = len(linker.data)
@@ -477,7 +491,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
-		if err = linker.relocate(codeModule, symbolMap, symPtr); err == nil {
+		if err = linker.relocate(codeModule, symbolMap); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
 				if err = linker.doInitialize(codeModule, symbolMap); err == nil {
 					return codeModule, err
@@ -485,15 +499,21 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 			}
 		}
 	}
+	if err != nil {
+		err2 := Munmap(codeByte)
+		if err2 != nil {
+			err = fmt.Errorf("failed to munmap (%s) after linker error: %w", err2, err)
+		}
+	}
 	return nil, err
 }
 
-func (cm *CodeModule) Unload() {
+func (cm *CodeModule) Unload() error {
 	removeitabs(cm.module)
 	runtime.GC()
 	modulesLock.Lock()
 	removeModule(cm.module)
 	modulesLock.Unlock()
 	modulesinit()
-	Munmap(cm.codeByte)
+	return Munmap(cm.codeByte)
 }

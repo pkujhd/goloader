@@ -67,6 +67,7 @@ func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
 	if err := readObj(&pkg, linker); err != nil {
 		return nil, err
 	}
+
 	if err := linker.addSymbols(); err != nil {
 		return nil, err
 	}
@@ -75,12 +76,18 @@ func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
 
 func ReadObjs(files []string, pkgPath []string) (*Linker, error) {
 	linker := initLinker()
+	var osFiles []*os.File
+	defer func() {
+		for _, f := range osFiles {
+			_ = f.Close()
+		}
+	}()
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
+		osFiles = append(osFiles, f)
 		pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: pkgPath[i]}
 		if err := readObj(&pkg, linker); err != nil {
 			return nil, err

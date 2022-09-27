@@ -33,6 +33,10 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
+type Waiter interface {
+	Wait()
+}
+
 func main() {
 	var files arrayFlags
 	flag.Var(&files, "o", "load go object file")
@@ -55,7 +59,8 @@ func main() {
 	}
 
 	symPtr := make(map[string]uintptr)
-	err := goloader.RegSymbol(symPtr)
+	pkgSet := make(map[string]struct{})
+	err := goloader.RegSymbol(symPtr, pkgSet)
 	if err != nil {
 		fmt.Println(err)
 		return

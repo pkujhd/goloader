@@ -76,8 +76,8 @@ func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]s
 	return r.Sym(i).Name(r), i
 }
 
-func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef]string) {
-	s := r.Sym(index)
+func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]string) {
+	s := r.Sym(idx)
 	symbol := ObjSymbol{Name: s.Name(r), Kind: int(s.Type()), DupOK: s.Dupok(), Size: (int64)(s.Siz()), Func: &FuncInfo{}}
 	if _, ok := pkg.Syms[symbol.Name]; ok {
 		return
@@ -86,7 +86,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 		return
 	}
 	if symbol.Size > 0 {
-		symbol.Data = r.Data(index)
+		symbol.Data = r.Data(idx)
 		grow(&symbol.Data, (int)(symbol.Size))
 	} else {
 		symbol.Data = make([]byte, 0)
@@ -94,7 +94,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 
 	pkg.Syms[symbol.Name] = &symbol
 
-	auxs := r.Auxs(index)
+	auxs := r.Auxs(idx)
 	for k := 0; k < len(auxs); k++ {
 		name, index := resolveSymRef(auxs[k].Sym(), r, refNames)
 		switch auxs[k].Type() {
@@ -140,7 +140,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 		}
 	}
 
-	relocs := r.Relocs(index)
+	relocs := r.Relocs(idx)
 	for k := 0; k < len(relocs); k++ {
 		symbol.Reloc = append(symbol.Reloc, Reloc{})
 		symbol.Reloc[k].Add = int(relocs[k].Add())
