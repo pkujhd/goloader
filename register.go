@@ -56,7 +56,10 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 			if name != EmptyString {
 				if _, ok := symPtr[name]; !ok {
 					pkgpath := funcPkgPath(name)
-					pkgSet[pkgpath] = struct{}{}
+					if name != pkgpath+_InitTaskSuffix {
+						// Don't add to the package list if the only thing included is the init func
+						pkgSet[pkgpath] = struct{}{}
+					}
 					symPtr[name] = getfuncentry(_func, md.text)
 				}
 			}
