@@ -2,6 +2,8 @@ package goloader
 
 import (
 	"cmd/objfile/objfile"
+	"github.com/pkujhd/goloader/obj"
+	"github.com/pkujhd/goloader/objabi/dataindex"
 	"os"
 	"reflect"
 	"strings"
@@ -61,6 +63,14 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 						pkgSet[pkgpath] = struct{}{}
 					}
 					symPtr[name] = getfuncentry(_func, md.text)
+
+					// Asm function ABI wrappers will usually be inlined away into the caller's code, but it may be
+					// useful to know that certain functions are ABI0 and so cannot be called from Go directly
+					if _func.flag&funcFlag_ASM > 0 && _func.args == dataindex.ArgsSizeUnknown {
+						// Make clear that the ASM func uses ABI0 not ABIInternal by storing another suffixed copy
+
+						symPtr[name+obj.ABI0Suffix] = symPtr[name]
+					}
 				}
 			}
 		}
