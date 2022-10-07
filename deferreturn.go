@@ -11,12 +11,12 @@ import (
 )
 
 func (linker *Linker) addDeferReturn(_func *_func) (err error) {
-	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+	funcname := gostringnocopy(&linker.funcnametab[_func.nameoff])
 	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
 		sym := linker.symMap[funcname]
 		for _, r := range sym.Reloc {
-			if r.Sym == linker.symMap[RuntimeDeferReturn] {
+			if r.Sym.Name == RuntimeDeferReturn {
 				//../cmd/link/internal/ld/pcln.go:pclntab
 				switch linker.Arch.Name {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:
