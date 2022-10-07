@@ -4,8 +4,14 @@ import (
 	"os"
 )
 
+type CompilationUnitFiles struct {
+	ArchiveName string
+	Files       []string
+}
+
 type Pkg struct {
 	Syms    map[string]*ObjSymbol
+	CUFiles []CompilationUnitFiles
 	Arch    string
 	PkgPath string
 	F       *os.File
@@ -24,6 +30,8 @@ type FuncInfo struct {
 	File     []string
 	FuncData []string
 	InlTree  []InlTreeNode
+	ABI      uint16
+	CUOffset int
 }
 
 type ObjSymbol struct {

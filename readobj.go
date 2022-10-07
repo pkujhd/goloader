@@ -35,8 +35,13 @@ func readObj(pkg *obj.Pkg, linker *Linker) error {
 	}
 	switch linker.Arch.Name {
 	case sys.ArchARM.Name, sys.ArchARM64.Name:
-		copy(linker.pclntable, obj.ModuleHeadarm)
-		linker.pclntable[len(obj.ModuleHeadarm)-1] = PtrSize
+		copy(linker.functab, obj.ModuleHeadarm)
+		linker.functab[len(obj.ModuleHeadarm)-1] = PtrSize
+	}
+
+	cuOffset := 0
+	for _, cuFiles := range linker.cuFiles {
+		cuOffset += len(cuFiles.Files)
 	}
 
 	for _, sym := range pkg.Syms {
@@ -52,11 +57,13 @@ func readObj(pkg *obj.Pkg, linker *Linker) error {
 			for index, FuncData := range sym.Func.FuncData {
 				sym.Func.FuncData[index] = strings.Replace(FuncData, EmptyPkgPath, pkg.PkgPath, -1)
 			}
+			sym.Func.CUOffset += cuOffset
 		}
 	}
 	for _, sym := range pkg.Syms {
 		linker.objsymbolMap[sym.Name] = sym
 	}
+	linker.cuFiles = append(linker.cuFiles, pkg.CUFiles...)
 	linker.initFuncs = append(linker.initFuncs, getInitFuncName(pkg.PkgPath))
 	return nil
 }

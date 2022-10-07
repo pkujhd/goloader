@@ -41,11 +41,16 @@ type Linker struct {
 	noptrdata    []byte
 	bss          []byte
 	noptrbss     []byte
+	cuFiles      []obj.CompilationUnitFiles
 	symMap       map[string]*obj.Sym
 	objsymbolMap map[string]*obj.ObjSymbol
 	namemap      map[string]int
-	filetab      []uint32
-	pclntable    []byte
+	fileNameMap  map[string]int
+	cutab        []uint32
+	filetab      []byte
+	funcnametab  []byte
+	functab      []byte
+	pctab        []byte
 	_func        []*_func
 	initFuncs    []string
 	Arch         *sys.Arch
@@ -67,20 +72,43 @@ var (
 // initialize Linker
 func initLinker() *Linker {
 	linker := &Linker{
+		// Pad these tabs out so offsets don't start at 0, which is often used in runtime as a special value for "missing"
+		// e.g. runtime/traceback.go and runtime/symtab.go both contain checks like:
+		// if f.pcsp == 0 ...
+		// and
+		// if f.nameoff == 0
+		funcnametab:  make([]byte, PtrSize),
+		pctab:        make([]byte, PtrSize),
 		symMap:       make(map[string]*obj.Sym),
 		objsymbolMap: make(map[string]*obj.ObjSymbol),
 		namemap:      make(map[string]int),
+		fileNameMap:  make(map[string]int),
 	}
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
 	copy(head, obj.ModuleHeadx86)
-	linker.pclntable = append(linker.pclntable, head...)
-	linker.pclntable[len(obj.ModuleHeadx86)-1] = PtrSize
+	linker.functab = append(linker.functab, head...)
+	linker.functab[len(obj.ModuleHeadx86)-1] = PtrSize
 	return linker
 }
 
 func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
+
+	for _, cuFileSet := range linker.cuFiles {
+		for _, fileName := range cuFileSet.Files {
+			if offset, ok := linker.fileNameMap[fileName]; !ok {
+				linker.cutab = append(linker.cutab, (uint32)(len(linker.filetab)))
+				linker.fileNameMap[fileName] = len(linker.filetab)
+				fileName = strings.TrimPrefix(fileName, FileSymPrefix)
+				linker.filetab = append(linker.filetab, []byte(fileName)...)
+				linker.filetab = append(linker.filetab, ZeroByte)
+			} else {
+				linker.cutab = append(linker.cutab, uint32(offset))
+			}
+		}
+	}
+
 	for _, objSym := range linker.objsymbolMap {
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
 			_, err := linker.addSymbol(objSym.Name)
@@ -177,7 +205,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				if reloc.Size <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
-					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d\n", reloc.Sym.Name, reloc.Size, IntSize)
+					return nil, fmt.Errorf("Symbol: %s size: %d > IntSize: %d\n", reloc.Sym.Name, reloc.Size, IntSize)
 				}
 			}
 		} else {
@@ -239,43 +267,30 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 }
 
 func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err error) {
-	cuOffset := len(linker.filetab) - 1
-	for _, fileName := range symbol.Func.File {
-		if offset, ok := linker.namemap[fileName]; !ok {
-			linker.filetab = append(linker.filetab, (uint32)(len(linker.pclntable)))
-			linker.namemap[fileName] = len(linker.pclntable)
-			fileName = strings.TrimPrefix(fileName, FileSymPrefix)
-			linker.pclntable = append(linker.pclntable, []byte(fileName)...)
-			linker.pclntable = append(linker.pclntable, ZeroByte)
-		} else {
-			linker.filetab = append(linker.filetab, uint32(offset))
-		}
-	}
-
-	nameOff := len(linker.pclntable)
+	nameOff := len(linker.funcnametab)
 	if offset, ok := linker.namemap[symbol.Name]; !ok {
-		linker.namemap[symbol.Name] = len(linker.pclntable)
-		linker.pclntable = append(linker.pclntable, []byte(symbol.Name)...)
-		linker.pclntable = append(linker.pclntable, ZeroByte)
+		linker.namemap[symbol.Name] = len(linker.funcnametab)
+		linker.funcnametab = append(linker.funcnametab, []byte(symbol.Name)...)
+		linker.funcnametab = append(linker.funcnametab, ZeroByte)
 	} else {
 		nameOff = offset
 	}
 
-	pcspOff := len(linker.pclntable)
-	linker.pclntable = append(linker.pclntable, symbol.Func.PCSP...)
+	pcspOff := len(linker.pctab)
+	linker.pctab = append(linker.pctab, symbol.Func.PCSP...)
 
-	pcfileOff := len(linker.pclntable)
-	linker.pclntable = append(linker.pclntable, symbol.Func.PCFile...)
+	pcfileOff := len(linker.pctab)
+	linker.pctab = append(linker.pctab, symbol.Func.PCFile...)
 
-	pclnOff := len(linker.pclntable)
-	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
+	pclnOff := len(linker.pctab)
+	linker.pctab = append(linker.pctab, symbol.Func.PCLine...)
 
-	_func := initfunc(symbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOffset)
+	_func := initfunc(symbol, nameOff, pcspOff, pcfileOff, pclnOff, symbol.Func.CUOffset)
 	linker._func = append(linker._func, &_func)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
-		Func.PCData = append(Func.PCData, uint32(len(linker.pclntable)))
-		linker.pclntable = append(linker.pclntable, pcdata...)
+		Func.PCData = append(Func.PCData, uint32(len(linker.pctab)))
+		linker.pctab = append(linker.pctab, pcdata...)
 	}
 
 	for _, name := range symbol.Func.FuncData {
@@ -301,7 +316,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 		return err
 	}
 
-	grow(&linker.pclntable, alignof(len(linker.pclntable), PtrSize))
+	grow(&linker.pctab, alignof(len(linker.pctab), PtrSize))
 	return
 }
 
@@ -348,7 +363,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 }
 
 func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map[string]uintptr) (err error) {
-	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+	funcname := gostringnocopy(&linker.funcnametab[_func.nameoff])
 	setfuncentry(_func, symbolMap[funcname], module.text)
 	Func := linker.symMap[funcname].Func
 
@@ -375,7 +390,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	module := codeModule.module
-	module.pclntable = append(module.pclntable, linker.pclntable...)
+	module.pclntable = append(module.pclntable, linker.functab...)
 	module.minpc = uintptr(segment.codeBase)
 	module.maxpc = uintptr(segment.codeBase + segment.codeOff)
 	module.text = uintptr(segment.codeBase)
@@ -394,7 +409,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker._func {
-		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+		funcname := gostringnocopy(&linker.funcnametab[_func.nameoff])
 		module.ftab = append(module.ftab, initfunctab(symbolMap[funcname], uintptr(len(module.pclntable)), module.text))
 		if err = linker.addFuncTab(module, linker._func[index], symbolMap); err != nil {
 			return err
@@ -405,7 +420,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	//see:^src/cmd/link/internal/ld/pcln.go findfunctab
 	funcbucket := []findfuncbucket{}
 	for k, _func := range linker._func {
-		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+		funcname := gostringnocopy(&linker.funcnametab[_func.nameoff])
 		x := linker.symMap[funcname].Offset
 		b := x / pcbucketsize
 		i := x % pcbucketsize / (pcbucketsize / nsub)

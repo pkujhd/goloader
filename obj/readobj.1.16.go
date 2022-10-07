@@ -16,6 +16,7 @@ func (pkg *Pkg) Symbols() error {
 	if err != nil {
 		return err
 	}
+
 	for _, e := range a.Entries {
 		switch e.Type {
 		case archive.EntryPkgDef:
@@ -39,6 +40,15 @@ func (pkg *Pkg) Symbols() error {
 			for i := 0; i < nsym; i++ {
 				pkg.addSym(r, uint32(i), &refNames)
 			}
+			files := make([]string, r.NFile())
+			for i := range files {
+				files[i] = r.File(i)
+			}
+
+			pkg.CUFiles = append(pkg.CUFiles, CompilationUnitFiles{
+				ArchiveName: e.Name,
+				Files:       files,
+			})
 		default:
 			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.F.Name(), e.Name)
 		}
@@ -85,6 +95,9 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
 		return
 	}
+	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
+		return
+	}
 	if symbol.Size > 0 {
 		symbol.Data = r.Data(idx)
 		grow(&symbol.Data, (int)(symbol.Size))
@@ -106,6 +119,11 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 			for _, index := range funcInfo.File {
 				symbol.Func.File = append(symbol.Func.File, r.File(int(index)))
 			}
+			cuOffset := 0
+			for _, cuFiles := range pkg.CUFiles {
+				cuOffset += len(cuFiles.Files)
+			}
+			symbol.Func.CUOffset = cuOffset
 			for _, inl := range funcInfo.InlTree {
 				funcname, _ := resolveSymRef(inl.Func, r, refNames)
 				funcname = strings.Replace(funcname, EmptyPkgPath, pkg.PkgPath, -1)
