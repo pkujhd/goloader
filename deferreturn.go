@@ -11,7 +11,7 @@ import (
 )
 
 func (linker *Linker) addDeferReturn(_func *_func) (err error) {
-	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+	funcname := gostringnocopy(&linker.funcnametab[_func.nameoff])
 	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
 		sym := linker.symMap[funcname]
