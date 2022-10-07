@@ -1,6 +1,7 @@
 package goloader
 
 import (
+	"cmd/objfile/objabi"
 	"cmd/objfile/sys"
 	"encoding/binary"
 	"errors"
@@ -114,6 +115,26 @@ func (linker *Linker) addSymbols() error {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
 				return err
+			}
+		} else if objSym.Kind == symkind.STEXT && objSym.DupOK {
+			// This might be an asm func ABIWRAPPER. Check if one of its relocs points to itself
+			// (the abi0 version of itself, without the .abiinternal suffix)
+			isAsmWrapper := false
+
+			if objSym.Func != nil && objSym.Func.FuncID == uint8(objabi.FuncID_wrapper) {
+				for _, reloc := range objSym.Reloc {
+					if reloc.Sym.Name+obj.ABIInternalSuffix == objSym.Name {
+						// Relocation pointing at itself (the ABI0 ASM version)
+						isAsmWrapper = true
+					}
+				}
+			}
+			if isAsmWrapper {
+				// This wrapper's symbol has a suffix of .abiinternal to distinguish it from the abi0 ASM func
+				_, err := linker.addSymbol(objSym.Name)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		if objSym.Kind == symkind.SNOPTRDATA || objSym.Kind == symkind.SRODATA {
@@ -250,7 +271,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			if !exist {
 				//golang1.8, some function generates more than one (MOVQ (TLS), CX)
 				//so when same name symbol in linker.symMap, do not update it
-				linker.symMap[reloc.Sym.Name] = reloc.Sym
+				if reloc.Sym.Name != "" {
+					linker.symMap[reloc.Sym.Name] = reloc.Sym
+				}
 			}
 		}
 		symbol.Reloc = append(symbol.Reloc, reloc)
