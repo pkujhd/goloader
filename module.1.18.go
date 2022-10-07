@@ -80,10 +80,10 @@ func initmodule(module *moduledata, linker *Linker) {
 	module.pcHeader.textStart = module.text
 	module.pcHeader.nfunc = len(module.ftab)
 	module.pcHeader.nfiles = (uint)(len(module.filetab))
-	module.funcnametab = module.pclntable
-	module.pctab = module.pclntable
-	module.cutab = linker.filetab
-	module.filetab = module.pclntable
+	module.funcnametab = linker.funcnametab
+	module.pctab = linker.pctab
+	module.cutab = linker.cutab
+	module.filetab = linker.filetab
 	module.hasmain = 0
 	module.bad = false
 	module.gofunc = module.noptrdata
