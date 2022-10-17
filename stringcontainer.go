@@ -14,7 +14,7 @@ type stringMmap struct {
 var stringContainer stringMmap = stringMmap{size: DefaultStringContainerSize, index: 0, addr: 0}
 
 func initStringMmap() (err error) {
-	stringContainer.bytes, err = Mmap(stringContainer.size)
+	stringContainer.bytes, err = MmapData(stringContainer.size)
 	if err == nil {
 		stringContainer.addr = uintptr(unsafe.Pointer(&stringContainer.bytes[0]))
 	}

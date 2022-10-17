@@ -77,9 +77,10 @@ func append2Slice(dst *[]byte, src uintptr, size int) {
 	*dst = append(*dst, *(*[]byte)(unsafe.Pointer(&s))...)
 }
 
+// see runtime.internal.atomic.Loadp
+//
 //go:nosplit
 //go:noinline
-//see runtime.internal.atomic.Loadp
 func loadp(ptr unsafe.Pointer) unsafe.Pointer {
 	return *(*unsafe.Pointer)(ptr)
 }
@@ -104,11 +105,15 @@ func Mmap(size int) ([]byte, error) {
 	return mmap.Mmap(size)
 }
 
+func MmapData(size int) ([]byte, error) {
+	return mmap.MmapData(size)
+}
+
 func Munmap(b []byte) (err error) {
 	return mmap.Munmap(b)
 }
 
-//see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
+// see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
 func ispreprocesssymbol(name string) bool {
 	if len(name) > 5 {
 		switch name[:5] {
@@ -138,4 +143,11 @@ func preprocesssymbol(byteOrder binary.ByteOrder, name string, bytes []byte) err
 		return fmt.Errorf("unrecognized $-symbol: %s", name)
 	}
 	return nil
+}
+
+func max(a, b uintptr) uintptr {
+	if a > b {
+		return a
+	}
+	return b
 }

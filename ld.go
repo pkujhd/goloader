@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/pkujhd/goloader/mmap"
 	"runtime"
 	"strings"
 	"sync"
@@ -20,17 +21,20 @@ import (
 // ourself defined struct
 // code segment
 type segment struct {
-	codeByte     []byte
-	codeBase     int
-	dataBase     int
-	sumDataLen   int
-	dataLen      int
-	noptrdataLen int
-	bssLen       int
-	noptrbssLen  int
-	codeLen      int
-	maxLength    int
-	offset       int
+	codeByte      []byte
+	dataByte      []byte
+	codeBase      int
+	dataBase      int
+	sumDataLen    int
+	dataLen       int
+	noptrdataLen  int
+	bssLen        int
+	noptrbssLen   int
+	codeLen       int
+	maxLengthCode int
+	maxLengthData int
+	codeOffset    int
+	dataOffset    int
 }
 
 type Linker struct {
@@ -405,9 +409,9 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module := codeModule.module
 	module.pclntable = append(module.pclntable, linker.functab...)
 	module.minpc = uintptr(segment.codeBase)
-	module.maxpc = uintptr(segment.codeBase + segment.offset)
-	module.types = uintptr(segment.codeBase)
-	module.etypes = uintptr(segment.codeBase + segment.offset)
+	module.maxpc = uintptr(segment.codeBase + segment.codeOffset)
+	module.types = uintptr(segment.dataBase)
+	module.etypes = uintptr(segment.dataBase + segment.dataOffset)
 	module.text = uintptr(segment.codeBase)
 	module.etext = uintptr(segment.codeBase + len(linker.code))
 	module.data = uintptr(segment.dataBase)
@@ -418,7 +422,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.ebss = module.bss + uintptr(segment.bssLen)
 	module.noptrbss = module.ebss
 	module.enoptrbss = module.noptrbss + uintptr(segment.noptrbssLen)
-	module.end = uintptr(segment.codeBase + segment.offset)
+	module.end = max(uintptr(segment.codeBase+segment.codeOffset), uintptr(segment.dataBase+segment.dataOffset))
 
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker._func {
@@ -512,16 +516,17 @@ collect:
 	for _, symbol := range linker.symMap {
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
-			sym := loc.Sym
-			relocByte := segment.codeByte[segment.codeLen:]
+			relocSym := loc.Sym
+			relocByte := segment.dataByte
 			addrBase := segment.dataBase
 			if symbol.Kind == symkind.STEXT {
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
-			if addr != InvalidHandleValue && sym.Kind == symkind.SRODATA &&
-				strings.HasPrefix(sym.Name, TypePrefix) &&
-				!strings.HasPrefix(sym.Name, TypeDoubleDotPrefix) && sym.Offset != -1 {
+
+			if addr != InvalidHandleValue && relocSym.Kind == symkind.SRODATA &&
+				strings.HasPrefix(relocSym.Name, TypePrefix) &&
+				!strings.HasPrefix(relocSym.Name, TypeDoubleDotPrefix) && relocSym.Offset != -1 {
 
 				// if this is pointing to a type descriptor at an offset inside this binary, we should deduplicate it against
 				// already known types from other modules to allow fast type assertion using *_type pointer equality
@@ -543,7 +548,7 @@ collect:
 						// PC-relative addressing is allowed to be negative (even if not very cache friendly)
 						offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 						if offset > 0x7FFFFFFF || offset < -0x80000000 {
-							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
+							err = fmt.Errorf("symName: %s offset: %d overflows!\n", relocSym.Name, offset)
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
@@ -552,14 +557,14 @@ collect:
 						putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
 					case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF, reloctype.R_METHODOFF:
 						if symbol.Kind == symkind.STEXT {
-							err = fmt.Errorf("impossible! Sym: %s located on code segment!\n", sym.Name)
+							err = fmt.Errorf("impossible! Sym: %s located on code segment!\n", relocSym.Name)
 						}
 						// TODO - sanity check this
 						offset := int(addr) - segment.codeBase + loc.Add
 						if offset > 0x7FFFFFFF || offset < -0x80000000 {
-							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
+							err = fmt.Errorf("symName: %s offset: %d overflows!\n", relocSym.Name, offset)
 						}
-						byteorder.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
+						byteorder.PutUint32(segment.dataByte[loc.Offset:], uint32(offset))
 					case reloctype.R_USETYPE, reloctype.R_USEIFACE, reloctype.R_USEIFACEMETHOD, reloctype.R_ADDRCUOFF:
 						// nothing to do
 					default:
@@ -597,31 +602,42 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	codeModule.bssLen = len(linker.bss)
 	codeModule.noptrbssLen = len(linker.noptrbss)
 	codeModule.sumDataLen = codeModule.dataLen + codeModule.noptrdataLen + codeModule.bssLen + codeModule.noptrbssLen
-	codeModule.maxLength = alignof((codeModule.codeLen+codeModule.sumDataLen)*2, PageSize)
-	codeByte, err := Mmap(codeModule.maxLength)
+	codeModule.maxLengthCode = alignof(codeModule.codeLen*4, PageSize)
+	codeModule.maxLengthData = alignof(codeModule.sumDataLen*4, PageSize)
+	dataByte, err := MmapData(codeModule.maxLengthData)
+	if err != nil {
+		return nil, err
+	}
+	codeByte, err := Mmap(codeModule.maxLengthCode)
 	if err != nil {
 		return nil, err
 	}
 
 	codeModule.codeByte = codeByte
+	codeModule.dataByte = dataByte
 	codeModule.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	codeModule.dataBase = codeModule.codeBase + codeModule.codeLen
+	codeModule.dataBase = int((*sliceHeader)(unsafe.Pointer(&dataByte)).Data)
 	copy(codeModule.codeByte, linker.code)
-	codeModule.offset = codeModule.codeLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.data)
-	codeModule.offset += codeModule.dataLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.noptrdata)
-	codeModule.offset += codeModule.noptrdataLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.bss)
-	codeModule.offset += codeModule.bssLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.noptrbss)
-	codeModule.offset += codeModule.noptrbssLen
+	codeModule.codeOffset = codeModule.codeLen
+
+	copy(codeModule.dataByte[codeModule.dataOffset:], linker.data)
+	codeModule.dataOffset += codeModule.dataLen
+
+	copy(codeModule.dataByte[codeModule.dataOffset:], linker.noptrdata)
+	codeModule.dataOffset += codeModule.noptrdataLen
+
+	copy(codeModule.dataByte[codeModule.dataOffset:], linker.bss)
+	codeModule.dataOffset += codeModule.bssLen
+
+	copy(codeModule.dataByte[codeModule.dataOffset:], linker.noptrbss)
+	codeModule.dataOffset += codeModule.noptrbssLen
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
 		if err = linker.relocate(codeModule, symbolMap); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
 				if err = linker.deduplicateTypeDescriptors(codeModule, symbolMap); err == nil {
+					mmap.MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeModule.maxLengthCode)
 					if err = linker.doInitialize(codeModule, symbolMap); err == nil {
 						return codeModule, err
 					}
@@ -631,8 +647,9 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	}
 	if err != nil {
 		err2 := Munmap(codeByte)
-		if err2 != nil {
-			err = fmt.Errorf("failed to munmap (%s) after linker error: %w", err2, err)
+		err3 := Munmap(dataByte)
+		if err2 != nil || err3 != nil {
+			err = fmt.Errorf("failed to munmap (%s|%s) after linker error: %w", err2, err3, err)
 		}
 	}
 	return nil, err

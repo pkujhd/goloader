@@ -16,6 +16,13 @@ type sliceHeader struct {
 	Cap  int
 }
 
+func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
+}
+
+func MmapData(size int) ([]byte, error) {
+	return Mmap(size)
+}
+
 func Mmap(size int) ([]byte, error) {
 
 	sizelo := uint32(size >> 32)

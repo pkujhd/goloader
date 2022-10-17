@@ -8,6 +8,13 @@ import (
 	"syscall"
 )
 
+func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
+}
+
+func MmapData(size int) ([]byte, error) {
+	return Mmap(size)
+}
+
 func Mmap(size int) ([]byte, error) {
 	data, err := syscall.Mmap(
 		0,
