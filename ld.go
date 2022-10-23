@@ -604,11 +604,11 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	codeModule.sumDataLen = codeModule.dataLen + codeModule.noptrdataLen + codeModule.bssLen + codeModule.noptrbssLen
 	codeModule.maxLengthCode = alignof(codeModule.codeLen*4, PageSize)
 	codeModule.maxLengthData = alignof(codeModule.sumDataLen*4, PageSize)
-	dataByte, err := MmapData(codeModule.maxLengthData)
+	codeByte, err := Mmap(codeModule.maxLengthCode)
 	if err != nil {
 		return nil, err
 	}
-	codeByte, err := Mmap(codeModule.maxLengthCode)
+	dataByte, err := MmapData(codeModule.maxLengthData)
 	if err != nil {
 		return nil, err
 	}

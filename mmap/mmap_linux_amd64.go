@@ -12,7 +12,16 @@ func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
 }
 
 func MmapData(size int) ([]byte, error) {
-	return Mmap(size)
+	data, err := syscall.Mmap(
+		0,
+		0,
+		size,
+		syscall.PROT_READ|syscall.PROT_WRITE,
+		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_32BIT)
+	if err != nil {
+		err = os.NewSyscallError("syscall.Mmap", err)
+	}
+	return data, err
 }
 
 func Mmap(size int) ([]byte, error) {
