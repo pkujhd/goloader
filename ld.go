@@ -331,7 +331,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				}
 			} else {
 				symbolMap[name] = symPtr[name]
-				if strings.HasPrefix(name, MainPkgPrefix) || strings.HasPrefix(name, TypePrefix) {
+				if strings.HasPrefix(name, MainPkgPrefix) {
 					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPerfix) {
 						symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
 					} else {
@@ -477,7 +477,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
-		if err = linker.relocate(codeModule, symbolMap); err == nil {
+		if err = linker.relocate(codeModule, symbolMap, symPtr); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
 				if err = linker.doInitialize(codeModule, symbolMap); err == nil {
 					return codeModule, err

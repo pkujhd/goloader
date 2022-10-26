@@ -152,70 +152,73 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segme
 	}
 }
 
-func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	byteorder := linker.Arch.ByteOrder
 	for _, symbol := range linker.symMap {
-		for _, loc := range symbol.Reloc {
-			addr := symbolMap[loc.Sym.Name]
-			sym := loc.Sym
-			relocByte := segment.codeByte[segment.codeLen:]
-			addrBase := segment.dataBase
-			if symbol.Kind == symkind.STEXT {
-				addrBase = segment.codeBase
-				relocByte = segment.codeByte
-			}
-			if addr == 0 && strings.HasPrefix(sym.Name, ItabPrefix) {
-				addr = uintptr(segment.dataBase + loc.Sym.Offset)
-				symbolMap[loc.Sym.Name] = addr
-				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
-			}
-			if addr != InvalidHandleValue {
-				switch loc.Type {
-				case reloctype.R_TLS_LE:
-					if _, ok := symbolMap[TLSNAME]; !ok {
-						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
-					}
-					byteorder.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
-				case reloctype.R_CALL:
-					linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
-				case reloctype.R_PCREL:
-					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
-				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
-					linker.relocteCALLARM(addr, loc, segment)
-				case reloctype.R_ADDRARM64:
-					if symbol.Kind != symkind.STEXT {
-						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
-					}
-					linker.relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
-				case reloctype.R_ADDR, reloctype.R_WEAKADDR:
-					address := uintptr(int(addr) + loc.Add)
-					putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
-				case reloctype.R_CALLIND:
-					//nothing todo
-				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF, reloctype.R_METHODOFF:
-					if symbol.Kind == symkind.STEXT {
-						err = fmt.Errorf("impossible!Sym:%s locate on code segment!\n", sym.Name)
-					}
-					offset := int(addr) - segment.codeBase + loc.Add
-					if offset > 0x7FFFFFFF || offset < -0x80000000 {
-						err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
-					}
-					byteorder.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
-				case reloctype.R_USETYPE:
-					//nothing todo
-				case reloctype.R_USEIFACE:
-					//nothing todo
-				case reloctype.R_USEIFACEMETHOD:
-					//nothing todo
-				case reloctype.R_ADDRCUOFF:
-					//nothing todo
-				default:
-					err = fmt.Errorf("unknown reloc type:%d sym:%s", loc.Type, sym.Name)
+		// if the symbol exist in symPtr, so it doesnot need to relocate, the loader use the symbol in loader.
+		if _, ok := symPtr[symbol.Name]; !ok || strings.HasPrefix(symbol.Name, MainPkgPrefix) {
+			for _, loc := range symbol.Reloc {
+				addr := symbolMap[loc.Sym.Name]
+				sym := loc.Sym
+				relocByte := segment.codeByte[segment.codeLen:]
+				addrBase := segment.dataBase
+				if symbol.Kind == symkind.STEXT {
+					addrBase = segment.codeBase
+					relocByte = segment.codeByte
 				}
-			}
-			if err != nil {
-				return err
+				if addr == 0 && strings.HasPrefix(sym.Name, ItabPrefix) {
+					addr = uintptr(segment.dataBase + loc.Sym.Offset)
+					symbolMap[loc.Sym.Name] = addr
+					codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
+				}
+				if addr != InvalidHandleValue {
+					switch loc.Type {
+					case reloctype.R_TLS_LE:
+						if _, ok := symbolMap[TLSNAME]; !ok {
+							symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
+						}
+						byteorder.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
+					case reloctype.R_CALL:
+						linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
+					case reloctype.R_PCREL:
+						err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
+					case reloctype.R_CALLARM, reloctype.R_CALLARM64:
+						linker.relocteCALLARM(addr, loc, segment)
+					case reloctype.R_ADDRARM64:
+						if symbol.Kind != symkind.STEXT {
+							err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
+						}
+						linker.relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
+					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
+						address := uintptr(int(addr) + loc.Add)
+						putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
+					case reloctype.R_CALLIND:
+						//nothing todo
+					case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF, reloctype.R_METHODOFF:
+						if symbol.Kind == symkind.STEXT {
+							err = fmt.Errorf("impossible!Sym:%s locate on code segment!\n", sym.Name)
+						}
+						offset := int(addr) - segment.codeBase + loc.Add
+						if offset > 0x7FFFFFFF || offset < -0x80000000 {
+							err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
+						}
+						byteorder.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
+					case reloctype.R_USETYPE:
+						//nothing todo
+					case reloctype.R_USEIFACE:
+						//nothing todo
+					case reloctype.R_USEIFACEMETHOD:
+						//nothing todo
+					case reloctype.R_ADDRCUOFF:
+						//nothing todo
+					default:
+						err = fmt.Errorf("unknown reloc type:%d sym:%s", loc.Type, sym.Name)
+					}
+				}
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
