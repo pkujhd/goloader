@@ -20,7 +20,12 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.sumDataLen) {
 		return nil
 	}
-	typeName := linker.objsymbolMap[sym.Name].Type
+	objsym := linker.objsymbolMap[sym.Name]
+	typeName := objsym.Type
+	if len(typeName) == 0 && objsym.Size > 0 {
+		// This is likely a global var with no type information encoded, so can't be GC'd (ignore it)
+		return nil
+	}
 	sval := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
 	if int(sym.Kind) == symkind.SBSS {
 		sval = sval - int64(segment.dataLen+segment.noptrdataLen)
