@@ -96,7 +96,7 @@ func (linker *Linker) addSymbols() error {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPerfix) {
+			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPrefix) {
 				//nothing todo
 			} else {
 				offset += len(linker.data)
@@ -139,7 +139,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants
 		//in a separate segment and not unload when module unload.
-		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPerfix) {
+		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
 			if stringContainer.index+len(objsym.Data) > stringContainer.size {
 				return nil, fmt.Errorf("overflow string container")
 			}
@@ -324,7 +324,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if _, ok := symPtr[name]; !ok {
-				if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPerfix) {
+				if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
 				} else {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
@@ -332,7 +332,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			} else {
 				symbolMap[name] = symPtr[name]
 				if strings.HasPrefix(name, MainPkgPrefix) {
-					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPerfix) {
+					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
 						symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
 					} else {
 						symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)

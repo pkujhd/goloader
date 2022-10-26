@@ -10,5 +10,5 @@ const (
 	InlinedCallSize  = int(unsafe.Sizeof(InlinedCall{}))
 	EmptyPkgPath     = `""`
 	EmptyString      = ""
-	TypeStringPerfix = "go.string."
+	TypeStringPrefix = "go.string."
 )

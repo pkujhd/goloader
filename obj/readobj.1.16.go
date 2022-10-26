@@ -44,7 +44,7 @@ func (pkg *Pkg) Symbols() error {
 		}
 	}
 	for _, sym := range pkg.Syms {
-		if !strings.HasPrefix(sym.Name, TypeStringPerfix) {
+		if !strings.HasPrefix(sym.Name, TypeStringPrefix) {
 			sym.Name = strings.Replace(sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
 		}
 	}
