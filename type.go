@@ -66,6 +66,12 @@ func _typeOff(t *_type, off typeOff) *_type
 //go:linkname _name runtime.name.name
 func _name(n name) string
 
+//go:linkname _pkgPath runtime.name.pkgPath
+func _pkgPath(n name) string
+
+//go:linkname _isExported runtime.name.isExported
+func _isExported(n name) bool
+
 //go:linkname _methods reflect.(*uncommonType).methods
 func _methods(t *uncommonType) []method
 
@@ -79,6 +85,8 @@ func (t *_type) uncommon() *uncommonType    { return _uncommon(t) }
 func (t *_type) nameOff(off nameOff) name   { return _nameOff(t, off) }
 func (t *_type) typeOff(off typeOff) *_type { return _typeOff(t, off) }
 func (n name) name() string                 { return _name(n) }
+func (n name) pkgPath() string              { return _pkgPath(n) }
+func (n name) isExported() bool             { return _isExported(n) }
 func (t *uncommonType) methods() []method   { return _methods(t) }
 func (t *_type) Kind() reflect.Kind         { return _Kind(t) }
 func (t *_type) Elem() *_type               { return _Elem(t) }
