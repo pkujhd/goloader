@@ -8,7 +8,9 @@ import (
 	"cmd/objfile/goobj"
 	"cmd/objfile/obj"
 	"cmd/objfile/objabi"
+	"cmd/objfile/objfile"
 	"fmt"
+	"github.com/pkujhd/goloader/objabi/symkind"
 	"strings"
 )
 
@@ -17,6 +19,15 @@ func (pkg *Pkg) Symbols() error {
 	if err != nil {
 		return err
 	}
+
+	// objfile.Open is capable of parsing native (CGo) archive entries where
+	objf, err := objfile.Open(pkg.F.Name())
+	if err != nil {
+		return fmt.Errorf("failed to open objfile '%s': %w", pkg.F.Name(), err)
+	}
+	objfEntries := objf.Entries()
+
+	defer objf.Close()
 
 	for _, e := range a.Entries {
 		switch e.Type {
@@ -50,8 +61,44 @@ func (pkg *Pkg) Symbols() error {
 				ArchiveName: e.Name,
 				Files:       files,
 			})
+		case archive.EntryNativeObj:
+			// CGo files must be parsed by an elf/macho etc. native reader
+			for _, objfEntry := range objfEntries {
+				if e.Name == objfEntry.Name() {
+					symbols, err := objfEntry.Symbols()
+					if err != nil {
+						return fmt.Errorf("failed to extract symbols from objfile entry %s: %w", e.Name, err)
+					}
+					for _, symbol := range symbols {
+						if symbol.Name != "" && symbol.Size > 0 && strings.ToUpper(string(byte(symbol.Code))) == "T" {
+							// Nothing in Goloader actually applies ELF/Macho relocations within native entries,
+							// so CGo code won't actually work if called, but at least this allows it to be built
+							// (in case a package imports C but the user doesn't do anything with it).
+
+							// It is possible to manually translate a subset of ELF relocations into their equivalent
+							// Go relocations using the debug/elf package (by reading all symbols, .text and .rel/.rela sections
+							// and adding Relocs{} to the symbols), but doing it fully involves re-implementing a lot of gcc/ld
+							sym := ObjSymbol{Name: symbol.Name, Kind: symkind.STEXT, DupOK: false, Size: symbol.Size, Func: &FuncInfo{}}
+
+							textOffset, text, err := objfEntry.Text()
+							if err != nil {
+								return fmt.Errorf("failed to extract text from objfile entry %s: %w", e.Name, err)
+							}
+							data := make([]byte, symbol.Size)
+
+							// TODO - this should actually be as below, but since nothing applies native (elf/macho)
+							//  relocations, cgo code will panic
+							// copy(data, text[textOffset+symbol.Addr:int64(textOffset+symbol.Addr)+symbol.Size])
+							copy(data, text[textOffset:int64(textOffset)+symbol.Size])
+							sym.Data = data
+
+							pkg.Syms[symbol.Name] = &sym
+						}
+					}
+				}
+			}
 		default:
-			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.F.Name(), e.Name)
+			return fmt.Errorf("Parse open %s: unrecognized archive member %s (%d)\n", pkg.F.Name(), e.Name, e.Type)
 		}
 	}
 	for _, sym := range pkg.Syms {
