@@ -1,5 +1,5 @@
-//go:build darwin || dragonfly || freebsd || (linux && !amd64) || openbsd || solaris || netbsd
-// +build darwin dragonfly freebsd linux,!amd64 openbsd solaris netbsd
+//go:build (darwin && !arm64) || dragonfly || freebsd || (linux && !amd64) || openbsd || solaris || netbsd
+// +build darwin,!arm64 dragonfly freebsd linux,!amd64 openbsd solaris netbsd
 
 package mmap
 
@@ -8,12 +8,28 @@ import (
 	"syscall"
 )
 
+func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
+}
+
 func Mmap(size int) ([]byte, error) {
 	data, err := syscall.Mmap(
 		0,
 		0,
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC,
+		syscall.MAP_PRIVATE|syscall.MAP_ANON)
+	if err != nil {
+		err = os.NewSyscallError("syscall.Mmap", err)
+	}
+	return data, err
+}
+
+func MmapData(size int) ([]byte, error) {
+	data, err := syscall.Mmap(
+		0,
+		0,
+		size,
+		syscall.PROT_READ|syscall.PROT_WRITE,
 		syscall.MAP_PRIVATE|syscall.MAP_ANON)
 	if err != nil {
 		err = os.NewSyscallError("syscall.Mmap", err)

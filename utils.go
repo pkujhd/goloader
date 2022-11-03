@@ -104,8 +104,16 @@ func Mmap(size int) ([]byte, error) {
 	return mmap.Mmap(size)
 }
 
+func MmapData(size int) ([]byte, error) {
+	return mmap.MmapData(size)
+}
+
 func Munmap(b []byte) (err error) {
 	return mmap.Munmap(b)
+}
+
+func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
+	mmap.MakeThreadJITCodeExecutable(ptr, len)
 }
 
 //see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
