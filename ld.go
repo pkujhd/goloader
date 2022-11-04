@@ -19,17 +19,20 @@ import (
 // ourself defined struct
 // code segment
 type segment struct {
-	codeByte     []byte
-	codeBase     int
-	dataBase     int
-	sumDataLen   int
-	dataLen      int
-	noptrdataLen int
-	bssLen       int
-	noptrbssLen  int
-	codeLen      int
-	maxLength    int
-	offset       int
+	codeByte      []byte
+	dataByte      []byte
+	codeBase      int
+	dataBase      int
+	sumDataLen    int
+	dataLen       int
+	noptrdataLen  int
+	bssLen        int
+	noptrbssLen   int
+	codeLen       int
+	maxCodeLength int
+	maxDataLength int
+	codeOff       int
+	dataOff       int
 }
 
 type Linker struct {
@@ -374,11 +377,9 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module := codeModule.module
 	module.pclntable = append(module.pclntable, linker.pclntable...)
 	module.minpc = uintptr(segment.codeBase)
-	module.maxpc = uintptr(segment.codeBase + segment.offset)
-	module.types = uintptr(segment.codeBase)
-	module.etypes = uintptr(segment.codeBase + segment.offset)
+	module.maxpc = uintptr(segment.codeBase + segment.codeOff)
 	module.text = uintptr(segment.codeBase)
-	module.etext = uintptr(segment.codeBase + len(linker.code))
+	module.etext = module.maxpc
 	module.data = uintptr(segment.dataBase)
 	module.edata = uintptr(segment.dataBase) + uintptr(segment.dataLen)
 	module.noptrdata = module.edata
@@ -387,7 +388,9 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.ebss = module.bss + uintptr(segment.bssLen)
 	module.noptrbss = module.ebss
 	module.enoptrbss = module.noptrbss + uintptr(segment.noptrbssLen)
-	module.end = uintptr(segment.codeBase + segment.offset)
+	module.end = module.enoptrbss
+	module.types = module.data
+	module.etypes = module.enoptrbss
 
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker._func {
@@ -455,30 +458,38 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	codeModule.bssLen = len(linker.bss)
 	codeModule.noptrbssLen = len(linker.noptrbss)
 	codeModule.sumDataLen = codeModule.dataLen + codeModule.noptrdataLen + codeModule.bssLen + codeModule.noptrbssLen
-	codeModule.maxLength = alignof((codeModule.codeLen+codeModule.sumDataLen)*2, PageSize)
-	codeByte, err := Mmap(codeModule.maxLength)
+	codeModule.maxCodeLength = alignof((codeModule.codeLen)*2, PageSize)
+	codeModule.maxDataLength = alignof((codeModule.sumDataLen)*2, PageSize)
+	codeByte, err := Mmap(codeModule.maxCodeLength)
+	if err != nil {
+		return nil, err
+	}
+	dataByte, err := MmapData(codeModule.maxDataLength)
 	if err != nil {
 		return nil, err
 	}
 
 	codeModule.codeByte = codeByte
 	codeModule.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	codeModule.dataBase = codeModule.codeBase + codeModule.codeLen
 	copy(codeModule.codeByte, linker.code)
-	codeModule.offset = codeModule.codeLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.data)
-	codeModule.offset += codeModule.dataLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.noptrdata)
-	codeModule.offset += codeModule.noptrdataLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.bss)
-	codeModule.offset += codeModule.bssLen
-	copy(codeModule.codeByte[codeModule.offset:], linker.noptrbss)
-	codeModule.offset += codeModule.noptrbssLen
+	codeModule.codeOff = codeModule.codeLen
+
+	codeModule.dataByte = dataByte
+	codeModule.dataBase = int((*sliceHeader)(unsafe.Pointer(&dataByte)).Data)
+	copy(codeModule.dataByte[codeModule.dataOff:], linker.data)
+	codeModule.dataOff = codeModule.dataLen
+	copy(codeModule.dataByte[codeModule.dataOff:], linker.noptrdata)
+	codeModule.dataOff += codeModule.noptrdataLen
+	copy(codeModule.dataByte[codeModule.dataOff:], linker.bss)
+	codeModule.dataOff += codeModule.bssLen
+	copy(codeModule.dataByte[codeModule.dataOff:], linker.noptrbss)
+	codeModule.dataOff += codeModule.noptrbssLen
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
 		if err = linker.relocate(codeModule, symbolMap, symPtr); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
+				MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeModule.maxCodeLength)
 				if err = linker.doInitialize(codeModule, symbolMap); err == nil {
 					return codeModule, err
 				}
@@ -496,4 +507,5 @@ func (cm *CodeModule) Unload() {
 	modulesLock.Unlock()
 	modulesinit()
 	Munmap(cm.codeByte)
+	Munmap(cm.dataByte)
 }

@@ -27,8 +27,8 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		} else {
 			addr := byteorder.Uint32(mCode)
 			blcode := byteorder.Uint32(arm64BLcode)
-			blcode |= ((uint32(segment.offset) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
-			if segment.offset-loc.Offset < 0 {
+			blcode |= ((uint32(segment.codeOff) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
+			if segment.codeOff-loc.Offset < 0 {
 				blcode |= 0x02000000
 			}
 			byteorder.PutUint32(mCode, blcode)
@@ -42,17 +42,17 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 			hhigh := uint32(0xF2E00000)
 			llow = ((addr & 0x1F) | llow) | ((uint32(symAddr) & 0xFFFF) << 5)
 			lhigh = ((addr & 0x1F) | lhigh) | (uint32(symAddr) >> 16 << 5)
-			putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(llow)|(uint64(lhigh)<<32))
+			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(llow)|(uint64(lhigh)<<32))
 			hlow = ((addr & 0x1F) | hlow) | uint32(((uint64(symAddr)>>32)&0xFFFF)<<5)
 			hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
-			putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(hlow)|(uint64(hhigh)<<32))
+			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(hlow)|(uint64(hhigh)<<32))
 			blcode = byteorder.Uint32(arm64BLcode)
-			blcode |= ((uint32(loc.Offset) - uint32(segment.offset) + 8) >> 2) & 0x01FFFFFF
-			if loc.Offset-segment.offset+8 < 0 {
+			blcode |= ((uint32(loc.Offset) - uint32(segment.codeOff) + 8) >> 2) & 0x01FFFFFF
+			if loc.Offset-segment.codeOff+8 < 0 {
 				blcode |= 0x02000000
 			}
-			byteorder.PutUint32(segment.codeByte[segment.offset:], blcode)
-			segment.offset += Uint32Size
+			byteorder.PutUint32(segment.codeByte[segment.codeOff:], blcode)
+			segment.codeOff += Uint32Size
 		}
 	} else {
 		// 2bit + 19bit + low(12bit) = 33bit
@@ -68,10 +68,10 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
-		offset = (segment.codeBase + segment.offset) - (addrBase + loc.Offset + loc.Size)
-		copy(segment.codeByte[segment.offset:], x86amd64JMPLcode)
-		segment.offset += len(x86amd64JMPLcode)
-		putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(addr)+uint64(loc.Add))
+		offset = (segment.codeBase + segment.codeOff) - (addrBase + loc.Offset + loc.Size)
+		copy(segment.codeByte[segment.codeOff:], x86amd64JMPLcode)
+		segment.codeOff += len(x86amd64JMPLcode)
+		putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(addr)+uint64(loc.Add))
 	}
 	byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 }
@@ -80,7 +80,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
-		offset = (segment.codeBase + segment.offset) - (addrBase + loc.Offset + loc.Size)
+		offset = (segment.codeBase + segment.codeOff) - (addrBase + loc.Offset + loc.Size)
 		bytes := relocByte[loc.Offset-2:]
 		opcode := relocByte[loc.Offset-2]
 		regsiter := ZeroByte
@@ -96,21 +96,21 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		}
 		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		if opcode == x86amd64CMPLcode || opcode == x86amd64MOVcode {
-			putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(segment.codeBase+segment.offset+PtrSize))
+			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(segment.codeBase+segment.codeOff+PtrSize))
 			if opcode == x86amd64CMPLcode {
-				copy(segment.codeByte[segment.offset:], x86amd64replaceCMPLcode)
-				segment.codeByte[segment.offset+0x0F] = relocByte[loc.Offset+loc.Size]
-				segment.offset += len(x86amd64replaceCMPLcode)
-				putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(addr))
+				copy(segment.codeByte[segment.codeOff:], x86amd64replaceCMPLcode)
+				segment.codeByte[segment.codeOff+0x0F] = relocByte[loc.Offset+loc.Size]
+				segment.codeOff += len(x86amd64replaceCMPLcode)
+				putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(addr))
 			} else {
-				copy(segment.codeByte[segment.offset:], x86amd64replaceMOVQcode)
-				segment.codeByte[segment.offset+1] = regsiter
-				copy2Slice(segment.codeByte[segment.offset+2:], addr, PtrSize)
-				segment.offset += len(x86amd64replaceMOVQcode)
+				copy(segment.codeByte[segment.codeOff:], x86amd64replaceMOVQcode)
+				segment.codeByte[segment.codeOff+1] = regsiter
+				copy2Slice(segment.codeByte[segment.codeOff+2:], addr, PtrSize)
+				segment.codeOff += len(x86amd64replaceMOVQcode)
 			}
-			putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(addrBase+loc.Offset+loc.Size-loc.Add))
+			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(addrBase+loc.Offset+loc.Size-loc.Add))
 		} else {
-			putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(addr))
+			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(addr))
 		}
 	} else {
 		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
@@ -126,21 +126,21 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segme
 	}
 	offset := (int(addr) + add - (segment.codeBase + loc.Offset)) / 4
 	if offset > 0x7FFFFF || offset < -0x800000 {
-		segment.offset = alignof(segment.offset, PtrSize)
-		off := uint32(segment.offset-loc.Offset) / 4
+		segment.codeOff = alignof(segment.codeOff, PtrSize)
+		off := uint32(segment.codeOff-loc.Offset) / 4
 		if loc.Type == reloctype.R_CALLARM {
 			add = int(signext24(int64(loc.Add&0xFFFFFF)+2) * 4)
-			off = uint32(segment.offset-loc.Offset-8) / 4
+			off = uint32(segment.codeOff-loc.Offset-8) / 4
 		}
 		putUint24(segment.codeByte[loc.Offset:], off)
 		if loc.Type == reloctype.R_CALLARM64 {
-			copy(segment.codeByte[segment.offset:], arm64code)
-			segment.offset += len(arm64code)
+			copy(segment.codeByte[segment.codeOff:], arm64code)
+			segment.codeOff += len(arm64code)
 		} else {
-			copy(segment.codeByte[segment.offset:], armcode)
-			segment.offset += len(armcode)
+			copy(segment.codeByte[segment.codeOff:], armcode)
+			segment.codeOff += len(armcode)
 		}
-		putAddressAddOffset(byteorder, segment.codeByte, &segment.offset, uint64(int(addr)+add))
+		putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(int(addr)+add))
 	} else {
 		val := byteorder.Uint32(segment.codeByte[loc.Offset:])
 		if loc.Type == reloctype.R_CALLARM {
@@ -161,7 +161,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 			for _, loc := range symbol.Reloc {
 				addr := symbolMap[loc.Sym.Name]
 				sym := loc.Sym
-				relocByte := segment.codeByte[segment.codeLen:]
+				relocByte := segment.dataByte
 				addrBase := segment.dataBase
 				if symbol.Kind == symkind.STEXT {
 					addrBase = segment.codeBase
@@ -178,7 +178,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						if _, ok := symbolMap[TLSNAME]; !ok {
 							symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 						}
-						byteorder.PutUint32(segment.codeByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
+						byteorder.PutUint32(relocByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
 					case reloctype.R_CALL:
 						linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
 					case reloctype.R_PCREL:
@@ -189,21 +189,28 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						if symbol.Kind != symkind.STEXT {
 							err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
 						}
-						linker.relocateADRP(segment.codeByte[loc.Offset:], loc, segment, addr)
+						linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
 						address := uintptr(int(addr) + loc.Add)
 						putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
 					case reloctype.R_CALLIND:
 						//nothing todo
-					case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF, reloctype.R_METHODOFF:
-						if symbol.Kind == symkind.STEXT {
-							err = fmt.Errorf("impossible!Sym:%s locate on code segment!\n", sym.Name)
-						}
-						offset := int(addr) - segment.codeBase + loc.Add
+					case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF:
+						offset := int(addr) - addrBase + loc.Add
 						if offset > 0x7FFFFFFF || offset < -0x80000000 {
 							err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
 						}
-						byteorder.PutUint32(segment.codeByte[segment.codeLen+loc.Offset:], uint32(offset))
+						//fmt.Println(loc.Sym.Name, symbol.Name, offset, addr, loc.Add)
+						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+					case reloctype.R_METHODOFF:
+						if loc.Sym.Kind == symkind.STEXT {
+							addrBase = segment.codeBase
+						}
+						offset := int(addr) - addrBase + loc.Add
+						if offset > 0x7FFFFFFF || offset < -0x80000000 {
+							err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
+						}
+						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_USETYPE:
 						//nothing todo
 					case reloctype.R_USEIFACE:
