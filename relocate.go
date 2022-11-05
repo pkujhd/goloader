@@ -200,7 +200,6 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						if offset > 0x7FFFFFFF || offset < -0x80000000 {
 							err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
 						}
-						//fmt.Println(loc.Sym.Name, symbol.Name, offset, addr, loc.Add)
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_METHODOFF:
 						if loc.Sym.Kind == symkind.STEXT {
