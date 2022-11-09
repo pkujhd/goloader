@@ -384,6 +384,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		}
 	}
+	if tlsG, ok := symPtr[TLSNAME]; ok {
+		symbolMap[TLSNAME] = tlsG
+	}
 	return symbolMap, err
 }
 

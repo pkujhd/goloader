@@ -2,6 +2,8 @@ package goloader
 
 import (
 	"cmd/objfile/objfile"
+	"debug/elf"
+	"fmt"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/dataindex"
 	"os"
@@ -89,6 +91,8 @@ func RegSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}) error {
 	return regSymbol(symPtr, pkgSet, path)
 }
 
+var resolvedTlsG uintptr = 0
+
 func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path string) error {
 	f, err := objfile.Open(path)
 	if err != nil {
@@ -115,6 +119,66 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
 	}
+
+	tlsG, x86Found := symPtr["runtime.tlsg"]
+	tls_G, arm64Found := symPtr["runtime.tls_g"]
+
+	if resolvedTlsG != 0 {
+		symPtr[TLSNAME] = resolvedTlsG
+	} else {
+		if x86Found || arm64Found {
+			// If this is an ELF file, try to relocate the tls G as created by the external linker
+			path, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("found 'runtime.tlsg' and so expected elf file (macho not yet supported), but failed to find executable: %w", err)
+			}
+			elfFile, err := elf.Open(path)
+			if err != nil {
+				return fmt.Errorf("found 'runtime.tlsg' and so expected elf file (macho not yet supported), but failed to open ELF executable: %w", err)
+			}
+			defer elfFile.Close()
+
+			var tls *elf.Prog
+			for _, prog := range elfFile.Progs {
+				if prog.Type == elf.PT_TLS {
+					tls = prog
+					break
+				}
+			}
+			if tls == nil {
+				tlsG = uintptr(^uint64(PtrSize) + 1) // -ptrSize
+			} else {
+				// Copied from delve/pkg/proc/bininfo.go
+				switch elfFile.Machine {
+				case elf.EM_X86_64, elf.EM_386:
+
+					// According to https://reviews.llvm.org/D61824, linkers must pad the actual
+					// size of the TLS segment to ensure that (tlsoffset%align) == (vaddr%align).
+					// This formula, copied from the lld code, matches that.
+					// https://github.com/llvm-mirror/lld/blob/9aef969544981d76bea8e4d1961d3a6980980ef9/ELF/InputSection.cpp#L643
+					memsz := uintptr(tls.Memsz + (-tls.Vaddr-tls.Memsz)&(tls.Align-1))
+
+					// The TLS register points to the end of the TLS block, which is
+					// tls.Memsz long. runtime.tlsg is an offset from the beginning of that block.
+					tlsG = ^(memsz) + 1 + tlsG // -tls.Memsz + tlsg.Value
+
+				case elf.EM_AARCH64:
+					if !arm64Found || tls == nil {
+						tlsG = uintptr(2 * uint64(PtrSize))
+					} else {
+						tlsG = tls_G + uintptr(PtrSize*2) + ((uintptr(tls.Vaddr) - uintptr(PtrSize*2)) & uintptr(tls.Align-1))
+					}
+
+				default:
+					// we should never get here
+					return fmt.Errorf("found 'runtime.tlsg' but got unsupported architecture: %s", elfFile.Machine)
+				}
+			}
+			resolvedTlsG = resolvedTlsG
+			symPtr[TLSNAME] = tlsG
+		}
+	}
+
 	return nil
 }
 
