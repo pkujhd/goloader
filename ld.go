@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -373,13 +374,16 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 				}
 			} else {
-				symbolMap[name] = symPtr[name]
 				if strings.HasPrefix(name, MainPkgPrefix) || strings.HasPrefix(name, TypePrefix) {
-					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
-						symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
-					} else {
-						symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					if addr, ok := symPtr[name]; ok {
+						// Record the presence of a duplicate symbol by adding a prefix
+						// Note - this isn't enough to deduplicate types during relocation,
+						// as not all firstmodule types will be in symPtr (especially func types)
+						symbolMap[FirstModulePrefix+name] = addr
 					}
+				} else {
+					symbolMap[name] = symPtr[name]
 				}
 			}
 		}
@@ -512,7 +516,21 @@ collect:
 			t = firstModule.typemap[typeOff(tl)]
 		}
 
-		// Add to typehash if not seen before.
+		// Add to typehash if not seen before, and indirect pointer types to add both
+		if t.kind == uint8(reflect.Pointer) {
+			t2 := t.Elem()
+			tlist := typehash[t2.hash]
+			shouldAdd := true
+			for _, tcur := range tlist {
+				if tcur == t2 {
+					shouldAdd = false
+					break
+				}
+			}
+			if shouldAdd {
+				typehash[t2.hash] = append(tlist, t2)
+			}
+		}
 		tlist := typehash[t.hash]
 		for _, tcur := range tlist {
 			if tcur == t {

@@ -43,5 +43,6 @@ const (
 	ItabPrefix                 = "go.itab."
 	OsStdout                   = "os.Stdout"
 	TypeStringPrefix           = "go.string."
+	FirstModulePrefix          = "firstmodule."
 	DefaultStringContainerSize = 1024 * 1024 * 16
 )

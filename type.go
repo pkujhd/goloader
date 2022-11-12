@@ -17,8 +17,12 @@ type _typePair struct {
 
 // See reflect/value.go emptyInterface
 type emptyInterface struct {
-	typ  unsafe.Pointer
-	word unsafe.Pointer
+	_type *_type
+	data  unsafe.Pointer
+}
+
+func efaceOf(ep *interface{}) *emptyInterface {
+	return (*emptyInterface)(unsafe.Pointer(ep))
 }
 
 // See reflect/value.go sliceHeader
@@ -173,7 +177,7 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = getFunctionPtr(inter)
 	} else {
 		header := (*emptyInterface)(unsafe.Pointer(&inter))
-		t := (*_type)(header.typ)
+		t := header._type
 		pkgpath := t.PkgPath()
 		var element *_type
 		var elementElem *_type
@@ -197,7 +201,7 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 				symPtr[TypePrefix+name[2:]] = uintptr(unsafe.Pointer(elementElem))
 			}
 		}
-		symPtr[TypePrefix+name] = uintptr(header.typ)
+		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(header._type))
 	}
 
 }

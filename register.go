@@ -29,10 +29,16 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
 			var elementElem *_type
 			pkgpath := t.PkgPath()
+			numStars := 2
 			if element != nil && pkgpath == EmptyString {
 				switch element.Kind() {
-				case reflect.Ptr, reflect.Array, reflect.Slice:
+				case reflect.Slice, reflect.Chan, reflect.Array:
+					numStars = 1
+					fallthrough
+				case reflect.Ptr:
 					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
+				case reflect.Interface:
+					numStars = 1
 				}
 				pkgpath = element.PkgPath()
 				if elementElem != nil && pkgpath == EmptyString {
@@ -44,12 +50,46 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 			if element != nil {
 				symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
 				if elementElem != nil {
-					symPtr[TypePrefix+name[2:]] = uintptr(unsafe.Pointer(elementElem))
+					symPtr[TypePrefix+name[numStars:]] = uintptr(unsafe.Pointer(elementElem))
 				}
 			}
 			symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+		case reflect.Chan, reflect.Array, reflect.Slice, reflect.Struct, reflect.Func:
+			pkgpath := t.PkgPath()
+			name := fullyQualifiedName(t, pkgpath)
+			// These type names all start with *, but their elem will generally be a pointer and so picked up in the case aboveabove
+			if name[0] == '*' {
+				symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(t))
+			} else {
+				panic("unexpected " + t.Kind().String() + " type" + name)
+			}
+		case reflect.Map:
+			mt := (*mapType)(adduintptr(md.types, int(tl)))
+			for _, element := range []*_type{mt.key, mt.elem} {
+				var elementElem *_type
+				pkgpath := t.PkgPath()
+				if element != nil && pkgpath == EmptyString {
+					switch element.Kind() {
+					case reflect.Ptr, reflect.Array, reflect.Slice, reflect.Chan:
+						elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
+					}
+					pkgpath = element.PkgPath()
+					if elementElem != nil && pkgpath == EmptyString {
+						pkgpath = elementElem.PkgPath()
+					}
+				}
+				pkgSet[pkgpath] = struct{}{}
+				name := fullyQualifiedName(t, pkgpath)
+				if element != nil {
+					symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
+					if elementElem != nil {
+						symPtr[TypePrefix+name[2:]] = uintptr(unsafe.Pointer(elementElem))
+					}
+				}
+				symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+			}
 		default:
-			//NOTHING TODO
+			panic(fmt.Sprintf("typelinksregister found unexpected type (kind %s): %s", t.Kind(), _name(t.nameOff(t.str))))
 		}
 	}
 	//register function
@@ -183,5 +223,5 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 }
 
 func getFunctionPtr(function interface{}) uintptr {
-	return *(*uintptr)((*emptyInterface)(unsafe.Pointer(&function)).word)
+	return *(*uintptr)((*emptyInterface)(unsafe.Pointer(&function)).data)
 }

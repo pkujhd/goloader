@@ -159,6 +159,10 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 	for _, symbol := range linker.symMap {
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
+			fmAddr, duplicated := symbolMap[FirstModulePrefix+loc.Sym.Name]
+			if duplicated {
+				addr = fmAddr
+			}
 			sym := loc.Sym
 			relocByte := segment.dataByte
 			addrBase := segment.dataBase
