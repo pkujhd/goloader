@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -37,24 +38,27 @@ type segment struct {
 }
 
 type Linker struct {
-	code         []byte
-	data         []byte
-	noptrdata    []byte
-	bss          []byte
-	noptrbss     []byte
-	cuFiles      []obj.CompilationUnitFiles
-	symMap       map[string]*obj.Sym
-	objsymbolMap map[string]*obj.ObjSymbol
-	namemap      map[string]int
-	fileNameMap  map[string]int
-	cutab        []uint32
-	filetab      []byte
-	funcnametab  []byte
-	functab      []byte
-	pctab        []byte
-	_func        []*_func
-	initFuncs    []string
-	Arch         *sys.Arch
+	code          []byte
+	data          []byte
+	noptrdata     []byte
+	bss           []byte
+	noptrbss      []byte
+	cuFiles       []obj.CompilationUnitFiles
+	symMap        map[string]*obj.Sym
+	objsymbolMap  map[string]*obj.ObjSymbol
+	namemap       map[string]int
+	fileNameMap   map[string]int
+	cutab         []uint32
+	filetab       []byte
+	funcnametab   []byte
+	functab       []byte
+	pctab         []byte
+	_func         []*_func
+	initFuncs     []string
+	Arch          *sys.Arch
+	options       LinkerOptions
+	heapStringMap map[string]*string
+	stringMmap    *stringMmap
 }
 
 type CodeModule struct {
@@ -65,6 +69,8 @@ type CodeModule struct {
 	gcbss                 []byte
 	patchedTypeMethodsIfn map[*_type][]int
 	patchedTypeMethodsTfn map[*_type][]int
+	heapStrings           map[string]*string
+	stringMmap            *stringMmap
 }
 
 var (
@@ -73,25 +79,39 @@ var (
 )
 
 // initialize Linker
-func initLinker() *Linker {
+func initLinker(c LinkerOptions) (*Linker, error) {
 	linker := &Linker{
 		// Pad these tabs out so offsets don't start at 0, which is often used in runtime as a special value for "missing"
 		// e.g. runtime/traceback.go and runtime/symtab.go both contain checks like:
 		// if f.pcsp == 0 ...
 		// and
 		// if f.nameoff == 0
-		funcnametab:  make([]byte, PtrSize),
-		pctab:        make([]byte, PtrSize),
-		symMap:       make(map[string]*obj.Sym),
-		objsymbolMap: make(map[string]*obj.ObjSymbol),
-		namemap:      make(map[string]int),
-		fileNameMap:  make(map[string]int),
+		funcnametab:   make([]byte, PtrSize),
+		pctab:         make([]byte, PtrSize),
+		symMap:        make(map[string]*obj.Sym),
+		objsymbolMap:  make(map[string]*obj.ObjSymbol),
+		namemap:       make(map[string]int),
+		fileNameMap:   make(map[string]int),
+		heapStringMap: make(map[string]*string),
+		options:       c,
+	}
+	if c.HeapStrings && c.StringContainerSize > 0 {
+		return nil, fmt.Errorf("can only use HeapStrings or StringContainerSize, not both")
+	}
+	if c.StringContainerSize > 0 {
+		linker.stringMmap = &stringMmap{}
+		var err error
+		linker.stringMmap.bytes, err = MmapData(c.StringContainerSize)
+		linker.stringMmap.size = c.StringContainerSize
+		if err == nil {
+			linker.stringMmap.addr = uintptr(unsafe.Pointer(&linker.stringMmap.bytes[0]))
+		}
 	}
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
 	copy(head, obj.ModuleHeadx86)
 	linker.functab = append(linker.functab, head...)
 	linker.functab[len(obj.ModuleHeadx86)-1] = PtrSize
-	return linker
+	return linker, nil
 }
 
 func (linker *Linker) addSymbols() error {
@@ -150,7 +170,7 @@ func (linker *Linker) addSymbols() error {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPrefix) {
+			if (linker.options.HeapStrings || linker.options.StringContainerSize > 0) && strings.HasPrefix(sym.Name, TypeStringPrefix) {
 				//nothing todo
 			} else {
 				offset += len(linker.data)
@@ -193,13 +213,18 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants
 		//in a separate segment and not unload when module unload.
-		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
-			if stringContainer.index+len(objsym.Data) > stringContainer.size {
-				return nil, fmt.Errorf("overflow string container")
+		if linker.options.HeapStrings && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
+			data := make([]byte, len(objsym.Data))
+			copy(data, objsym.Data)
+			stringVal := string(data)
+			linker.heapStringMap[symbol.Name] = &stringVal
+		} else if linker.options.StringContainerSize > 0 && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
+			if linker.stringMmap.index+len(objsym.Data) > linker.stringMmap.size {
+				return nil, fmt.Errorf("overflow string container. Got object of length %d but size was %d", len(objsym.Data), linker.stringMmap.size)
 			}
-			symbol.Offset = stringContainer.index
-			copy(stringContainer.bytes[stringContainer.index:], objsym.Data)
-			stringContainer.index += len(objsym.Data)
+			symbol.Offset = linker.stringMmap.index
+			copy(linker.stringMmap.bytes[linker.stringMmap.index:], objsym.Data)
+			linker.stringMmap.index += len(objsym.Data)
 		} else {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
@@ -367,8 +392,20 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if _, ok := symPtr[name]; !ok {
-				if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
+				if linker.options.HeapStrings && strings.HasPrefix(name, TypeStringPrefix) {
+					strPtr := linker.heapStringMap[name]
+					if strPtr == nil {
+						return nil, fmt.Errorf("impossible! got a nil string for symbol %s", name)
+					}
+					if len(*strPtr) == 0 {
+						// Any address will do, the length is 0, so it should never be read
+						symbolMap[name] = uintptr(unsafe.Pointer(linker))
+					} else {
+						x := (*reflect.StringHeader)(unsafe.Pointer(strPtr))
+						symbolMap[name] = x.Data
+					}
+				} else if linker.options.StringContainerSize > 0 && strings.HasPrefix(name, TypeStringPrefix) {
+					symbolMap[name] = uintptr(linker.symMap[name].Offset) + linker.stringMmap.addr
 				} else {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 				}
@@ -390,6 +427,8 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 	if tlsG, ok := symPtr[TLSNAME]; ok {
 		symbolMap[TLSNAME] = tlsG
 	}
+	codeModule.heapStrings = linker.heapStringMap
+	codeModule.stringMmap = linker.stringMmap
 	return symbolMap, err
 }
 
@@ -608,6 +647,14 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr) ma
 	return symMap
 }
 
+func (linker *Linker) UnloadStrings() error {
+	linker.heapStringMap = nil
+	if linker.stringMmap != nil {
+		return Munmap(linker.stringMmap.bytes)
+	}
+	return nil
+}
+
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
@@ -684,5 +731,14 @@ func (cm *CodeModule) Unload() error {
 	if err1 != nil {
 		return err1
 	}
+	cm.heapStrings = nil
 	return err2
+}
+
+func (cm *CodeModule) UnloadStringMap() error {
+	if cm.stringMmap != nil {
+		return Munmap(cm.stringMmap.bytes)
+	}
+	runtime.GC()
+	return nil
 }

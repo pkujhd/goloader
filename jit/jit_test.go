@@ -20,6 +20,10 @@ import (
 	"unsafe"
 )
 
+// Can edit these flags to check all tests still work with different linker options
+var heapStrings = false
+var stringContainerSize = 0 // 512 * 1024
+
 type testData struct {
 	files []string
 	pkg   string
@@ -53,11 +57,13 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 
 func TestJitSimpleFunctions(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -88,17 +94,20 @@ func TestJitSimpleFunctions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
 
 func TestJitJsonUnmarshal(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -124,6 +133,10 @@ func TestJitJsonUnmarshal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -190,17 +203,23 @@ func TestJitComplexFunctions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
 
 func TestJitEmbeddedStruct(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -223,17 +242,23 @@ func TestJitEmbeddedStruct(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
 
 func TestJitCGoCall(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -267,17 +292,23 @@ func TestJitCGoCall(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
 
 func TestJitHttpGet(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -314,6 +345,10 @@ func TestJitHttpGet(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -321,11 +356,13 @@ func TestJitHttpGet(t *testing.T) {
 // TODO - something wrong with this
 func TestJitPanicRecoveryStackTrace(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -353,6 +390,10 @@ func TestJitPanicRecoveryStackTrace(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -402,11 +443,13 @@ func checkStackTrace(t *testing.T, thing common.SomeInterface) (err error) {
 
 func TestJitGoroutines(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -445,17 +488,23 @@ func TestJitGoroutines(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
 
 func TestLoadUnloadMultipleModules(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data1 := testData{
@@ -516,7 +565,15 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			err = module1.UnloadStringMap()
+			if err != nil {
+				t.Fatal(err)
+			}
 			err = module2.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module2.UnloadStringMap()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -526,11 +583,13 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 
 func TestStackSplit(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -557,17 +616,23 @@ func TestStackSplit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
 
 func TestSimpleAsmFuncs(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -603,6 +668,10 @@ func TestSimpleAsmFuncs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -628,11 +697,13 @@ func TestComplexAsmFuncs(t *testing.T) {
 	}()
 
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "./",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "./",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -653,6 +724,10 @@ func TestComplexAsmFuncs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -684,6 +759,10 @@ func TestIssue55(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -709,11 +788,13 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 	}()
 
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -733,17 +814,23 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
 		})
 	}
 }
 
 func TestConvertOldAndNewTypes(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -802,6 +889,11 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			// Unload thing1's types + methods entirely
 			err = module1.Unload()
 
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module1.UnloadStringMap()
+
 			ifaceOut2, _ := thingIface2.Method1(common.SomeStruct{Val1: 789, Val2: map[string]interface{}{}})
 
 			ifaceCounter2 := ifaceOut2.Val2["exclusive_interface_counter"].(string)
@@ -845,6 +937,10 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			err = module2.UnloadStringMap()
+			if err != nil {
+				t.Fatal(err)
+			}
 		})
 	}
 }
@@ -871,7 +967,9 @@ func TestStatefulHttpServer(t *testing.T) {
 		ExtraBuildFlags: nil,
 		BuildEnv:        nil,
 		TmpDir:          "",
-		DebugLog:        false,
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -944,11 +1042,13 @@ func TestStatefulHttpServer(t *testing.T) {
 
 func TestCloneConnection(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "./",
-		DebugLog:        false,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "./",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
 	}
 
 	data := testData{
@@ -1018,6 +1118,10 @@ func TestCloneConnection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			err = module1.UnloadStringMap()
+			if err != nil {
+				t.Fatal(err)
+			}
 			dialer2 = newDialer2.(common.MessageWriter)
 			_, err = dialer2.WriteMessage("test5678")
 			if err != nil {
@@ -1026,6 +1130,10 @@ func TestCloneConnection(t *testing.T) {
 			err = dialer2.Close()
 
 			err = module2.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module2.UnloadStringMap()
 			if err != nil {
 				t.Fatal(err)
 			}

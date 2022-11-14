@@ -85,12 +85,14 @@ func RegisterTypes(types ...interface{}) {
 }
 
 type BuildConfig struct {
-	KeepTempFiles    bool
-	ExtraBuildFlags  []string
-	BuildEnv         []string
-	TmpDir           string
-	DebugLog         bool
-	SkipCopyPatterns []string // Paths to exclude from module copy
+	KeepTempFiles       bool
+	ExtraBuildFlags     []string
+	BuildEnv            []string
+	TmpDir              string
+	DebugLog            bool
+	SkipCopyPatterns    []string // Paths to exclude from module copy
+	HeapStrings         bool     // Whether to put strings on the heap and allow GC to manage their lifecycle
+	StringContainerSize int      // Whether to separately mmap a container for strings, to allow unmapping independently of unloading code modules
 }
 
 func execBuild(config BuildConfig, workDir, outputFilePath string, targets []string) error {
@@ -125,9 +127,9 @@ func execBuild(config BuildConfig, workDir, outputFilePath string, targets []str
 	return nil
 }
 
-func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFilePath, packageName string, pkg *Package) (*goloader.Linker, error) {
+func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFilePath, packageName string, pkg *Package, linkerOpts []goloader.LinkerOptFunc) (*goloader.Linker, error) {
 	// Now check whether all imported packages are available in the main binary, otherwise we need to build and load them too
-	linker, err := goloader.ReadObjs([]string{outputFilePath}, []string{packageName})
+	linker, err := goloader.ReadObjs([]string{outputFilePath}, []string{packageName}, linkerOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not read symbols from object file '%s': %w", outputFilePath, err)
@@ -152,12 +154,12 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 		if config.DebugLog {
 			log.Printf("%d unresolved external symbols missing from main binary, will attempt to build dependencies\n", len(externalSymbols))
 		}
-		errDeps := buildAndLoadDeps(config, workDir, buildDir, sortedDeps, externalSymbols, seen, &depImportPaths, &depBinaries, 0)
+		errDeps := buildAndLoadDeps(config, workDir, buildDir, sortedDeps, externalSymbols, seen, &depImportPaths, &depBinaries, 0, linkerOpts)
 		if errDeps != nil {
 			return nil, errDeps
 		}
 
-		depsLinker, err := goloader.ReadObjs(append(depBinaries, outputFilePath), append(depImportPaths, packageName))
+		depsLinker, err := goloader.ReadObjs(append(depBinaries, outputFilePath), append(depImportPaths, packageName), linkerOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("could not read symbols from dependency object files '%s': %w", depImportPaths, err)
 		}
@@ -171,6 +173,7 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 			sort.Strings(unresolvedList)
 			return nil, fmt.Errorf("still have %d unresolved external symbols despite building and linking dependencies...: \n%s", len(externalSymbols), strings.Join(unresolvedList, "\n"))
 		}
+		_ = linker.UnloadStrings()
 		linker = depsLinker
 	}
 	return linker, nil
@@ -202,7 +205,7 @@ func getMissingDeps(sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, 
 	return missingDeps
 }
 
-func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, seen map[string]struct{}, builtPackageImportPaths, buildPackageFilePaths *[]string, depth int) error {
+func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, seen map[string]struct{}, builtPackageImportPaths, buildPackageFilePaths *[]string, depth int, linkerOpts []goloader.LinkerOptFunc) error {
 	const maxRecursionDepth = 150
 	if depth > maxRecursionDepth {
 		return fmt.Errorf("failed to buildAndLoadDeps: recursion depth %d exceeded maximum of %d", depth, maxRecursionDepth)
@@ -270,7 +273,7 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 		return fmt.Errorf("got %d during build of dependencies: %w%s", len(errs), errs[0], extra)
 	}
 
-	linker, err := goloader.ReadObjs(*buildPackageFilePaths, *builtPackageImportPaths)
+	linker, err := goloader.ReadObjs(*buildPackageFilePaths, *builtPackageImportPaths, linkerOpts...)
 	if err != nil {
 		return fmt.Errorf("linker failed to read symbols from dependency object files (%s): %w", *builtPackageImportPaths, err)
 	}
@@ -278,6 +281,8 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 	globalMutex.Lock()
 	nextUnresolvedSymbols := linker.UnresolvedExternalSymbols(globalSymPtr)
 	globalMutex.Unlock()
+
+	_ = linker.UnloadStrings()
 
 	if len(nextUnresolvedSymbols) > 0 {
 		var newSortedDeps []string
@@ -298,7 +303,7 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 			sort.Strings(missingList)
 			log.Printf("Still have %d unresolved symbols after building dependencies. Recursing further to build: [\n  %s\n]\n", len(nextUnresolvedSymbols), strings.Join(missingList, ",\n  "))
 		}
-		return buildAndLoadDeps(config, workDir, buildDir, newSortedDeps, nextUnresolvedSymbols, seen, builtPackageImportPaths, buildPackageFilePaths, depth+1)
+		return buildAndLoadDeps(config, workDir, buildDir, newSortedDeps, nextUnresolvedSymbols, seen, builtPackageImportPaths, buildPackageFilePaths, depth+1, linkerOpts)
 	}
 	return nil
 }
@@ -411,7 +416,14 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 		return nil, err
 	}
 
-	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, parsedFiles[0].PackageName, pkg)
+	var linkerOpts []goloader.LinkerOptFunc
+	if config.HeapStrings {
+		linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
+	}
+	if config.StringContainerSize > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
+	}
+	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, parsedFiles[0].PackageName, pkg, linkerOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -499,7 +511,14 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 		return nil, err
 	}
 
-	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, parsed.PackageName, pkg)
+	var linkerOpts []goloader.LinkerOptFunc
+	if config.HeapStrings {
+		linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
+	}
+	if config.StringContainerSize > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
+	}
+	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, parsed.PackageName, pkg, linkerOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -654,7 +673,14 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 			return nil, err
 		}
 
-		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, parsedFiles[0].PackageName, pkg)
+		var linkerOpts []goloader.LinkerOptFunc
+		if config.HeapStrings {
+			linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
+		}
+		if config.StringContainerSize > 0 {
+			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
+		}
+		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, parsedFiles[0].PackageName, pkg, linkerOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -717,7 +743,14 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 			return nil, err
 		}
 
-		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, parsedFiles[0].PackageName, pkg)
+		var linkerOpts []goloader.LinkerOptFunc
+		if config.HeapStrings {
+			linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
+		}
+		if config.StringContainerSize > 0 {
+			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
+		}
+		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, parsedFiles[0].PackageName, pkg, linkerOpts)
 		if err != nil {
 			return nil, err
 		}

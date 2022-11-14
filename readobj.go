@@ -68,8 +68,35 @@ func readObj(pkg *obj.Pkg, linker *Linker) error {
 	return nil
 }
 
-func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
-	linker := initLinker()
+type LinkerOptFunc func(options *LinkerOptions)
+
+type LinkerOptions struct {
+	HeapStrings         bool
+	StringContainerSize int
+}
+
+func WithHeapStrings() func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.HeapStrings = true
+	}
+}
+
+func WithStringContainer(size int) func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.StringContainerSize = size
+	}
+}
+
+func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker, error) {
+	c := &LinkerOptions{}
+	for _, opt := range linkerOpts {
+		opt(c)
+	}
+
+	linker, err := initLinker(*c)
+	if err != nil {
+		return nil, err
+	}
 	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: *pkgpath}
 	if err := readObj(&pkg, linker); err != nil {
 		return nil, err
@@ -81,8 +108,15 @@ func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
 	return linker, nil
 }
 
-func ReadObjs(files []string, pkgPath []string) (*Linker, error) {
-	linker := initLinker()
+func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*Linker, error) {
+	c := &LinkerOptions{}
+	for _, opt := range linkerOpts {
+		opt(c)
+	}
+	linker, err := initLinker(*c)
+	if err != nil {
+		return nil, err
+	}
 	var osFiles []*os.File
 	defer func() {
 		for _, f := range osFiles {

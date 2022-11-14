@@ -3,12 +3,11 @@ package goloader
 import (
 	"cmd/objfile/objabi"
 	"fmt"
-	"strings"
-
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"github.com/pkujhd/goloader/objabi/tls"
+	"strings"
 )
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) {
@@ -175,6 +174,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				symbolMap[loc.Sym.Name] = addr
 				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
 			}
+
 			if addr != InvalidHandleValue {
 				switch loc.Type {
 				case reloctype.R_TLS_LE:
