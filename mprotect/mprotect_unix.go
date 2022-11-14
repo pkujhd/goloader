@@ -17,9 +17,13 @@ func RawMemoryAccess(b uintptr) []byte {
 }
 
 func MprotectMakeWritable(page []byte) error {
-	return syscall.Mprotect(page, syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC)
+	return syscall.Mprotect(page, syscall.PROT_READ|syscall.PROT_WRITE)
+}
+
+func MprotectMakeExecutable(page []byte) error {
+	return syscall.Mprotect(page, syscall.PROT_READ|syscall.PROT_EXEC)
 }
 
 func MprotectMakeReadOnly(page []byte) error {
-	return syscall.Mprotect(page, syscall.PROT_READ|syscall.PROT_EXEC)
+	return syscall.Mprotect(page, syscall.PROT_READ)
 }
