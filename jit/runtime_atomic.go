@@ -2,6 +2,7 @@ package jit
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"sync"
@@ -147,4 +148,21 @@ func check() {
 	var _ = reflect.MakeFunc(reflect.TypeOf(func() {}), nil)
 	_ = bytes.Compare(nil, nil)
 
+	// encoding/json's encoderCache sync.Map can cache functions for encoding builtin types, but these functions
+	// might not be baked in, and so could be unloaded. To avoid caching dynamically loaded code, we force inclusion of
+	// functions for encoding all the builtin types
+	type forcedJson struct {
+		I     []*int
+		U     []*uint
+		F32   []*float32
+		F64   []*float64
+		S     []*string
+		Iface []*interface{}
+		Stru  []*struct {
+			I int
+		}
+		Msi map[string]int
+	}
+	f := forcedJson{}
+	_, _ = json.Marshal(&f)
 }

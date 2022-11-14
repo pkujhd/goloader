@@ -21,6 +21,18 @@ type emptyInterface struct {
 	data  unsafe.Pointer
 }
 
+type nonEmptyInterface struct {
+	// see ../runtime/iface.go:/Itab
+	itab *itab
+	word unsafe.Pointer
+}
+
+type interfaceType struct {
+	_type
+	pkgPath name      // import path
+	methods []imethod // sorted by hash
+}
+
 func efaceOf(ep *interface{}) *emptyInterface {
 	return (*emptyInterface)(unsafe.Pointer(ep))
 }
@@ -204,4 +216,58 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(header._type))
 	}
 
+}
+
+func buildModuleTypeHash(module *moduledata, typeHash map[uint32][]*_type) {
+collect:
+	for _, tl := range module.typelinks {
+		var t *_type
+		t = (*_type)(adduintptr(module.types, int(tl)))
+
+		// Add to typeHash if not seen before, and indirect pointer types to add both
+		if t.Kind() == reflect.Ptr {
+			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+			var elementElem *_type
+			if element != nil {
+				switch element.Kind() {
+				case reflect.Slice, reflect.Chan, reflect.Array, reflect.Ptr:
+					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
+				}
+			}
+
+			if element != nil && element.Kind() != reflect.Invalid {
+				tlist := typeHash[element.hash]
+				shouldAdd := true
+				for _, tcur := range tlist {
+					if tcur == element {
+						shouldAdd = false
+						break
+					}
+				}
+				if shouldAdd {
+					typeHash[element.hash] = append(tlist, element)
+				}
+				if elementElem != nil && elementElem.Kind() != reflect.Invalid {
+					tlist := typeHash[elementElem.hash]
+					shouldAdd := true
+					for _, tcur := range tlist {
+						if tcur == elementElem {
+							shouldAdd = false
+							break
+						}
+					}
+					if shouldAdd {
+						typeHash[elementElem.hash] = append(tlist, elementElem)
+					}
+				}
+			}
+		}
+		tlist := typeHash[t.hash]
+		for _, tcur := range tlist {
+			if tcur == t {
+				continue collect
+			}
+		}
+		typeHash[t.hash] = append(tlist, t)
+	}
 }

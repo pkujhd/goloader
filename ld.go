@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -505,40 +504,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	// We have to do this after adding the module to the linked list since deduplication
 	// depends on symbol resolution across all modules
 	typehash := make(map[uint32][]*_type, len(firstmoduledata.typelinks))
-
-	firstModule := activeModules()[0]
-collect:
-	for _, tl := range firstModule.typelinks {
-		var t *_type
-		if firstModule.typemap == nil {
-			t = (*_type)(unsafe.Pointer(firstModule.types + uintptr(tl)))
-		} else {
-			t = firstModule.typemap[typeOff(tl)]
-		}
-
-		// Add to typehash if not seen before, and indirect pointer types to add both
-		if t.kind == uint8(reflect.Pointer) {
-			t2 := t.Elem()
-			tlist := typehash[t2.hash]
-			shouldAdd := true
-			for _, tcur := range tlist {
-				if tcur == t2 {
-					shouldAdd = false
-					break
-				}
-			}
-			if shouldAdd {
-				typehash[t2.hash] = append(tlist, t2)
-			}
-		}
-		tlist := typehash[t.hash]
-		for _, tcur := range tlist {
-			if tcur == t {
-				continue collect
-			}
-		}
-		typehash[t.hash] = append(tlist, t)
-	}
+	buildModuleTypeHash(activeModules()[0], typehash)
 
 	patchedTypeMethodsIfn := make(map[*_type][]int)
 	patchedTypeMethodsTfn := make(map[*_type][]int)

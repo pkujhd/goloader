@@ -8,6 +8,7 @@ import (
 	"github.com/pkujhd/goloader/jit"
 	"github.com/pkujhd/goloader/jit/testdata/common"
 	"github.com/pkujhd/goloader/jit/testdata/test_issue55/p"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -305,6 +307,8 @@ func TestJitHttpGet(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			time.Sleep(100 * time.Millisecond)
+			runtime.GC()
 			fmt.Println(result)
 			err = module.Unload()
 			if err != nil {
@@ -731,4 +735,317 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConvertOldAndNewTypes(t *testing.T) {
+	conf := jit.BuildConfig{
+		KeepTempFiles:   false,
+		ExtraBuildFlags: nil,
+		BuildEnv:        nil,
+		TmpDir:          "",
+		DebugLog:        false,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_conversion/test.go"},
+		pkg:   "testdata/test_conversion",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module1, symbols1 := buildLoadable(t, conf, testName, data)
+			module2, symbols2 := buildLoadable(t, conf, testName, data)
+
+			newThingFunc1 := symbols1["NewThingOriginal"].(func() common.SomeInterface)
+			newThingFunc2 := symbols2["NewThingOriginal"].(func() common.SomeInterface)
+			newThingIfaceFunc1 := symbols1["NewThingWithInterface"].(func() common.SomeInterface)
+			newThingIfaceFunc2 := symbols2["NewThingWithInterface"].(func() common.SomeInterface)
+
+			thing1 := newThingFunc1()
+			thing2 := newThingFunc2()
+			thingIface1 := newThingIfaceFunc1()
+			thingIface2 := newThingIfaceFunc2()
+
+			input := int64(123)
+			out1, _ := thing1.Method1(common.SomeStruct{Val1: input, Val2: map[string]interface{}{}})
+			current := out1.Val2["current"].(int64)
+			if current != input {
+				t.Fatalf("expected current to be the same as input: %d  %d", current, input)
+			}
+
+			newThing2, err := goloader.ConvertTypesAcrossModules(module1, module2, thing1, thing2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			thing2 = newThing2.(common.SomeInterface)
+
+			ifaceOut1, _ := thingIface1.Method1(common.SomeStruct{Val1: input, Val2: map[string]interface{}{}})
+			ifaceCounter1 := ifaceOut1.Val2["exclusive_interface_counter"].(string)
+			byteReader1 := ifaceOut1.Val2["bytes_reader_output"].([]byte)
+			ifaceCurrent1 := ifaceOut1.Val2["current"].(int64)
+
+			ifaceOut12, _ := thingIface1.Method1(common.SomeStruct{Val1: []byte{4, 5, 6}, Val2: map[string]interface{}{}})
+			ifaceCounter12 := ifaceOut12.Val2["exclusive_interface_counter"].(string)
+			byteReader12 := ifaceOut12.Val2["bytes_reader_output"].([]byte)
+			ifaceCurrent12 := ifaceOut12.Val2["current"].(int64)
+			_ = thingIface1.Method2(nil)
+
+			newThingIface2, err := goloader.ConvertTypesAcrossModules(module1, module2, thingIface1, thingIface2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fmt.Println(thingIface1)
+			fmt.Println(newThingIface2)
+
+			thingIface2 = newThingIface2.(common.SomeInterface)
+
+			// Unload thing1's types + methods entirely
+			err = module1.Unload()
+
+			ifaceOut2, _ := thingIface2.Method1(common.SomeStruct{Val1: 789, Val2: map[string]interface{}{}})
+
+			ifaceCounter2 := ifaceOut2.Val2["exclusive_interface_counter"].(string)
+			byteReader2 := ifaceOut2.Val2["bytes_reader_output"].([]byte)
+			ifaceCurrent2 := ifaceOut2.Val2["current"].(int64)
+
+			if ifaceCounter1 != "Counter: 124" {
+				t.Fatalf("expected ifaceCounter1 to be 'Counter: 124', got %s", ifaceCounter1)
+			}
+			if ifaceCounter12 != "Counter: 125" {
+				t.Fatalf("expected ifaceCounter12 to be 'Counter: 125', got %s", ifaceCounter12)
+			}
+			if ifaceCounter2 != "Counter: 126" {
+				t.Fatalf("expected ifaceCounter2 to be 'Counter: 126', got %s", ifaceCounter2)
+			}
+			if !bytes.Equal(byteReader1, []byte{1, 2, 3}) {
+				t.Fatalf("expected byteReader1 to be []byte{1,2,3}, got %v", byteReader1)
+			}
+			if !bytes.Equal(byteReader12, []byte{4, 5, 6}) {
+				t.Fatalf("expected byteReader12 to be []byte{4,5,6}, got %v", byteReader12)
+			}
+			if !bytes.Equal(byteReader12, []byte{4, 5, 6}) {
+				t.Fatalf("expected byteReader2 to be []byte{4,5,6}, got %v", byteReader2)
+			}
+			if !bytes.Equal(byteReader12, []byte{4, 5, 6}) {
+				t.Fatalf("expected byteReader2 to be []byte{4,5,6}, got %v", byteReader2)
+			}
+			out2, _ := thing2.Method1(common.SomeStruct{Val1: nil, Val2: map[string]interface{}{}})
+			converted2 := out2.Val2["current"].(int64)
+			if converted2 != input {
+				t.Fatalf("expected converted to be the same as input: %d  %d", converted2, input)
+			}
+			_ = thingIface2.Method2(nil)
+
+			fmt.Println(ifaceCurrent1, ifaceCurrent12, ifaceCurrent2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = module2.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// This test works and demonstrates the preservation of state across modules, but to avoid affecting what
+// parts of net/http gets baked into the test binary for the earlier TestJitHttpGet, it is commented out.
+
+/**
+
+type SwapperMiddleware struct {
+	handler http.Handler
+	mutex   sync.RWMutex
+}
+
+func (h *SwapperMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+	h.handler.ServeHTTP(w, r)
+}
+
+func TestStatefulHttpServer(t *testing.T) {
+	conf := jit.BuildConfig{
+		KeepTempFiles:   false,
+		ExtraBuildFlags: nil,
+		BuildEnv:        nil,
+		TmpDir:          "",
+		DebugLog:        false,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_stateful_server/test.go"},
+		pkg:   "./testdata/test_stateful_server",
+	}
+
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			makeHandler := symbols["MakeServer"].(func() http.Handler)
+			handler := makeHandler()
+			server := &http.Server{
+				Addr: "localhost:9091",
+			}
+			h := &SwapperMiddleware{handler: handler}
+
+			server.Handler = h
+			go func() {
+				_ = server.ListenAndServe()
+			}()
+			time.Sleep(time.Millisecond * 100)
+			resp, err := http.Post("http://localhost:9091", "text/plain", strings.NewReader("test1"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			fmt.Println(string(body))
+
+			module2, symbols2 := buildLoadable(t, conf, testName, data)
+
+			makeHandler2 := symbols2["MakeServer"].(func() http.Handler)
+			handler2 := makeHandler2()
+
+			newHandler, err := goloader.ConvertTypesAcrossModules(module, module2, handler, handler2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			h.mutex.Lock()
+			h.handler = newHandler.(http.Handler)
+			h.mutex.Unlock()
+
+			err = module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			resp, err = http.Post("http://localhost:9091", "text/plain", strings.NewReader("test2"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ = io.ReadAll(resp.Body)
+			fmt.Println(string(body))
+
+			err = module2.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			server.Close()
+		})
+	}
+}
+
+*/
+
+func TestCloneConnection(t *testing.T) {
+	conf := jit.BuildConfig{
+		KeepTempFiles:   false,
+		ExtraBuildFlags: nil,
+		BuildEnv:        nil,
+		TmpDir:          "./",
+		DebugLog:        false,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_clone_connection/test.go"},
+		pkg:   "testdata/test_clone_connection",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	listener, err := net.Listen("tcp", ":9091")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keepAccepting := true
+	var results [][]string
+	go func() {
+		connectionCount := 0
+		for keepAccepting {
+			conn, err := listener.Accept()
+			connectionCount++
+			var result []string
+			results = append(results, result)
+			if err != nil {
+				if keepAccepting {
+					t.Error("expected to continue accepting", err)
+				}
+				return
+			}
+			go func(c net.Conn, index int) {
+				buf := make([]byte, 8)
+				for {
+					n, err := c.Read(buf)
+					if err != nil {
+						return
+					}
+					results[index-1] = append(results[index-1], string(buf[:n]))
+				}
+			}(conn, connectionCount)
+		}
+	}()
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module1, symbols1 := buildLoadable(t, conf, testName, data)
+			module2, symbols2 := buildLoadable(t, conf, testName, data)
+
+			newDialerFunc1 := symbols1["NewConnDialer"].(func() common.MessageWriter)
+			newDialerFunc2 := symbols2["NewConnDialer"].(func() common.MessageWriter)
+
+			dialer1 := newDialerFunc1()
+			dialer2 := newDialerFunc2()
+
+			err = dialer1.Dial("localhost:9091")
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = dialer1.WriteMessage("test1234")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			newDialer2, err := goloader.ConvertTypesAcrossModules(module1, module2, dialer1, dialer2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module1.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			dialer2 = newDialer2.(common.MessageWriter)
+			_, err = dialer2.WriteMessage("test5678")
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = dialer2.Close()
+
+			err = module2.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	if len(results) != len(testNames) {
+		t.Errorf("expected %d connection test results, got %d", len(testNames), len(results))
+	}
+	for _, result := range results {
+		if len(result) != 2 {
+			t.Errorf("expected 2 writes per connection, got %d", len(result))
+		} else {
+			if result[0] != "test1234" {
+				t.Errorf("expected first write to be test1234, got %s", result[0])
+			}
+			if result[1] != "test5678" {
+				t.Errorf("expected second write to be test5678, got %s", result[1])
+			}
+		}
+	}
+	keepAccepting = false
+	_ = listener.Close()
 }

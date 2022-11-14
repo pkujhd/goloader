@@ -24,3 +24,9 @@ type StartStoppable interface {
 	InChan() chan<- SomeStruct
 	OutChan() <-chan SomeStruct
 }
+
+type MessageWriter interface {
+	Dial(addr string) error
+	Close() error
+	WriteMessage(data string) (int, error)
+}
