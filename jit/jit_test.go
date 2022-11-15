@@ -23,6 +23,7 @@ import (
 // Can edit these flags to check all tests still work with different linker options
 var heapStrings = false
 var stringContainerSize = 0 // 512 * 1024
+var goBinary = ""
 
 type testData struct {
 	files []string
@@ -57,6 +58,7 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 
 func TestJitSimpleFunctions(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -101,6 +103,7 @@ func TestJitSimpleFunctions(t *testing.T) {
 
 func TestJitJsonUnmarshal(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -213,6 +216,7 @@ func TestJitComplexFunctions(t *testing.T) {
 
 func TestJitEmbeddedStruct(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -252,6 +256,7 @@ func TestJitEmbeddedStruct(t *testing.T) {
 
 func TestJitCGoCall(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -302,6 +307,7 @@ func TestJitCGoCall(t *testing.T) {
 
 func TestJitHttpGet(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -356,6 +362,7 @@ func TestJitHttpGet(t *testing.T) {
 // TODO - something wrong with this
 func TestJitPanicRecoveryStackTrace(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -443,6 +450,7 @@ func checkStackTrace(t *testing.T, thing common.SomeInterface) (err error) {
 
 func TestJitGoroutines(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -498,6 +506,7 @@ func TestJitGoroutines(t *testing.T) {
 
 func TestLoadUnloadMultipleModules(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -583,6 +592,7 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 
 func TestStackSplit(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -626,6 +636,7 @@ func TestStackSplit(t *testing.T) {
 
 func TestSimpleAsmFuncs(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -697,6 +708,7 @@ func TestComplexAsmFuncs(t *testing.T) {
 	}()
 
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -788,6 +800,7 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 	}()
 
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -824,6 +837,7 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 
 func TestConvertOldAndNewTypes(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,
@@ -1042,6 +1056,7 @@ func TestStatefulHttpServer(t *testing.T) {
 
 func TestCloneConnection(t *testing.T) {
 	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
 		KeepTempFiles:       false,
 		ExtraBuildFlags:     nil,
 		BuildEnv:            nil,

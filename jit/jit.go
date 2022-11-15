@@ -85,6 +85,7 @@ func RegisterTypes(types ...interface{}) {
 }
 
 type BuildConfig struct {
+	GoBinary            string // Path to go binary, defaults to "go"
 	KeepTempFiles       bool
 	ExtraBuildFlags     []string
 	BuildEnv            []string
@@ -101,7 +102,10 @@ func execBuild(config BuildConfig, workDir, outputFilePath string, targets []str
 
 	args = append(args, "-o", outputFilePath)
 	args = append(args, targets...)
-	cmd := exec.Command("go", args...)
+	if config.GoBinary == "" {
+		config.GoBinary = "go"
+	}
+	cmd := exec.Command(config.GoBinary, args...)
 	cmd.Dir = workDir
 	cmd.Env = config.BuildEnv
 
@@ -232,8 +236,10 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 			if config.DebugLog {
 				log.Printf("Building dependency '%s' (%s)\n", missingDep, filename)
 			}
-
-			command := exec.Command("go", "build", "-o", filename, missingDep)
+			if config.GoBinary == "" {
+				config.GoBinary = "go"
+			}
+			command := exec.Command(config.GoBinary, "build", "-o", filename, missingDep)
 			command.Dir = workDir
 			bufStdout := &bytes.Buffer{}
 			bufStdErr := &bytes.Buffer{}
@@ -322,21 +328,24 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	}
 	workDir := filepath.Dir(absPath)
 
-	pkg, err := GoList(absPath, workDir)
+	if config.GoBinary == "" {
+		config.GoBinary = "go"
+	}
+	pkg, err := GoList(config.GoBinary, absPath, workDir)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pkg.DepsErrors) > 0 {
-		err = GoModDownload(workDir)
+		err = GoModDownload(config.GoBinary, workDir)
 		if err != nil {
 			return nil, err
 		}
-		err = GoGet(workDir, workDir)
+		err = GoGet(config.GoBinary, workDir, workDir)
 		if err != nil {
 			return nil, err
 		}
-		pkg, err = GoList(absPath, "")
+		pkg, err = GoList(config.GoBinary, absPath, "")
 		if err != nil {
 			return nil, err
 		}
@@ -475,13 +484,16 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	tmpReflectFilePath := strings.TrimSuffix(tmpFilePath, ".go") + "___reflect.go"
 	err = os.WriteFile(tmpReflectFilePath, reflectCode, 0655)
 
-	pkg, err := GoList(tmpFilePath, "")
+	if config.GoBinary == "" {
+		config.GoBinary = "go"
+	}
+	pkg, err := GoList(config.GoBinary, tmpFilePath, "")
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pkg.DepsErrors) > 0 {
-		err = GoModDownload(buildDir)
+		err = GoModDownload(config.GoBinary, buildDir)
 		if err != nil {
 			return nil, err
 		}
@@ -490,11 +502,11 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 			return nil, fmt.Errorf("could not get absolute path of directory containing file %s: %w", tmpFilePath, err)
 		}
 
-		err = GoGet(absPackagePath, "")
+		err = GoGet(config.GoBinary, absPackagePath, "")
 		if err != nil {
 			return nil, err
 		}
-		pkg, err = GoList(tmpFilePath, "")
+		pkg, err = GoList(config.GoBinary, tmpFilePath, "")
 		if err != nil {
 			return nil, err
 		}
@@ -543,8 +555,11 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		return nil, fmt.Errorf("path at %s is not a directory", absPath)
 	}
 
+	if config.GoBinary == "" {
+		config.GoBinary = "go"
+	}
 	// Execute list from within the package folder so that go list resolves the module correctly from that path
-	pkg, err := GoList(absPath, absPath)
+	pkg, err := GoList(config.GoBinary, absPath, absPath)
 	if err != nil {
 		return nil, err
 	}
@@ -554,15 +569,15 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 	}
 
 	if len(pkg.DepsErrors) > 0 {
-		err = GoModDownload(absPath)
+		err = GoModDownload(config.GoBinary, absPath)
 		if err != nil {
 			return nil, err
 		}
-		err = GoGet(absPath, absPath)
+		err = GoGet(config.GoBinary, absPath, absPath)
 		if err != nil {
 			return nil, err
 		}
-		pkg, err = GoList(absPath, "")
+		pkg, err = GoList(config.GoBinary, absPath, "")
 		if err != nil {
 			return nil, err
 		}

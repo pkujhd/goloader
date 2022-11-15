@@ -109,15 +109,15 @@ type PackageError struct {
 	Err         string   // the error itself
 }
 
-func GoModDownload(workDir string, args ...string) error {
-	dlCmd := exec.Command("go", append([]string{"mod", "download"}, args...)...)
+func GoModDownload(goCmd, workDir string, args ...string) error {
+	dlCmd := exec.Command(goCmd, append([]string{"mod", "download"}, args...)...)
 	dlCmd.Dir = workDir
 	output, err := dlCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to go mod download %s: %s", args, output)
 	}
 
-	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd := exec.Command(goCmd, "mod", "tidy")
 	output, err = tidyCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to go mod tidy: %s", output)
@@ -125,8 +125,8 @@ func GoModDownload(workDir string, args ...string) error {
 	return nil
 }
 
-func GoGet(packagePath, workDir string) error {
-	goGetCmd := exec.Command("go", "get", packagePath)
+func GoGet(goCmd, packagePath, workDir string) error {
+	goGetCmd := exec.Command(goCmd, "get", packagePath)
 	goGetCmd.Dir = workDir
 	output, err := goGetCmd.CombinedOutput()
 	if err != nil {
@@ -135,8 +135,8 @@ func GoGet(packagePath, workDir string) error {
 	return nil
 }
 
-func GoList(absPath, workDir string) (*Package, error) {
-	golistCmd := exec.Command("go", "list", "-json", absPath)
+func GoList(goCmd, absPath, workDir string) (*Package, error) {
+	golistCmd := exec.Command(goCmd, "list", "-json", absPath)
 	golistCmd.Dir = workDir
 	output, err := golistCmd.StdoutPipe()
 	stdErrBuf := &bytes.Buffer{}
