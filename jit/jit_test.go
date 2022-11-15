@@ -23,6 +23,8 @@ import (
 // Can edit these flags to check all tests still work with different linker options
 var heapStrings = false
 var stringContainerSize = 0 // 512 * 1024
+//var goBinary = "/mnt/rpool/go_versions/go1.18.8.linux-amd64/go/bin/go"
+
 var goBinary = ""
 
 type testData struct {
@@ -337,24 +339,29 @@ func TestJitHttpGet(t *testing.T) {
 
 	for _, testName := range testNames {
 		t.Run(testName, func(t *testing.T) {
+			start := runtime.NumGoroutine()
 			module, symbols := buildLoadable(t, conf, testName, data)
 			httpGet := symbols["MakeHTTPRequestWithDNS"].(func(string) (string, error))
 			result, err := httpGet("https://ipinfo.io/ip")
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			time.Sleep(100 * time.Millisecond)
-			runtime.GC()
+			afterCall := runtime.NumGoroutine()
+			for afterCall != start {
+				time.Sleep(100 * time.Millisecond)
+				runtime.GC()
+				afterCall = runtime.NumGoroutine()
+				fmt.Printf("Waiting for last goroutine to stop before unloading, started with %d, now have %d\n", start, afterCall)
+			}
 			fmt.Println(result)
 			err = module.Unload()
 			if err != nil {
 				t.Fatal(err)
 			}
+			err = module.UnloadStringMap()
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
