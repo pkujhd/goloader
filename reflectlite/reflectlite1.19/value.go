@@ -590,7 +590,7 @@ func (f flag) mustBeAssignableSlow() {
 // https://golang.org/doc/go_spec.html#Assignability
 // Ignoring the interface rules (implemented elsewhere)
 // and the ideal constant rules (no ideal constants at run time).
-func directlyAssignable(T, V *rtype) bool {
+func directlyAssignable(T, V *rtype, seen map[_typePair]struct{}) bool {
 	// x's type V is identical to T?
 	if T == V {
 		return true
@@ -602,12 +602,12 @@ func directlyAssignable(T, V *rtype) bool {
 		return false
 	}
 
-	if T.Kind() == Chan && specialChannelAssignability(T, V) {
+	if T.Kind() == Chan && specialChannelAssignability(T, V, seen) {
 		return true
 	}
 
 	// x's type T and V must have identical underlying types.
-	return haveIdenticalUnderlyingType(T, V, true, false)
+	return haveIdenticalUnderlyingType(T, V, true, false, seen)
 }
 
 // assignTo returns a value v that can be assigned directly to dst.
@@ -620,15 +620,16 @@ func (v Value) assignTo(context string, dst *rtype, target unsafe.Pointer) Value
 		panic("method values not supported in reflectlite")
 	}
 
+	seen := map[_typePair]struct{}{}
 	switch {
-	case directlyAssignable(dst, v.typ):
+	case directlyAssignable(dst, v.typ, seen):
 		// Overwrite type so that they match.
 		// Same memory layout, so no harm done.
 		fl := v.flag&(flagAddr|flagIndir) | v.flag.ro()
 		fl |= flag(dst.Kind())
 		return Value{dst, v.ptr, fl}
 
-	case implements(dst, v.typ):
+	case implements(dst, v.typ, seen):
 		if v.Kind() == Interface && v.IsNil() {
 			// A nil ReadWriter passed to nil Reader is OK,
 			// but using ifaceE2I below will panic.
@@ -1095,7 +1096,8 @@ func (v Value) Convert(t Type) Value {
 	if v.flag&flagMethod != 0 {
 		panic("method values not supported in reflectlite")
 	}
-	op := convertOp(t.common(), v.typ, false)
+	seen := map[_typePair]struct{}{}
+	op := convertOp(t.common(), v.typ, false, seen)
 	if op == nil {
 		panic("reflect.Value.Convert: value of type " + v.typ.String() + " cannot be converted to type " + t.String())
 	}
@@ -1106,7 +1108,8 @@ func (v Value) ConvertWithInterface(t Type) Value {
 	if v.flag&flagMethod != 0 {
 		panic("method values not supported in reflectlite")
 	}
-	op := convertOp(t.common(), v.typ, true)
+	seen := map[_typePair]struct{}{}
+	op := convertOp(t.common(), v.typ, true, seen)
 	if op == nil {
 		panic("reflect.Value.Convert: value of type " + v.typ.String() + " cannot be converted to type " + t.String())
 	}
@@ -1115,7 +1118,7 @@ func (v Value) ConvertWithInterface(t Type) Value {
 
 // convertOp returns the function to convert a value of type src
 // to a value of type dst. If the conversion is illegal, convertOp returns nil.
-func convertOp(dst, src *rtype, allowInterface bool) func(Value, Type) Value {
+func convertOp(dst, src *rtype, allowInterface bool, seen map[_typePair]struct{}) func(Value, Type) Value {
 	switch src.Kind() {
 	case Int, Int8, Int16, Int32, Int64:
 		switch dst.Kind() {
@@ -1179,24 +1182,24 @@ func convertOp(dst, src *rtype, allowInterface bool) func(Value, Type) Value {
 		}
 
 	case Chan:
-		if dst.Kind() == Chan && specialChannelAssignability(dst, src) {
+		if dst.Kind() == Chan && specialChannelAssignability(dst, src, seen) {
 			return cvtDirect
 		}
 	}
 
 	// dst and src have same underlying type.
-	if haveIdenticalUnderlyingType(dst, src, false, allowInterface) {
+	if haveIdenticalUnderlyingType(dst, src, false, allowInterface, seen) {
 		return cvtDirect
 	}
 
 	// dst and src are non-defined pointer types with same underlying base type.
 	if dst.Kind() == Pointer && dst.Name() == "" &&
 		src.Kind() == Pointer && src.Name() == "" &&
-		haveIdenticalUnderlyingType(dst.Elem().common(), src.Elem().common(), false, allowInterface) {
+		haveIdenticalUnderlyingType(dst.Elem().common(), src.Elem().common(), false, allowInterface, seen) {
 		return cvtDirect
 	}
 
-	if implements(dst, src) {
+	if implements(dst, src, seen) {
 		if src.Kind() == Interface {
 			return cvtI2I
 		}
@@ -1206,7 +1209,7 @@ func convertOp(dst, src *rtype, allowInterface bool) func(Value, Type) Value {
 	return nil
 }
 
-func haveIdenticalType(T, V Type, cmpTags, allowInterface bool) bool {
+func haveIdenticalType(T, V Type, cmpTags, allowInterface bool, seen map[_typePair]struct{}) bool {
 	if cmpTags {
 		return T == V
 	}
@@ -1215,13 +1218,18 @@ func haveIdenticalType(T, V Type, cmpTags, allowInterface bool) bool {
 		return false
 	}
 
-	return haveIdenticalUnderlyingType(T.common(), V.common(), false, allowInterface)
+	return haveIdenticalUnderlyingType(T.common(), V.common(), false, allowInterface, seen)
 }
 
-func haveIdenticalUnderlyingType(T, V *rtype, cmpTags, allowInterface bool) bool {
+func haveIdenticalUnderlyingType(T, V *rtype, cmpTags, allowInterface bool, seen map[_typePair]struct{}) bool {
 	if T == V {
 		return true
 	}
+	tp := _typePair{T, V}
+	if _, ok := seen[tp]; ok {
+		return true
+	}
+	seen[tp] = struct{}{}
 
 	kind := T.Kind()
 	if kind != V.Kind() {
@@ -1237,10 +1245,10 @@ func haveIdenticalUnderlyingType(T, V *rtype, cmpTags, allowInterface bool) bool
 	// Composite types.
 	switch kind {
 	case Array:
-		return T.Len() == V.Len() && haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface)
+		return T.Len() == V.Len() && haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface, seen)
 
 	case Chan:
-		return V.ChanDir() == T.ChanDir() && haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface)
+		return V.ChanDir() == T.ChanDir() && haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface, seen)
 
 	case Func:
 		t := (*funcType)(unsafe.Pointer(T))
@@ -1249,12 +1257,12 @@ func haveIdenticalUnderlyingType(T, V *rtype, cmpTags, allowInterface bool) bool
 			return false
 		}
 		for i := 0; i < t.NumIn(); i++ {
-			if !haveIdenticalType(t.In(i), v.In(i), cmpTags, allowInterface) {
+			if !haveIdenticalType(t.In(i), v.In(i), cmpTags, allowInterface, seen) {
 				return false
 			}
 		}
 		for i := 0; i < t.NumOut(); i++ {
-			if !haveIdenticalType(t.Out(i), v.Out(i), cmpTags, allowInterface) {
+			if !haveIdenticalType(t.Out(i), v.Out(i), cmpTags, allowInterface, seen) {
 				return false
 			}
 		}
@@ -1266,15 +1274,15 @@ func haveIdenticalUnderlyingType(T, V *rtype, cmpTags, allowInterface bool) bool
 		if len(t.methods) == 0 && len(v.methods) == 0 {
 			return true
 		}
-		if allowInterface && implements(V, T) {
+		if allowInterface && implements(V, T, seen) {
 			return true
 		}
 		return false
 	case Map:
-		return haveIdenticalType(T.Key(), V.Key(), cmpTags, allowInterface) && haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface)
+		return haveIdenticalType(T.Key(), V.Key(), cmpTags, allowInterface, seen) && haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface, seen)
 
 	case Pointer, Slice:
-		return haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface)
+		return haveIdenticalType(T.Elem(), V.Elem(), cmpTags, allowInterface, seen)
 
 	case Struct:
 		t := (*structType)(unsafe.Pointer(T))
@@ -1291,7 +1299,7 @@ func haveIdenticalUnderlyingType(T, V *rtype, cmpTags, allowInterface bool) bool
 			if tf.name.name() != vf.name.name() {
 				return false
 			}
-			if !haveIdenticalType(tf.typ, vf.typ, cmpTags, allowInterface) {
+			if !haveIdenticalType(tf.typ, vf.typ, cmpTags, allowInterface, seen) {
 				return false
 			}
 			if cmpTags && tf.name.tag() != vf.name.tag() {

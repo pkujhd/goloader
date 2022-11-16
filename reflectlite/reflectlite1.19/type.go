@@ -317,6 +317,11 @@ type rtype struct {
 	ptrToThis typeOff // type for pointer to this type, may be zero
 }
 
+type _typePair struct {
+	t1 *rtype
+	t2 *rtype
+}
+
 func (t *rtype) hasName() bool {
 	return t.tflag&tflagNamed != 0
 }
@@ -483,7 +488,8 @@ func (t *rtype) ConvertibleTo(u Type) bool {
 		panic("reflect: nil type passed to Type.ConvertibleTo")
 	}
 	uu := u.(*rtype)
-	return convertOp(uu, t, false) != nil
+	seen := map[_typePair]struct{}{}
+	return convertOp(uu, t, false, seen) != nil
 }
 
 func (t *rtype) ConvertibleToWithInterface(u Type) bool {
@@ -491,11 +497,12 @@ func (t *rtype) ConvertibleToWithInterface(u Type) bool {
 		panic("reflect: nil type passed to Type.ConvertibleTo")
 	}
 	uu := u.(*rtype)
-	return convertOp(uu, t, true) != nil
+	seen := map[_typePair]struct{}{}
+	return convertOp(uu, t, true, seen) != nil
 }
 
 // implements reports whether the type V implements the interface type T.
-func implements(T, V *rtype) bool {
+func implements(T, V *rtype, seen map[_typePair]struct{}) bool {
 	if T.Kind() != Interface {
 		return false
 	}
@@ -524,7 +531,7 @@ func implements(T, V *rtype) bool {
 			tmName := t.nameOff(tm.name)
 			vm := &v.methods[j]
 			vmName := V.nameOff(vm.name)
-			if vmName.name() == tmName.name() && haveIdenticalUnderlyingType(V.typeOff(vm.typ), t.typeOff(tm.typ), false, true) {
+			if vmName.name() == tmName.name() && haveIdenticalUnderlyingType(V.typeOff(vm.typ), t.typeOff(tm.typ), false, true, seen) {
 				if !tmName.isExported() {
 					tmPkgPath := tmName.pkgPath()
 					if tmPkgPath == "" {
@@ -583,12 +590,12 @@ func implements(T, V *rtype) bool {
 // can be directly assigned (using memmove) to another channel type T.
 // https://golang.org/doc/go_spec.html#Assignability
 // T and V must be both of Chan kind.
-func specialChannelAssignability(T, V *rtype) bool {
+func specialChannelAssignability(T, V *rtype, seen map[_typePair]struct{}) bool {
 	// Special case:
 	// x is a bidirectional channel value, T is a channel type,
 	// x's type V and T have identical element types,
 	// and at least one of V or T is not a defined type.
-	return V.ChanDir() == BothDir && (T.Name() == "" || V.Name() == "") && haveIdenticalType(T.Elem(), V.Elem(), true, true)
+	return V.ChanDir() == BothDir && (T.Name() == "" || V.Name() == "") && haveIdenticalType(T.Elem(), V.Elem(), true, true, seen)
 }
 
 func (t *rtype) ChanDir() ChanDir {
