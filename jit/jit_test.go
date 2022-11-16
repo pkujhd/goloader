@@ -1179,3 +1179,37 @@ func TestCloneConnection(t *testing.T) {
 	keepAccepting = false
 	_ = listener.Close()
 }
+
+func TestJitSBSSMap(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_init/test.go"},
+		pkg:   "./testdata/test_init",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+			printMap := symbols["PrintMap"].(func() string)
+			if printMap() != "map[blah:map[5:6 7:8] blah_blah:map[1:2 3:4]]" {
+				t.Errorf("expected map string to be 'map[blah:map[5:6 7:8] blah_blah:map[1:2 3:4]]', got %s\n", printMap())
+			}
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
+		})
+	}
+}

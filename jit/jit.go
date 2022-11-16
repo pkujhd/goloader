@@ -419,7 +419,6 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 
 	newFiles = append(newFiles, tmpReflectFilePath)
 
-	importPath := "command-line-arguments"
 	err = execBuild(config, workDir, outputFilePath, newFiles)
 	if err != nil {
 		return nil, err
@@ -432,14 +431,14 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	if config.StringContainerSize > 0 {
 		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
 	}
-	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, parsedFiles[0].PackageName, pkg, linkerOpts)
+	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &LoadableUnit{
 		Linker:               linker,
-		ImportPath:           importPath,
+		ImportPath:           pkg.ImportPath,
 		SymbolTypeFuncLookup: symbolToTypeFuncName,
 	}, nil
 }
@@ -517,7 +516,6 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 
 	outputFilePath := path.Join(buildDir, hexHash+".a")
 
-	importPath := "command-line-arguments"
 	err = execBuild(config, "", outputFilePath, []string{tmpFilePath, tmpReflectFilePath})
 	if err != nil {
 		return nil, err
@@ -530,14 +528,14 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	if config.StringContainerSize > 0 {
 		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
 	}
-	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, parsed.PackageName, pkg, linkerOpts)
+	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &LoadableUnit{
 		Linker:               linker,
-		ImportPath:           importPath,
+		ImportPath:           pkg.ImportPath,
 		SymbolTypeFuncLookup: symbolToTypeFuncName,
 	}, nil
 }
@@ -682,7 +680,6 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 			return nil, fmt.Errorf("failed to generated reflect code: %w", err)
 		}
 
-		importPath := pkg.ImportPath
 		err = execBuild(config, buildDir, outputFilePath, []string{buildDir})
 		if err != nil {
 			return nil, err
@@ -695,14 +692,14 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		if config.StringContainerSize > 0 {
 			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
 		}
-		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, parsedFiles[0].PackageName, pkg, linkerOpts)
+		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 		if err != nil {
 			return nil, err
 		}
 
 		return &LoadableUnit{
 			Linker:               linker,
-			ImportPath:           importPath,
+			ImportPath:           pkg.ImportPath,
 			SymbolTypeFuncLookup: symbolToTypeFuncName,
 		}, nil
 	} else {
@@ -765,7 +762,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		if config.StringContainerSize > 0 {
 			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
 		}
-		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, parsedFiles[0].PackageName, pkg, linkerOpts)
+		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, importPath, pkg, linkerOpts)
 		if err != nil {
 			return nil, err
 		}
