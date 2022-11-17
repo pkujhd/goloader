@@ -10,6 +10,7 @@ import (
 type LoadableUnit struct {
 	Linker               *goloader.Linker
 	ImportPath           string
+	ParsedFiles          []*ParsedFile
 	SymbolTypeFuncLookup map[string]string
 }
 

@@ -439,6 +439,7 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	return &LoadableUnit{
 		Linker:               linker,
 		ImportPath:           pkg.ImportPath,
+		ParsedFiles:          parsedFiles,
 		SymbolTypeFuncLookup: symbolToTypeFuncName,
 	}, nil
 }
@@ -536,6 +537,7 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	return &LoadableUnit{
 		Linker:               linker,
 		ImportPath:           pkg.ImportPath,
+		ParsedFiles:          []*ParsedFile{parsed},
 		SymbolTypeFuncLookup: symbolToTypeFuncName,
 	}, nil
 }
@@ -700,6 +702,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		return &LoadableUnit{
 			Linker:               linker,
 			ImportPath:           pkg.ImportPath,
+			ParsedFiles:          parsedFiles,
 			SymbolTypeFuncLookup: symbolToTypeFuncName,
 		}, nil
 	} else {
@@ -770,6 +773,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		return &LoadableUnit{
 			Linker:               linker,
 			ImportPath:           importPath,
+			ParsedFiles:          parsedFiles,
 			SymbolTypeFuncLookup: symbolToTypeFuncName,
 		}, nil
 	}

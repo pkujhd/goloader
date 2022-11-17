@@ -708,8 +708,12 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	}
 	if err != nil {
 		err2 := Munmap(codeByte)
+		err3 := Munmap(dataByte)
 		if err2 != nil {
 			err = fmt.Errorf("failed to munmap (%s) after linker error: %w", err2, err)
+		}
+		if err3 != nil {
+			err = fmt.Errorf("failed to munmap (%s) after linker error: %w", err3, err)
 		}
 	}
 	return nil, err
