@@ -74,8 +74,9 @@ func main() {
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
 	goloader.RegTypes(symPtr, fmt.Sprint)
 
+	var linkerOpts []goloader.LinkerOptFunc
 	if *enableStringContainer == 1 {
-		goloader.OpenStringMap()
+		linkerOpts = append(linkerOpts, goloader.WithStringContainer(16*1024*1024))
 	}
 
 	linker, err := goloader.ReadObjs(files.File, files.PkgPath)

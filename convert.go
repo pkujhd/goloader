@@ -143,7 +143,6 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 		tt := (*interfaceType)(unsafe.Pointer(newTypeOuter))
 
 		if len(tt.methods) > 0 {
-			// If not an eface, then c
 			iface := (*nonEmptyInterface)(((*fakeValue)(unsafe.Pointer(&oldValue))).ptr)
 			if iface.itab == nil {
 				// nil value in interface, no further work required

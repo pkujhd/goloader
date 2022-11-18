@@ -27,6 +27,7 @@ func MakeHTTPRequestWithDNS(url string) (string, error) {
 
 	// Don't leave any goroutines attempting to read idle connections since the code they execute will be unloaded
 	defer http.DefaultClient.CloseIdleConnections()
+	defer t.CloseIdleConnections()
 
 	data, err := io.ReadAll(resp.Body)
 	return string(data), err

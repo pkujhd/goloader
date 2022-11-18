@@ -15,7 +15,7 @@ type LoadableUnit struct {
 }
 
 func (l *LoadableUnit) Load() (module *goloader.CodeModule, functions map[string]interface{}, err error) {
-	if l == nil {
+	if l == nil || l.Linker == nil {
 		return nil, nil, fmt.Errorf("can't load nil LoadableUnit")
 	}
 	module, err = goloader.Load(l.Linker, globalSymPtr)

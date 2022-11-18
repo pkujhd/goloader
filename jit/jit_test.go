@@ -366,6 +366,87 @@ func TestJitHttpGet(t *testing.T) {
 	}
 }
 
+func TestPatchMultipleModuleItabs(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:            goBinary,
+		KeepTempFiles:       false,
+		ExtraBuildFlags:     nil,
+		BuildEnv:            nil,
+		TmpDir:              "",
+		DebugLog:            false,
+		HeapStrings:         heapStrings,
+		StringContainerSize: stringContainerSize,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_http_get/test.go"},
+		pkg:   "testdata/test_http_get",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	// Certain crypto and http library code has asynchronous execution of various functions
+	// (for caching things after first computation using sync.Once etc.) e.g.:
+	// vendor/golang.org/x/net/http/httpproxy.(*config).proxyForURL
+	// crypto/x509.initSystemRoots
+	// To avoid these functions running against unloaded memory after each test is finished, we build them into the test binary
+	// (but don't build all of net/http in, so it's still a useful test)
+
+	r, _ := http.NewRequest("", "", nil)
+	_, _ = http.ProxyFromEnvironment(r)
+	_, _ = x509.SystemCertPool()
+	x509.NewCertPool().AppendCertsFromPEM(nil)
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			start := runtime.NumGoroutine()
+			module1, symbols1 := buildLoadable(t, conf, testName, data)
+			module2, symbols2 := buildLoadable(t, conf, testName, data)
+			httpGet1 := symbols1["MakeHTTPRequestWithDNS"].(func(string) (string, error))
+			httpGet2 := symbols2["MakeHTTPRequestWithDNS"].(func(string) (string, error))
+			result1, err := httpGet1("https://ipinfo.io/ip")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result2, err := httpGet2("https://ipinfo.io/ip")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fmt.Println(result2)
+			afterCall := runtime.NumGoroutine()
+			for afterCall != start {
+				time.Sleep(100 * time.Millisecond)
+				runtime.GC()
+				afterCall = runtime.NumGoroutine()
+				fmt.Printf("Waiting for last goroutine to stop before unloading, started with %d, now have %d\n", start, afterCall)
+			}
+			fmt.Println(result1)
+			err = module1.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(300 * time.Millisecond)
+
+			result2, err = httpGet2("https://ipinfo.io/ip")
+			fmt.Println(result2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module2.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module1.UnloadStringMap()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module2.UnloadStringMap()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 // TODO - something wrong with this
 func TestJitPanicRecoveryStackTrace(t *testing.T) {
 	conf := jit.BuildConfig{

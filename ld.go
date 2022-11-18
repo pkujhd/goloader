@@ -67,14 +67,14 @@ type CodeModule struct {
 	module                *moduledata
 	gcdata                []byte
 	gcbss                 []byte
-	patchedTypeMethodsIfn map[*_type][]int
-	patchedTypeMethodsTfn map[*_type][]int
+	patchedTypeMethodsIfn map[*_type]map[int]struct{}
+	patchedTypeMethodsTfn map[*_type]map[int]struct{}
 	heapStrings           map[string]*string
 	stringMmap            *stringMmap
 }
 
 var (
-	modules     = make(map[interface{}]bool)
+	modules     = make(map[*CodeModule]bool)
 	modulesLock sync.Mutex
 )
 
@@ -545,8 +545,8 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	typehash := make(map[uint32][]*_type, len(firstmoduledata.typelinks))
 	buildModuleTypeHash(activeModules()[0], typehash)
 
-	patchedTypeMethodsIfn := make(map[*_type][]int)
-	patchedTypeMethodsTfn := make(map[*_type][]int)
+	patchedTypeMethodsIfn := make(map[*_type]map[int]struct{})
+	patchedTypeMethodsTfn := make(map[*_type]map[int]struct{})
 	segment := &codeModule.segment
 	byteorder := linker.Arch.ByteOrder
 	for _, symbol := range linker.symMap {
@@ -579,7 +579,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 				if t != prevT {
 					u := t.uncommon()
 					prevU := prevT.uncommon()
-					err := patchTypeMethods(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
+					err := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
 					if err != nil {
 						return err
 					}
@@ -628,7 +628,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	if err != nil {
 		return err
 	}
-	err = codeModule.patchTypeMethods()
+	err = patchTypeMethodTextPtrs(uintptr(codeModule.codeBase), codeModule.patchedTypeMethodsIfn, codeModule.patchedTypeMethodsTfn)
 
 	return err
 }
@@ -727,7 +727,7 @@ func (cm *CodeModule) Unload() error {
 	removeitabs(cm.module)
 	runtime.GC()
 	modulesLock.Lock()
-	removeModule(cm.module)
+	removeModule(cm)
 	modulesLock.Unlock()
 	modulesinit()
 	err1 := Munmap(cm.codeByte)

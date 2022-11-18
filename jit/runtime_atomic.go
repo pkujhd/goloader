@@ -145,7 +145,10 @@ func check() {
 	// To bake in all of sync.Cond's methods referencing functions defined in runtime since runtime is a forbidden package
 	var _ = reflect.ValueOf(sync.Cond{})
 	var _ = reflect.DeepEqual(1, 2)
-	var _ = reflect.MakeFunc(reflect.TypeOf(func() {}), nil)
+	// reflect.Call disables most of linker's deadcode analysis $GOROOT/src/cmd/link/internal/ld/deadcode.go
+	var _ = reflect.MakeFunc(reflect.TypeOf(func() {}), func(args []reflect.Value) (results []reflect.Value) {
+		return nil
+	}).Call(nil)
 	_ = bytes.Compare(nil, nil)
 
 	// encoding/json's encoderCache sync.Map can cache functions for encoding builtin types, but these functions

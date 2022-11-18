@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/pkujhd/goloader/jit/syntax"
-	"html/template"
+	"text/template"
 	"unicode"
 )
 
