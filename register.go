@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/dataindex"
+	"log"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"unsafe"
 )
@@ -182,13 +184,24 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 	} else {
 		if x86Found || arm64Found {
 			// If this is an ELF file, try to relocate the tls G as created by the external linker
+			var typeFound []string
+			if x86Found {
+				typeFound = append(typeFound, "runtime.tlsg")
+			}
+			if arm64Found {
+				typeFound = append(typeFound, "runtime.tls_g")
+			}
+			if runtime.GOOS == "darwin" {
+				log.Printf("Got a TLS symbol %s emitted in the main binary (value 0x%x or 0x%x), but not sure what to do with it\n", typeFound, tlsG, tls_G)
+				return nil
+			}
 			path, err := os.Executable()
 			if err != nil {
-				return fmt.Errorf("found 'runtime.tlsg' and so expected elf file (macho not yet supported), but failed to find executable: %w", err)
+				return fmt.Errorf("found '%s' and so expected elf file (macho not yet supported), but failed to find executable: %w", typeFound, err)
 			}
 			elfFile, err := elf.Open(path)
 			if err != nil {
-				return fmt.Errorf("found 'runtime.tlsg' and so expected elf file (macho not yet supported), but failed to open ELF executable: %w", err)
+				return fmt.Errorf("found '%s' and so expected elf file (macho not yet supported), but failed to open ELF executable: %w", typeFound, err)
 			}
 			defer elfFile.Close()
 
