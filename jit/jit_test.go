@@ -23,6 +23,8 @@ import (
 // Can edit these flags to check all tests still work with different linker options
 var heapStrings = false
 var stringContainerSize = 0 // 512 * 1024
+var randomSymbolOrder = true
+
 //var goBinary = "/mnt/rpool/go_versions/go1.18.8.linux-amd64/go/bin/go"
 
 var goBinary = ""
@@ -60,14 +62,15 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 
 func TestJitSimpleFunctions(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -105,14 +108,15 @@ func TestJitSimpleFunctions(t *testing.T) {
 
 func TestJitJsonUnmarshal(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -148,11 +152,15 @@ func TestJitJsonUnmarshal(t *testing.T) {
 
 func TestJitComplexFunctions(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        true,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -218,14 +226,15 @@ func TestJitComplexFunctions(t *testing.T) {
 
 func TestJitEmbeddedStruct(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -258,14 +267,15 @@ func TestJitEmbeddedStruct(t *testing.T) {
 
 func TestJitCGoCall(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -309,14 +319,15 @@ func TestJitCGoCall(t *testing.T) {
 
 func TestJitHttpGet(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -368,14 +379,15 @@ func TestJitHttpGet(t *testing.T) {
 
 func TestPatchMultipleModuleItabs(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -450,14 +462,15 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 // TODO - something wrong with this
 func TestJitPanicRecoveryStackTrace(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -538,14 +551,15 @@ func checkStackTrace(t *testing.T, thing common.SomeInterface) (err error) {
 
 func TestJitGoroutines(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -594,14 +608,15 @@ func TestJitGoroutines(t *testing.T) {
 
 func TestLoadUnloadMultipleModules(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data1 := testData{
@@ -680,14 +695,15 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 
 func TestStackSplit(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -724,14 +740,15 @@ func TestStackSplit(t *testing.T) {
 
 func TestSimpleAsmFuncs(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -796,14 +813,15 @@ func TestComplexAsmFuncs(t *testing.T) {
 	}()
 
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "./",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "./",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -835,11 +853,15 @@ func TestComplexAsmFuncs(t *testing.T) {
 // https://github.com/pkujhd/goloader/issues/55
 func TestIssue55(t *testing.T) {
 	conf := jit.BuildConfig{
-		KeepTempFiles:   false,
-		ExtraBuildFlags: nil,
-		BuildEnv:        nil,
-		TmpDir:          "",
-		DebugLog:        true,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "./",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -888,14 +910,15 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 	}()
 
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -925,14 +948,15 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 
 func TestConvertOldAndNewTypes(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -1072,6 +1096,7 @@ func TestStatefulHttpServer(t *testing.T) {
 		DebugLog:            false,
 		HeapStrings:         heapStrings,
 		StringContainerSize: stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -1144,14 +1169,15 @@ func TestStatefulHttpServer(t *testing.T) {
 
 func TestCloneConnection(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "./",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "./",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{
@@ -1263,14 +1289,15 @@ func TestCloneConnection(t *testing.T) {
 
 func TestJitSBSSMap(t *testing.T) {
 	conf := jit.BuildConfig{
-		GoBinary:            goBinary,
-		KeepTempFiles:       false,
-		ExtraBuildFlags:     nil,
-		BuildEnv:            nil,
-		TmpDir:              "",
-		DebugLog:            false,
-		HeapStrings:         heapStrings,
-		StringContainerSize: stringContainerSize,
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
 	data := testData{

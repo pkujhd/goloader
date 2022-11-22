@@ -85,15 +85,17 @@ func RegisterTypes(types ...interface{}) {
 }
 
 type BuildConfig struct {
-	GoBinary            string // Path to go binary, defaults to "go"
-	KeepTempFiles       bool
-	ExtraBuildFlags     []string
-	BuildEnv            []string
-	TmpDir              string
-	DebugLog            bool
-	SkipCopyPatterns    []string // Paths to exclude from module copy
-	HeapStrings         bool     // Whether to put strings on the heap and allow GC to manage their lifecycle
-	StringContainerSize int      // Whether to separately mmap a container for strings, to allow unmapping independently of unloading code modules
+	GoBinary              string // Path to go binary, defaults to "go"
+	KeepTempFiles         bool
+	ExtraBuildFlags       []string
+	BuildEnv              []string
+	TmpDir                string
+	DebugLog              bool
+	SkipCopyPatterns      []string // Paths to exclude from module copy
+	HeapStrings           bool     // Whether to put strings on the heap and allow GC to manage their lifecycle
+	StringContainerSize   int      // Whether to separately mmap a container for strings, to allow unmapping independently of unloading code modules
+	SymbolNameOrder       []string // Control the layout of symbols in the linker's linear memory - useful for reproducing bugs
+	RandomSymbolNameOrder bool     // Randomise the order of linker symbols (may identify linker bugs)
 }
 
 func execBuild(config BuildConfig, workDir, outputFilePath string, targets []string) error {
@@ -223,7 +225,14 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 	var errs []error
 	var errsMutex sync.Mutex
 	wg.Add(len(missingDeps))
-	for missingDep := range missingDeps {
+
+	missingDepsSorted := make([]string, 0, len(missingDeps))
+	for k := range missingDeps {
+		missingDepsSorted = append(missingDepsSorted, k)
+	}
+	sort.Strings(missingDepsSorted)
+
+	for _, missingDep := range missingDepsSorted {
 		if _, ok := seen[missingDep]; ok {
 			continue
 		}
@@ -431,6 +440,12 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	if config.StringContainerSize > 0 {
 		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
 	}
+	if len(config.SymbolNameOrder) > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
+	}
+	if config.RandomSymbolNameOrder {
+		linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
+	}
 	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
 		return nil, err
@@ -528,6 +543,12 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	}
 	if config.StringContainerSize > 0 {
 		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
+	}
+	if len(config.SymbolNameOrder) > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
+	}
+	if config.RandomSymbolNameOrder {
+		linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
 	}
 	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
@@ -694,6 +715,12 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		if config.StringContainerSize > 0 {
 			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
 		}
+		if len(config.SymbolNameOrder) > 0 {
+			linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
+		}
+		if config.RandomSymbolNameOrder {
+			linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
+		}
 		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 		if err != nil {
 			return nil, err
@@ -764,6 +791,12 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		}
 		if config.StringContainerSize > 0 {
 			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
+		}
+		if len(config.SymbolNameOrder) > 0 {
+			linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
+		}
+		if config.RandomSymbolNameOrder {
+			linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
 		}
 		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, importPath, pkg, linkerOpts)
 		if err != nil {

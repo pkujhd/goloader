@@ -55,6 +55,7 @@ type Linker struct {
 	pctab         []byte
 	_func         []*_func
 	initFuncs     []string
+	symNameOrder  []string
 	Arch          *sys.Arch
 	options       LinkerOptions
 	heapStringMap map[string]*string
@@ -114,7 +115,7 @@ func initLinker(c LinkerOptions) (*Linker, error) {
 	return linker, nil
 }
 
-func (linker *Linker) addSymbols() error {
+func (linker *Linker) addSymbols(symbolNames []string) error {
 	//static_tmp is 0, golang compile not allocate memory.
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
 
@@ -132,7 +133,8 @@ func (linker *Linker) addSymbols() error {
 		}
 	}
 
-	for _, objSym := range linker.objsymbolMap {
+	for _, objSymName := range symbolNames {
+		objSym := linker.objsymbolMap[objSymName]
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
@@ -187,7 +189,12 @@ func (linker *Linker) addSymbols() error {
 			}
 		}
 	}
+	linker.symNameOrder = symbolNames
 	return nil
+}
+
+func (linker *Linker) SymbolOrder() []string {
+	return linker.symNameOrder
 }
 
 func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {

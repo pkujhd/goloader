@@ -91,7 +91,9 @@ func (pkg *Pkg) Symbols() error {
 							// copy(data, text[textOffset+symbol.Addr:int64(textOffset+symbol.Addr)+symbol.Size])
 							copy(data, text[textOffset:int64(textOffset)+symbol.Size])
 							sym.Data = data
-
+							if _, ok := pkg.Syms[symbol.Name]; !ok {
+								pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
+							}
 							pkg.Syms[symbol.Name] = &sym
 						}
 					}
@@ -104,6 +106,11 @@ func (pkg *Pkg) Symbols() error {
 	for _, sym := range pkg.Syms {
 		if !strings.HasPrefix(sym.Name, TypeStringPrefix) {
 			sym.Name = strings.Replace(sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
+		}
+	}
+	for i, symName := range pkg.SymNameOrder {
+		if !strings.HasPrefix(symName, TypeStringPrefix) {
+			pkg.SymNameOrder[i] = strings.Replace(symName, EmptyPkgPath, pkg.PkgPath, -1)
 		}
 	}
 	return nil
@@ -145,6 +152,9 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 			// https://go.googlesource.com/go/+/refs/heads/dev.regabi/src/cmd/compile/internal-abi.md
 			if obj.ABI(original.Func.ABI) == obj.ABIInternal && !strings.HasPrefix(original.Name, "reflect.") { // reflect functions are special wrappers
 				original.Name += ABIInternalSuffix
+				if _, ok := pkg.Syms[original.Name]; !ok {
+					pkg.SymNameOrder = append(pkg.SymNameOrder, original.Name)
+				}
 				pkg.Syms[original.Name] = original
 			}
 		} else {
@@ -164,6 +174,9 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 		symbol.Data = make([]byte, 0)
 	}
 
+	if _, ok := pkg.Syms[symbol.Name]; !ok {
+		pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
+	}
 	pkg.Syms[symbol.Name] = &symbol
 
 	auxs := r.Auxs(idx)

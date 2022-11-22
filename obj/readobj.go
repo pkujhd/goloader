@@ -10,11 +10,12 @@ type CompilationUnitFiles struct {
 }
 
 type Pkg struct {
-	Syms    map[string]*ObjSymbol
-	CUFiles []CompilationUnitFiles
-	Arch    string
-	PkgPath string
-	F       *os.File
+	Syms         map[string]*ObjSymbol
+	CUFiles      []CompilationUnitFiles
+	Arch         string
+	PkgPath      string
+	F            *os.File
+	SymNameOrder []string
 }
 
 type FuncInfo struct {

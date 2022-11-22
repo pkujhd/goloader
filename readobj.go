@@ -3,6 +3,8 @@ package goloader
 import (
 	"cmd/objfile/sys"
 	"fmt"
+	"log"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -71,8 +73,10 @@ func readObj(pkg *obj.Pkg, linker *Linker) error {
 type LinkerOptFunc func(options *LinkerOptions)
 
 type LinkerOptions struct {
-	HeapStrings         bool
-	StringContainerSize int
+	HeapStrings           bool
+	StringContainerSize   int
+	SymbolNameOrder       []string
+	RandomSymbolNameOrder bool
 }
 
 func WithHeapStrings() func(*LinkerOptions) {
@@ -84,6 +88,20 @@ func WithHeapStrings() func(*LinkerOptions) {
 func WithStringContainer(size int) func(*LinkerOptions) {
 	return func(options *LinkerOptions) {
 		options.StringContainerSize = size
+	}
+}
+
+// WithSymbolNameOrder allows you to control the sequence (placement in memory) of symbols from an object file.
+// When not set, the order as parsed from the archive file is used.
+func WithSymbolNameOrder(symNames []string) func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.SymbolNameOrder = symNames
+	}
+}
+
+func WithRandomSymbolNameOrder() func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.RandomSymbolNameOrder = true
 	}
 }
 
@@ -102,7 +120,27 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 		return nil, err
 	}
 
-	if err := linker.addSymbols(); err != nil {
+	symNames := pkg.SymNameOrder
+	if len(c.SymbolNameOrder) > 0 {
+		if len(pkg.SymNameOrder) == len(c.SymbolNameOrder) {
+			isOk := true
+			for _, symName := range c.SymbolNameOrder {
+				if _, ok := linker.objsymbolMap[symName]; !ok {
+					isOk = false
+				}
+			}
+			if isOk {
+				log.Printf("linker using provided symbol name order for %d symbols", len(c.SymbolNameOrder))
+				symNames = c.SymbolNameOrder
+			}
+		}
+	}
+	if c.RandomSymbolNameOrder {
+		rand.Shuffle(len(symNames), func(i, j int) {
+			symNames[i], symNames[j] = symNames[j], symNames[i]
+		})
+	}
+	if err := linker.addSymbols(symNames); err != nil {
 		return nil, err
 	}
 	return linker, nil
@@ -123,6 +161,7 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 			_ = f.Close()
 		}
 	}()
+	var symNames []string
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
@@ -133,8 +172,28 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 		if err := readObj(&pkg, linker); err != nil {
 			return nil, err
 		}
+		symNames = append(symNames, pkg.SymNameOrder...)
 	}
-	if err := linker.addSymbols(); err != nil {
+	if len(c.SymbolNameOrder) > 0 {
+		if len(symNames) == len(c.SymbolNameOrder) {
+			isOk := true
+			for _, symName := range c.SymbolNameOrder {
+				if _, ok := linker.objsymbolMap[symName]; !ok {
+					isOk = false
+				}
+			}
+			if isOk {
+				log.Printf("linker using provided symbol name order for %d symbols", len(c.SymbolNameOrder))
+				symNames = c.SymbolNameOrder
+			}
+		}
+	}
+	if c.RandomSymbolNameOrder {
+		rand.Shuffle(len(symNames), func(i, j int) {
+			symNames[i], symNames[j] = symNames[j], symNames[i]
+		})
+	}
+	if err := linker.addSymbols(symNames); err != nil {
 		return nil, err
 	}
 	return linker, nil
