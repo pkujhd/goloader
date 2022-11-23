@@ -1321,3 +1321,42 @@ func TestJitSBSSMap(t *testing.T) {
 		})
 	}
 }
+
+func TestJitDefer(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: false,
+		// If the symbol "gonum.org/v1/gonum/mat.(*LU).updateCond.opendefer" is added before others pertaining to (*LU).updateCond, this test will fail with the fatal error:
+		// runtime: g 73: unexpected return pc for gonum.org/v1/gonum/mat.(*LU).updateCond.func1 called from 0xc004283700
+		// TODO - investigate why
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_defer_funcs/test.go"},
+		pkg:   "./testdata/test_defer_funcs",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			for i := 0; i < 10; i++ {
+				module, symbols := buildLoadable(t, conf, testName, data)
+				testDefer := symbols["TestOpenDefer"].(func())
+				testDefer()
+				runtime.GC()
+				err := module.Unload()
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = module.UnloadStringMap()
+			}
+		})
+	}
+}
