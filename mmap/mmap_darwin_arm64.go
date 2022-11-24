@@ -30,12 +30,25 @@ func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
 }
 
 func Mmap(size int) ([]byte, error) {
-	data, err := syscall.Mmap(
+	return AcquireMapping(size, mmapCode)
+}
+
+func MmapData(size int) ([]byte, error) {
+	return AcquireMapping(size, mmapData)
+}
+
+func mmapCode(size int, addr uintptr) ([]byte, error) {
+	fixed := 0
+	if addr != 0 {
+		fixed = syscall.MAP_FIXED
+	}
+	data, err := mapper.Mmap(
+		addr,
 		0,
 		0,
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC,
-		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_JIT)
+		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_JIT|fixed)
 	if err != nil {
 		err = os.NewSyscallError("syscall.Mmap", err)
 	}
@@ -43,13 +56,18 @@ func Mmap(size int) ([]byte, error) {
 	return data, err
 }
 
-func MmapData(size int) ([]byte, error) {
-	data, err := syscall.Mmap(
+func mmapData(size int, addr uintptr) ([]byte, error) {
+	fixed := 0
+	if addr != 0 {
+		fixed = syscall.MAP_FIXED
+	}
+	data, err := mapper.Mmap(
+		addr,
 		0,
 		0,
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE,
-		syscall.MAP_PRIVATE|syscall.MAP_ANON)
+		syscall.MAP_PRIVATE|syscall.MAP_ANON|fixed)
 	if err != nil {
 		err = os.NewSyscallError("syscall.Mmap", err)
 	}
@@ -57,7 +75,7 @@ func MmapData(size int) ([]byte, error) {
 }
 
 func Munmap(b []byte) (err error) {
-	err = syscall.Munmap(b)
+	err = mapper.Munmap(b)
 	if err != nil {
 		err = os.NewSyscallError("syscall.Munmap", err)
 	}
