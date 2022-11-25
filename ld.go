@@ -38,28 +38,29 @@ type segment struct {
 }
 
 type Linker struct {
-	code          []byte
-	data          []byte
-	noptrdata     []byte
-	bss           []byte
-	noptrbss      []byte
-	cuFiles       []obj.CompilationUnitFiles
-	symMap        map[string]*obj.Sym
-	objsymbolMap  map[string]*obj.ObjSymbol
-	namemap       map[string]int
-	fileNameMap   map[string]int
-	cutab         []uint32
-	filetab       []byte
-	funcnametab   []byte
-	functab       []byte
-	pctab         []byte
-	_func         []*_func
-	initFuncs     []string
-	symNameOrder  []string
-	Arch          *sys.Arch
-	options       LinkerOptions
-	heapStringMap map[string]*string
-	stringMmap    *stringMmap
+	code              []byte
+	data              []byte
+	noptrdata         []byte
+	bss               []byte
+	noptrbss          []byte
+	cuFiles           []obj.CompilationUnitFiles
+	symMap            map[string]*obj.Sym
+	objsymbolMap      map[string]*obj.ObjSymbol
+	namemap           map[string]int
+	fileNameMap       map[string]int
+	cutab             []uint32
+	filetab           []byte
+	funcnametab       []byte
+	functab           []byte
+	pctab             []byte
+	_func             []*_func
+	initFuncs         []string
+	symNameOrder      []string
+	Arch              *sys.Arch
+	options           LinkerOptions
+	heapStringMap     map[string]*string
+	stringMmap        *stringMmap
+	appliedADRPRelocs map[*byte][]byte
 }
 
 type CodeModule struct {
@@ -87,14 +88,15 @@ func initLinker(c LinkerOptions) (*Linker, error) {
 		// if f.pcsp == 0 ...
 		// and
 		// if f.nameoff == 0
-		funcnametab:   make([]byte, PtrSize),
-		pctab:         make([]byte, PtrSize),
-		symMap:        make(map[string]*obj.Sym),
-		objsymbolMap:  make(map[string]*obj.ObjSymbol),
-		namemap:       make(map[string]int),
-		fileNameMap:   make(map[string]int),
-		heapStringMap: make(map[string]*string),
-		options:       c,
+		funcnametab:       make([]byte, PtrSize),
+		pctab:             make([]byte, PtrSize),
+		symMap:            make(map[string]*obj.Sym),
+		objsymbolMap:      make(map[string]*obj.ObjSymbol),
+		namemap:           make(map[string]int),
+		fileNameMap:       make(map[string]int),
+		heapStringMap:     make(map[string]*string),
+		appliedADRPRelocs: make(map[*byte][]byte),
+		options:           c,
 	}
 	if c.HeapStrings && c.StringContainerSize > 0 {
 		return nil, fmt.Errorf("can only use HeapStrings or StringContainerSize, not both")
@@ -601,6 +603,11 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+					case reloctype.R_CALLARM, reloctype.R_CALLARM64:
+						linker.relocteCALLARM(addr, loc, segment)
+					case reloctype.R_ADDRARM64:
+						copy(relocByte[loc.Offset:], linker.appliedADRPRelocs[&relocByte[loc.Offset]]) // revert the previous reloc
+						linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
 						// TODO - sanity check this
 						address := uintptr(int(addr) + loc.Add)

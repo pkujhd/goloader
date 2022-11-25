@@ -16,6 +16,8 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 	//overflow
 	if offset > 0xFFFFFFFF {
 		if symAddr < 0xFFFFFFFF {
+			linker.appliedADRPRelocs[&mCode[loc.Offset]] = make([]byte, 4)
+			copy(linker.appliedADRPRelocs[&mCode[loc.Offset]], mCode)
 			addr := byteorder.Uint32(mCode)
 			//low:	MOV reg imm
 			low := uint32(0xD2800000)
@@ -25,6 +27,8 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 			high = ((addr & 0x1F) | high) | (uint32(symAddr) >> 16 << 5)
 			byteorder.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
 		} else {
+			linker.appliedADRPRelocs[&mCode[loc.Offset]] = make([]byte, 4)
+			copy(linker.appliedADRPRelocs[&mCode[loc.Offset]], mCode)
 			addr := byteorder.Uint32(mCode)
 			blcode := byteorder.Uint32(arm64BLcode)
 			blcode |= ((uint32(segment.codeOff) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
@@ -56,6 +60,8 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		}
 	} else {
 		// 2bit + 19bit + low(12bit) = 33bit
+		linker.appliedADRPRelocs[&mCode[loc.Offset]] = make([]byte, 8)
+		copy(linker.appliedADRPRelocs[&mCode[loc.Offset]], mCode)
 		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
 		high := uint32(offset&0xFFF) << 10
 		value := byteorder.Uint64(mCode)
