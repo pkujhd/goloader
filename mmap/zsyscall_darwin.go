@@ -4,9 +4,23 @@
 package mmap
 
 import (
+	"reflect"
 	"syscall"
 	"unsafe"
 )
+
+var _ = reflect.ValueOf(syscall_rawSyscall6)
+var _ = reflect.ValueOf(syscall_runtime_BeforeExec)
+var _ = reflect.ValueOf(syscall_runtime_AfterExec)
+
+//go:linkname syscall_rawSyscall6 syscall.rawSyscall6
+func syscall_rawSyscall6(fn, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2, err uintptr)
+
+//go:linkname syscall_runtime_BeforeExec syscall.runtime_BeforeExec
+func syscall_runtime_BeforeExec()
+
+//go:linkname syscall_runtime_AfterExec syscall.runtime_AfterExec
+func syscall_runtime_AfterExec()
 
 //go:linkname syscall6X syscall.syscall6X
 //go:nosplit

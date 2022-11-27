@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -84,6 +85,18 @@ func RegisterTypes(types ...interface{}) {
 	goloader.RegTypes(globalSymPtr, types...)
 }
 
+func RegisterCGoSymbol(symNameC string, symNameGo string) bool {
+	addr, err := LookupDynamicSymbol(symNameC)
+	if err != nil {
+		return false
+	} else {
+		globalMutex.Lock()
+		globalSymPtr[symNameGo] = addr
+		globalMutex.Unlock()
+		return true
+	}
+}
+
 type BuildConfig struct {
 	GoBinary              string // Path to go binary, defaults to "go"
 	KeepTempFiles         bool
@@ -144,6 +157,8 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 	globalMutex.Lock()
 	externalSymbols := linker.UnresolvedExternalSymbols(globalSymPtr)
 	globalMutex.Unlock()
+
+	addCGoSymbols(externalSymbols)
 
 	var depImportPaths, depBinaries []string
 	// Prevent infinite recursion
@@ -209,6 +224,24 @@ func getMissingDeps(sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, 
 		}
 	}
 	return missingDeps
+}
+
+func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
+	if runtime.GOOS == "darwin" {
+		for k := range externalUnresolvedSymbols {
+			if strings.IndexByte(k, '.') == -1 {
+				// For dynlib symbols in $GOROOT/src/syscall/syscall_darwin.go
+				if strings.HasPrefix(k, "libc_") {
+					RegisterCGoSymbol(strings.TrimPrefix(k, "libc_"), k)
+				}
+				// For dynlib symbols in $GOROOT/src/crypto/x509/internal/macos/corefoundation.go
+				if strings.HasPrefix(k, "x509_") {
+					RegisterCGoSymbol(strings.TrimPrefix(k, "x509_"), k)
+				}
+			}
+			// TODO - if more symbols use the //go:cgo_import_dynamic linker pragma, then they would also need to be registered here
+		}
+	}
 }
 
 func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, seen map[string]struct{}, builtPackageImportPaths, buildPackageFilePaths *[]string, depth int, linkerOpts []goloader.LinkerOptFunc) error {
@@ -297,6 +330,7 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 	nextUnresolvedSymbols := linker.UnresolvedExternalSymbols(globalSymPtr)
 	globalMutex.Unlock()
 
+	addCGoSymbols(nextUnresolvedSymbols)
 	_ = linker.UnloadStrings()
 
 	if len(nextUnresolvedSymbols) > 0 {
