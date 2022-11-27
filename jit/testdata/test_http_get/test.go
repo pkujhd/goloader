@@ -1,6 +1,7 @@
 package test_http_get
 
 import (
+	"crypto/tls"
 	"io"
 	"net/http"
 	"runtime"
@@ -11,6 +12,7 @@ func MakeHTTPRequestWithDNS(url string) (string, error) {
 	// Make the IdleConnTimeout very short so that we don't leave dangling goroutines
 	// reading those connections while the module wants to unload that code
 	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.TLSClientConfig = &tls.Config{}
 	t.IdleConnTimeout = time.Millisecond * 50
 	http.DefaultClient.Transport = t
 	resp, err := http.Get(url)
