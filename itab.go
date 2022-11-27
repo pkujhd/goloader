@@ -3,6 +3,7 @@ package goloader
 import (
 	"fmt"
 	"github.com/pkujhd/goloader/mprotect"
+	"runtime"
 	"sort"
 	"unsafe"
 )
@@ -36,6 +37,9 @@ func getOtherPatchedMethodsForType(t *_type, currentModule *CodeModule) (otherMo
 func unreachableMethod() {
 	panic("goloader patched unreachable method called. linker bug?")
 }
+
+// This var gets updated on darwin if the init() in macho_darwin.go gets run successfully
+var textIsWriteable = runtime.GOOS != "darwin"
 
 // Since multiple CodeModules might patch the first module we need to make sure to store all indices which have ever been patched
 var firstModuleMissingMethods = map[*_type]map[int]struct{}{}
@@ -105,7 +109,7 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 	// manipulate the method offsets to make them not -1, and manually partially adjust the
 	// firstmodule itabs to rewrite the method addresses to point at the new module text (and remember to clean up afterwards)
 
-	if u != nil && prevU != nil {
+	if u != nil && prevU != nil && textIsWriteable {
 		methods := u.methods()
 		prevMethods := prevU.methods()
 		if len(methods) == len(prevMethods) {
@@ -127,7 +131,7 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 						page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].ifn)))
 						err = mprotect.MprotectMakeWritable(page)
 						if err != nil {
-							return fmt.Errorf("failed to make page writeable while patching type %s: %w", _name(t.nameOff(t.str)), err)
+							return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].ifn), err)
 						}
 						methods[i].ifn = prevMethods[i].ifn
 						err = mprotect.MprotectMakeReadOnly(page)
@@ -206,7 +210,7 @@ func patchTypeMethodTextPtrs(codeBase uintptr, patchedTypeMethodsIfn, patchedTyp
 			page := mprotect.GetPage(uintptr(unsafe.Pointer(&itab.fun[0])))
 			err = mprotect.MprotectMakeWritable(page)
 			if err != nil {
-				return fmt.Errorf("failed to make page writeable while re-initing itab for type %s: %w", _name(itab._type.nameOff(itab._type.str)), err)
+				return fmt.Errorf("failed to make page writeable while re-initing itab for type %s %p: %w", _name(itab._type.nameOff(itab._type.str)), unsafe.Pointer(&itab.fun[0]), err)
 			}
 			if ifnPatched {
 				itab.adjustMethods(codeBase, methodIndicesIfn)
@@ -242,7 +246,7 @@ func (cm *CodeModule) revertPatchedTypeMethods() error {
 				page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].ifn)))
 				err := mprotect.MprotectMakeWritable(page)
 				if err != nil {
-					return fmt.Errorf("failed to make page writeable while patching type %s: %w", _name(t.nameOff(t.str)), err)
+					return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].ifn), err)
 				}
 				methods[i].ifn = -1
 				err = mprotect.MprotectMakeReadOnly(page)
@@ -273,7 +277,7 @@ func (cm *CodeModule) revertPatchedTypeMethods() error {
 				page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].tfn)))
 				err := mprotect.MprotectMakeWritable(page)
 				if err != nil {
-					return fmt.Errorf("failed to make page writeable while patching type %s: %w", _name(t.nameOff(t.str)), err)
+					return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].tfn), err)
 				}
 				methods[i].tfn = -1
 				err = mprotect.MprotectMakeReadOnly(page)
