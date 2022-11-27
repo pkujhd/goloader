@@ -1,5 +1,5 @@
-//go:build darwin
-// +build darwin
+//go:build darwin && !no_darwin_patch
+// +build darwin,!no_darwin_patch
 
 package goloader
 

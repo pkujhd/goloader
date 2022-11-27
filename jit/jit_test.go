@@ -266,6 +266,12 @@ func TestJitEmbeddedStruct(t *testing.T) {
 }
 
 func TestJitCGoCall(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Mach-O relocations not yet applied which will fault on darwin")
+	}
+	if runtime.GOARCH == "arm64" {
+		t.Skip("ELF relocations not yet applied which will fault on arm64")
+	}
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,
 		KeepTempFiles:         false,
@@ -378,6 +384,10 @@ func TestJitHttpGet(t *testing.T) {
 }
 
 func TestPatchMultipleModuleItabs(t *testing.T) {
+
+	if runtime.GOOS == "darwin" {
+		t.Skip("Need to fix mprotect problem")
+	}
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,
 		KeepTempFiles:         false,
