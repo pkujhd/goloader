@@ -1,5 +1,5 @@
-//go:build darwin && !vmmap_fallback
-// +build darwin,!vmmap_fallback
+//go:build darwin && cgo
+// +build darwin,cgo
 
 package vmmap
 
