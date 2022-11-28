@@ -6,14 +6,7 @@ package vmmap
 /*
 
 #include <mach/mach.h>
-
-#if defined(__x86_64__)
 #include <mach/mach_vm.h>
-#endif
-
-#if defined(__arm64__)
-#include "mach_vm.h"
-#endif
 
 mach_port_t get_mach_task_self() {
 	return mach_task_self();

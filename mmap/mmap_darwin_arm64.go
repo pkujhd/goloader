@@ -3,30 +3,14 @@
 
 package mmap
 
-/*
-#cgo darwin LDFLAGS: -lpthread
-
-#include <pthread.h>
-#include <libkern/OSCacheControl.h>
-
-void jit_write_protect(int enable) {
-	pthread_jit_write_protect_np(enable);
-}
-void cache_invalidate(void* start, size_t len) {
-	sys_icache_invalidate(start, len);
-}
-*/
-import "C"
-
 import (
+	"github.com/pkujhd/goloader/mmap/darwin_arm64"
 	"os"
 	"syscall"
-	"unsafe"
 )
 
 func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
-	C.jit_write_protect(C.int(1))
-	C.cache_invalidate(unsafe.Pointer(ptr), C.size_t(len))
+	darwin_arm64.MakeThreadJITCodeExecutable(ptr, len)
 }
 
 func Mmap(size int) ([]byte, error) {
@@ -38,39 +22,27 @@ func MmapData(size int) ([]byte, error) {
 }
 
 func mmapCode(size int, addr uintptr) ([]byte, error) {
-	fixed := 0
-	if addr != 0 {
-		fixed = syscall.MAP_FIXED
-	}
+	// darwin arm64 won't accept MAP_FIXED, but seems to take addr as a hint...
 	data, err := mapper.Mmap(
 		addr,
 		0,
 		0,
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC,
-		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_JIT|fixed)
-	if err != nil {
-		err = os.NewSyscallError("syscall.Mmap", err)
-	}
-	C.jit_write_protect(C.int(0))
+		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_JIT)
+	darwin_arm64.WriteProtect()
 	return data, err
 }
 
 func mmapData(size int, addr uintptr) ([]byte, error) {
-	fixed := 0
-	if addr != 0 {
-		fixed = syscall.MAP_FIXED
-	}
+	// darwin arm64 won't accept MAP_FIXED, but seems to take addr as a hint...
 	data, err := mapper.Mmap(
 		addr,
 		0,
 		0,
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE,
-		syscall.MAP_PRIVATE|syscall.MAP_ANON|fixed)
-	if err != nil {
-		err = os.NewSyscallError("syscall.Mmap", err)
-	}
+		syscall.MAP_PRIVATE|syscall.MAP_ANON)
 	return data, err
 }
 
