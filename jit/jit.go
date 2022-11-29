@@ -122,7 +122,7 @@ func execBuild(config BuildConfig, workDir, outputFilePath string, targets []str
 	}
 	cmd := exec.Command(config.GoBinary, args...)
 	cmd.Dir = workDir
-	cmd.Env = config.BuildEnv
+	cmd.Env = append(os.Environ(), config.BuildEnv...)
 
 	bufStdout := &bytes.Buffer{}
 	bufStdErr := &bytes.Buffer{}
