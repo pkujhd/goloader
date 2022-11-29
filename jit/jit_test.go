@@ -3,6 +3,7 @@ package jit_test
 import (
 	"bytes"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"github.com/pkujhd/goloader"
 	"github.com/pkujhd/goloader/jit"
@@ -11,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -53,6 +55,17 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 	}
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if os.Getenv("GOLOADER_TEST_DUMP_SYMBOL_ORDER") == "1" {
+		symOrder := loadable.Linker.SymbolOrder()
+		symOrderJSON, _ := json.MarshalIndent(symOrder, "", "  ")
+		f, err := os.CreateTemp("", "symbol_order_*.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.Write(symOrderJSON)
+		_ = f.Close()
 	}
 	module, symbols, err = loadable.Load()
 	if err != nil {
@@ -1365,6 +1378,40 @@ func TestJitDefer(t *testing.T) {
 				}
 				err = module.UnloadStringMap()
 			}
+		})
+	}
+}
+
+func TestAnonymousStructType(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: false,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_anonymous_struct_type/test.go"},
+		pkg:   "./testdata/test_anonymous_struct_type",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			testFunc := symbols["Test"].(func() bool)
+			fmt.Println(testFunc())
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
+			time.Sleep(time.Second)
 		})
 	}
 }
