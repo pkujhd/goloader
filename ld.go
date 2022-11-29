@@ -219,6 +219,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SDATA:
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
+		if linker.Arch.Name == "arm64" {
+			bytearrayAlign(&linker.data, PtrSize)
+		}
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants
 		//in a separate segment and not unload when module unload.
@@ -237,13 +240,22 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		} else {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
+			if linker.Arch.Name == "arm64" {
+				bytearrayAlign(&linker.noptrdata, PtrSize)
+			}
 		}
 	case symkind.SBSS:
 		symbol.Offset = len(linker.bss)
 		linker.bss = append(linker.bss, objsym.Data...)
+		if linker.Arch.Name == "arm64" {
+			bytearrayAlign(&linker.bss, PtrSize)
+		}
 	case symkind.SNOPTRBSS:
 		symbol.Offset = len(linker.noptrbss)
 		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
+		if linker.Arch.Name == "arm64" {
+			bytearrayAlign(&linker.noptrbss, PtrSize)
+		}
 	default:
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
@@ -288,6 +300,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					linker.noptrdata = append(linker.noptrdata, nameLen...)
 					linker.noptrdata = append(linker.noptrdata, path...)
 					linker.noptrdata = append(linker.noptrdata, ZeroByte)
+					if linker.Arch.Name == "arm64" {
+						bytearrayAlign(&linker.noptrdata, PtrSize)
+					}
 				}
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
@@ -301,6 +316,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 						reloc.Sym.Kind = symkind.SNOPTRDATA
 						reloc.Sym.Offset = len(linker.noptrdata)
 						linker.noptrdata = append(linker.noptrdata, bytes...)
+						if linker.Arch.Name == "arm64" {
+							bytearrayAlign(&linker.noptrdata, PtrSize)
+						}
 					}
 				}
 			}
@@ -604,7 +622,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_CALLARM, reloctype.R_CALLARM64:
-						linker.relocteCALLARM(addr, loc, segment)
+						panic("This should not be possible")
 					case reloctype.R_ADDRARM64:
 						copy(relocByte[loc.Offset:], linker.appliedADRPRelocs[&relocByte[loc.Offset]]) // revert the previous reloc
 						linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
@@ -627,9 +645,10 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 							err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
-					case reloctype.R_USETYPE, reloctype.R_USEIFACE, reloctype.R_USEIFACEMETHOD, reloctype.R_ADDRCUOFF:
+					case reloctype.R_USETYPE, reloctype.R_USEIFACE, reloctype.R_USEIFACEMETHOD, reloctype.R_ADDRCUOFF, reloctype.R_KEEP:
 						// nothing to do
 					default:
+						panic(fmt.Sprintf("unhandled reloc %s", objabi.RelocType(loc.Type)))
 						// TODO - should we attempt to rewrite other relocations which point at *_types too?
 					}
 				}
