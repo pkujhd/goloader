@@ -25,7 +25,7 @@ func init() {
 		// Replace ourselves with the newly patched binary
 		// Since this is inside the init function, there shouldn't be too much program state built up...
 		log.Printf("patched Mach-O __TEXT segment to make writeable, restarting\n")
-		err = syscall.Exec(os.Args[0], os.Args[1:], os.Environ())
+		err = syscall.Exec(os.Args[0], os.Args, os.Environ())
 		if err != nil {
 			panic(err)
 		}

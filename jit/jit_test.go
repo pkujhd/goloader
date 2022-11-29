@@ -384,10 +384,6 @@ func TestJitHttpGet(t *testing.T) {
 }
 
 func TestPatchMultipleModuleItabs(t *testing.T) {
-
-	if runtime.GOOS == "darwin" {
-		t.Skip("Need to fix mprotect problem")
-	}
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,
 		KeepTempFiles:         false,
@@ -597,6 +593,7 @@ func TestJitGoroutines(t *testing.T) {
 			}
 
 			err = thing.Stop()
+			time.Sleep(100 * time.Millisecond)
 			afterStop := runtime.NumGoroutine()
 			if before != afterStop {
 				t.Fatalf("expected num goroutines %d and %d to be equal", before, afterStop)
