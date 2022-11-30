@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"reflect"
 	"runtime"
 	"runtime/debug"
 	"sort"
