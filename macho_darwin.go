@@ -10,7 +10,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
+	"os/exec"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -25,6 +28,34 @@ func init() {
 		// Replace ourselves with the newly patched binary
 		// Since this is inside the init function, there shouldn't be too much program state built up...
 		log.Printf("patched Mach-O __TEXT segment to make writeable, restarting\n")
+		if runtime.GOARCH == "arm64" {
+			// Kernel caches code signing info for an inode so you have to replace it entirely
+			f, err := os.OpenFile(fmt.Sprintf("jit_bin_%x", rand.Uint64()), os.O_CREATE|os.O_WRONLY, 0755)
+			if err != nil {
+				panic(err)
+			}
+			orig, err := os.OpenFile(os.Args[0], os.O_RDONLY, 0755)
+			if err != nil {
+				panic(err)
+			}
+			_, err = io.Copy(f, orig)
+			if err != nil {
+				panic(err)
+			}
+			err = f.Close()
+			if err != nil {
+				panic(err)
+			}
+			// What is the point of code signing if you can just do this?
+			err = exec.Command("codesign", "-s", "-", f.Name()).Run()
+			if err != nil {
+				panic(err)
+			}
+			err = os.Rename(f.Name(), os.Args[0])
+			if err != nil {
+				panic(err)
+			}
+		}
 		err = syscall.Exec(os.Args[0], os.Args, os.Environ())
 		if err != nil {
 			panic(err)
