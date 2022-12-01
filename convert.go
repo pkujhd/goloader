@@ -8,6 +8,7 @@ import (
 	"log"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"unsafe"
 )
 
@@ -224,14 +225,29 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 							log.Printf("WARNING - converting functions %s by name - no guarantees that signatures will match \n", oldFName)
 							newValue := oldValue
 							manipulation := (*fakeValue)(unsafe.Pointer(&newValue))
+							var receiver uintptr
+							if strings.HasSuffix(oldFName, "-fm") {
+								// This is a method, so the data pointer in the value is actually to a closure struct { F uintptr; R *receiver }
+								// and the function pointer is to a wrapper func which accepts this struct as its argument
+								closure := *(**struct {
+									F uintptr
+									R unsafe.Pointer
+								})(manipulation.ptr)
+
+								receiver = uintptr(closure.R)
+								// We need to not only set the func entrypoint, but also convert the receiver and set that too
+								// TODO - how can we find out the receiver's type in order to convert across modules?
+								//  This code might not be safe if the receivers then call other methods?
+							}
 
 							// PC addresses for functions are 2 levels of indirection from a reflect value's word addr,
 							// so we allocate addresses on the heap to hold the indirections
 							// Normally the RODATA has a pkgname.FuncName·f symbol which stores this - Ideally we would use that instead of the heap
 							// TODO - is this definitely safe from GC?
-							funcPtr := new(uintptr)
+							funcPtr := new([2]uintptr)
 							funcPtrContainer := new(unsafe.Pointer)
-							*funcPtr = entry
+							(*funcPtr)[0] = entry
+							(*funcPtr)[1] = receiver
 							*funcPtrContainer = unsafe.Pointer(funcPtr)
 							manipulation.ptr = unsafe.Pointer(funcPtrContainer)
 							manipulation.typ = toType(newType)

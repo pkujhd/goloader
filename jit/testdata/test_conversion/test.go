@@ -71,6 +71,7 @@ type ConvertibleWithInterface struct {
 	cyclicDataStructure               *cyclicDataStructure
 	funcValExternal                   func(string) ([]byte, error)
 	funcValCustom                     func(int) *exclHereImpl
+	funcValMethod                     func(int) *exclHereImpl
 }
 
 func NewThingOriginal() common.SomeInterface {
@@ -109,6 +110,20 @@ func customFunc(i int) *exclHereImpl {
 	return &exclHereImpl{counter: i}
 }
 
+type thing struct {
+	i int
+}
+
+func (t *thing) customFunc(i int) *exclHereImpl {
+	t.i += i
+	t.otherFunc()
+	return &exclHereImpl{counter: i}
+}
+
+func (t *thing) otherFunc() {
+	fmt.Printf("receiver func %d %p\n", t.i, t.customFunc)
+}
+
 func (c *ConvertibleWithInterface) Method1(input common.SomeStruct) (common.SomeStruct, error) {
 	if intVal, ok := input.Val1.(int64); ok {
 		c.someString = "test"
@@ -118,6 +133,8 @@ func (c *ConvertibleWithInterface) Method1(input common.SomeStruct) (common.Some
 		c.structVal = *c.structPtrVal
 		c.funcValExternal = os.ReadFile
 		c.funcValCustom = customFunc
+		thing := &thing{6}
+		c.funcValMethod = thing.customFunc
 		c.mapKeyedByExternalType["test"] = 5
 		c.mapKeyedByCustomType[c.structPtrVal] = bytes.NewReader(nil)
 		c.mapValuesCustomType["test"] = c.structPtrVal
@@ -158,6 +175,8 @@ func (c *ConvertibleWithInterface) Method1(input common.SomeStruct) (common.Some
 func (c *ConvertibleWithInterface) Method2(input map[string]interface{}) error {
 	fmt.Printf("method 2 called %p\n", c.funcValCustom)
 	c.funcValCustom(c.structVal.counter)
+	fmt.Printf("method 2 called %p\n", c.funcValMethod)
+	c.funcValMethod(c.structVal.counter)
 	return nil
 }
 
