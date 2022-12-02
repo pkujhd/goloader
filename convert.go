@@ -6,6 +6,7 @@ package goloader
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -69,6 +70,8 @@ func AsType(_typ *_type) Type {
 	eface.data = unsafe.Pointer(_typ)
 	return t.(Type)
 }
+
+var closureFuncRegex = regexp.MustCompile(`^.*\.func[0-9]+$`)
 
 func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValueBeforeElem *Value, cycleDetector map[uintptr]*Value, typeHash map[uint32][]*_type) {
 	// By this point we're sure that types are structurally equal, but their *_type addresses might not be
@@ -141,9 +144,9 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 
 		newInnerType := AsType(newTypeInner)
 		newOuterType := AsType(newTypeOuter)
-		tt := (*interfaceType)(unsafe.Pointer(newTypeOuter))
+		tt := (*interfacetype)(unsafe.Pointer(newTypeOuter))
 
-		if len(tt.methods) > 0 {
+		if len(tt.mhdr) > 0 {
 			iface := (*nonEmptyInterface)(((*fakeValue)(unsafe.Pointer(&oldValue))).ptr)
 			if iface.itab == nil {
 				// nil value in interface, no further work required
@@ -225,7 +228,7 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 							log.Printf("WARNING - converting functions %s by name - no guarantees that signatures will match \n", oldFName)
 							newValue := oldValue
 							manipulation := (*fakeValue)(unsafe.Pointer(&newValue))
-							var receiver uintptr
+							var funcContainer unsafe.Pointer
 							if strings.HasSuffix(oldFName, "-fm") {
 								// This is a method, so the data pointer in the value is actually to a closure struct { F uintptr; R *receiver }
 								// and the function pointer is to a wrapper func which accepts this struct as its argument
@@ -234,21 +237,60 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 									R unsafe.Pointer
 								})(manipulation.ptr)
 
-								receiver = uintptr(closure.R)
 								// We need to not only set the func entrypoint, but also convert the receiver and set that too
 								// TODO - how can we find out the receiver's type in order to convert across modules?
 								//  This code might not be safe if the receivers then call other methods?
-							}
 
-							// PC addresses for functions are 2 levels of indirection from a reflect value's word addr,
-							// so we allocate addresses on the heap to hold the indirections
-							// Normally the RODATA has a pkgname.FuncName·f symbol which stores this - Ideally we would use that instead of the heap
-							// TODO - is this definitely safe from GC?
-							funcPtr := new([2]uintptr)
+								// Now check whether the old closure.F is an itab method or a concrete type
+								var oldItab *itab
+								recvVal := *(*unsafe.Pointer)(closure.R)
+								for _, itab := range oldModule.module.itablinks {
+									// This deref of the receiver into an 8 byte word is 100% unsafe, but I can't figure out how to find out what the type of R is...
+									if unsafe.Pointer(itab.inter) == recvVal {
+										oldItab = itab
+									}
+								}
+								if oldItab != nil {
+									var newItab *itab
+									for _, n := range newModule.module.itablinks {
+										// Need to compare these types carefully
+										if oldItab.inter.typ.hash == n.inter.typ.hash && oldItab._type.hash == n._type.hash {
+											seen := map[_typePair]struct{}{}
+											if typesEqual(&oldItab.inter.typ, &n.inter.typ, seen) && typesEqual(oldItab._type, n._type, seen) {
+												newItab = n
+												break
+											}
+										}
+									}
+									if newItab == nil {
+										panic(fmt.Sprintf("could not find equivalent itab for interface %s type %s in new module.", oldValue.Type().String(), oldValue.Elem().Type().String()))
+									}
+									closure.R = unsafe.Pointer(newItab)
+								}
+
+								funcContainer = unsafe.Pointer(closure)
+								closure.F = entry
+							} else if closureFuncRegex.MatchString(oldFName) {
+								// This is a closure which is unlikely to be safe since the variables it closes over might be in the old module's memory
+								closure := *(**struct {
+									F uintptr
+									// ... <- variables which are captured by the closure would follow, but we can't know how many they are or what their types are - the best we can do is switch the function implementation and keep the variables the same
+								})(manipulation.ptr)
+								closure.F = entry
+								funcContainer = unsafe.Pointer(closure)
+								log.Printf("EVEN BIGGER WARNING - converting anonymous function %s by name - no guarantees that signatures, or the closed over variable sizes, or types will match. This is dangerous! \n", oldFName)
+							} else {
+								// PC addresses for functions are 2 levels of indirection from a reflect value's word addr,
+								// so we allocate addresses on the heap to hold the indirections
+								// Normally the RODATA has a pkgname.FuncName·f symbol which stores this - Ideally we would use that instead of the heap
+
+								// TODO - is this definitely safe from GC?
+								funcPtr := new(uintptr)
+								*funcPtr = entry
+								funcContainer = unsafe.Pointer(funcPtr)
+							}
 							funcPtrContainer := new(unsafe.Pointer)
-							(*funcPtr)[0] = entry
-							(*funcPtr)[1] = receiver
-							*funcPtrContainer = unsafe.Pointer(funcPtr)
+							*funcPtrContainer = funcContainer
 							manipulation.ptr = unsafe.Pointer(funcPtrContainer)
 							manipulation.typ = toType(newType)
 							if !oldValue.CanSet() {

@@ -73,6 +73,7 @@ type ConvertibleWithInterface struct {
 	funcValCustom                     func(int) *exclHereImpl
 	funcValMethod                     func(int) *exclHereImpl
 	funcValItabMethod                 func(int) *exclHereImpl
+	funcValClosure                    func(int) *exclHereImpl
 }
 
 func NewThingOriginal() common.SomeInterface {
@@ -144,6 +145,10 @@ func (c *ConvertibleWithInterface) Method1(input common.SomeStruct) (common.Some
 		var thingAsIface someInterface = thing
 		c.funcValMethod = thing.customFunc
 		c.funcValItabMethod = thingAsIface.customFunc
+		c.funcValClosure = func(i int) *exclHereImpl {
+			fmt.Println("Inside closure")
+			return thing.customFunc(i)
+		}
 		c.mapKeyedByExternalType["test"] = 5
 		c.mapKeyedByCustomType[c.structPtrVal] = bytes.NewReader(nil)
 		c.mapValuesCustomType["test"] = c.structPtrVal
@@ -182,12 +187,14 @@ func (c *ConvertibleWithInterface) Method1(input common.SomeStruct) (common.Some
 }
 
 func (c *ConvertibleWithInterface) Method2(input map[string]interface{}) error {
-	fmt.Printf("method 2 called custom %p\n", c.funcValCustom)
 	c.funcValCustom(c.structVal.counter)
-	fmt.Printf("method 2 called method %p\n", c.funcValMethod)
-	fmt.Printf("method 2 called itab method %p\n", c.funcValItabMethod)
+	fmt.Printf("method 2 called custom %p\n", c.funcValCustom)
 	c.funcValMethod(c.structVal.counter)
+	fmt.Printf("method 2 called method %p\n", c.funcValMethod)
 	c.funcValItabMethod(c.structVal.counter)
+	fmt.Printf("method 2 called itab method %p\n", c.funcValItabMethod)
+	c.funcValClosure(c.structVal.counter)
+	fmt.Printf("method 2 called closure %p\n", c.funcValItabMethod)
 	return nil
 }
 

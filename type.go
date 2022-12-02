@@ -27,12 +27,6 @@ type nonEmptyInterface struct {
 	word unsafe.Pointer
 }
 
-type interfaceType struct {
-	_type
-	pkgPath name      // import path
-	methods []imethod // sorted by hash
-}
-
 func efaceOf(ep *interface{}) *emptyInterface {
 	return (*emptyInterface)(unsafe.Pointer(ep))
 }
