@@ -243,10 +243,11 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 
 								// Now check whether the old closure.F is an itab method or a concrete type
 								var oldItab *itab
-								recvVal := *(*unsafe.Pointer)(closure.R)
+
+								// This deref of the receiver into an 8 byte word is 100% unsafe, but I can't figure out how to find out what the type of R is...
+								recvVal := (*itab)(closure.R)
 								for _, itab := range oldModule.module.itablinks {
-									// This deref of the receiver into an 8 byte word is 100% unsafe, but I can't figure out how to find out what the type of R is...
-									if unsafe.Pointer(itab.inter) == recvVal {
+									if itab.inter == recvVal.inter && itab._type == recvVal._type {
 										oldItab = itab
 									}
 								}
