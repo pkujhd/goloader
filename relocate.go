@@ -12,61 +12,65 @@ import (
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) {
 	byteorder := linker.Arch.ByteOrder
-	offset := uint64(int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF))
-	//overflow
-	if offset > 0xFFFFFFFF {
-		if symAddr < 0xFFFFFFFF {
-			linker.appliedADRPRelocs[&mCode[loc.Offset]] = make([]byte, 4)
-			copy(linker.appliedADRPRelocs[&mCode[loc.Offset]], mCode)
-			addr := byteorder.Uint32(mCode)
-			//low:	MOV reg imm
-			low := uint32(0xD2800000)
-			//high: MOVK reg imm LSL#16
-			high := uint32(0xF2A00000)
-			low = ((addr & 0x1F) | low) | ((uint32(symAddr) & 0xFFFF) << 5)
-			high = ((addr & 0x1F) | high) | (uint32(symAddr) >> 16 << 5)
-			byteorder.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
-		} else {
-			linker.appliedADRPRelocs[&mCode[loc.Offset]] = make([]byte, 4)
-			copy(linker.appliedADRPRelocs[&mCode[loc.Offset]], mCode)
-			addr := byteorder.Uint32(mCode)
-			blcode := byteorder.Uint32(arm64BLcode)
-			blcode |= ((uint32(segment.codeOff) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
-			if segment.codeOff-loc.Offset < 0 {
-				blcode |= 0x02000000
-			}
-			byteorder.PutUint32(mCode, blcode)
-			//low: MOV reg imm
-			llow := uint32(0xD2800000)
-			//lhigh: MOVK reg imm LSL#16
-			lhigh := uint32(0xF2A00000)
-			//llow: MOVK reg imm LSL#32
-			hlow := uint32(0xF2C00000)
-			//lhigh: MOVK reg imm LSL#48
-			hhigh := uint32(0xF2E00000)
-			llow = ((addr & 0x1F) | llow) | ((uint32(symAddr) & 0xFFFF) << 5)
-			lhigh = ((addr & 0x1F) | lhigh) | (uint32(symAddr) >> 16 << 5)
-			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(llow)|(uint64(lhigh)<<32))
-			hlow = ((addr & 0x1F) | hlow) | uint32(((uint64(symAddr)>>32)&0xFFFF)<<5)
-			hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
-			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(hlow)|(uint64(hhigh)<<32))
-			blcode = byteorder.Uint32(arm64BLcode)
-			blcode |= ((uint32(loc.Offset) - uint32(segment.codeOff) + 8) >> 2) & 0x01FFFFFF
-			if loc.Offset-segment.codeOff+8 < 0 {
-				blcode |= 0x02000000
-			}
-			byteorder.PutUint32(segment.codeByte[segment.codeOff:], blcode)
-			segment.codeOff += Uint32Size
-		}
-	} else {
-		// 2bit + 19bit + low(12bit) = 33bit
+	signedOffset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
+	if oldMcode, ok := linker.appliedADRPRelocs[&mCode[loc.Offset]]; !ok {
 		linker.appliedADRPRelocs[&mCode[loc.Offset]] = make([]byte, 8)
 		copy(linker.appliedADRPRelocs[&mCode[loc.Offset]], mCode)
-		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
-		high := uint32(offset&0xFFF) << 10
-		value := byteorder.Uint64(mCode)
-		value = (uint64(uint32(value>>32)|high) << 32) | uint64(uint32(value&0xFFFFFFFF)|low)
-		byteorder.PutUint64(mCode, value)
+	} else {
+		copy(mCode, oldMcode)
+	}
+	// R_ADDRARM64 relocs include 2x 32 bit instructions, one ADRP, and one ADD - both contain the destination register in the lowest 5 bits
+	if signedOffset > 1<<32 || signedOffset < -1<<32 {
+		// Too far to fit inside an ADRP+ADD, do a jump to some extra code we add at the end big enough to fit any 64 bit address
+		symAddr += uintptr(loc.Add)
+		addr := byteorder.Uint32(mCode)
+		blcode := byteorder.Uint32(arm64BLcode)
+		blcode |= ((uint32(segment.codeOff) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
+		if segment.codeOff-loc.Offset < 0 {
+			blcode |= 0x02000000
+		}
+		byteorder.PutUint32(mCode, blcode)
+		//low: MOV reg imm
+		llow := uint32(0xD2800000)
+		//lhigh: MOVK reg imm LSL#16
+		lhigh := uint32(0xF2A00000)
+		//llow: MOVK reg imm LSL#32
+		hlow := uint32(0xF2C00000)
+		//lhigh: MOVK reg imm LSL#48
+		hhigh := uint32(0xF2E00000)
+		llow = ((addr & 0x1F) | llow) | ((uint32(symAddr) & 0xFFFF) << 5)
+		lhigh = ((addr & 0x1F) | lhigh) | (uint32(symAddr) >> 16 << 5)
+		putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(llow)|(uint64(lhigh)<<32))
+		hlow = ((addr & 0x1F) | hlow) | uint32(((uint64(symAddr)>>32)&0xFFFF)<<5)
+		hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
+		putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(hlow)|(uint64(hhigh)<<32))
+		blcode = byteorder.Uint32(arm64BLcode)
+		blcode |= ((uint32(loc.Offset) - uint32(segment.codeOff) + 8) >> 2) & 0x01FFFFFF
+		if loc.Offset-segment.codeOff+8 < 0 {
+			blcode |= 0x02000000
+		}
+		byteorder.PutUint32(segment.codeByte[segment.codeOff:], blcode)
+		segment.codeOff += Uint32Size
+	} else {
+		// Bit layout of ADRP instruction is:
+
+		// 31  30  29  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  11  10  09  08  07  06  05  04  03  02  01  00
+		// op  [imlo]   1   0   0   0   0  [<----------------------------- imm hi ----------------------------->]  [  dst register  ]
+
+		// Bit layout of ADD instruction (64-bit) is:
+
+		// 31  30  29  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  11  10  09  08  07  06  05  04  03  02  01  00
+		//  1   0   0   1   0   0   0   1   0   0  [<--------------- imm12 ---------------->]  [  src register  ]  [  dst register  ]
+		// sf <- 64 bit                        sh <- whether to left shift imm12 by 12 bits
+
+		immLow := uint32((uint64(signedOffset)>>12)&3) << 29
+		immHigh := uint32((uint64(signedOffset)>>12>>2)&0x7FFFF) << 5
+		adrp := byteorder.Uint32(mCode[0:4])
+		adrp |= immLow | immHigh
+		add := byteorder.Uint32(mCode[4:8])
+		add |= uint32(uint64(signedOffset)&0xFFF) << 10
+		byteorder.PutUint32(mCode, adrp)
+		byteorder.PutUint32(mCode[4:], add)
 	}
 }
 

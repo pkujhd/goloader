@@ -624,7 +624,6 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					case reloctype.R_CALLARM, reloctype.R_CALLARM64:
 						panic("This should not be possible")
 					case reloctype.R_ADDRARM64:
-						copy(relocByte[loc.Offset:], linker.appliedADRPRelocs[&relocByte[loc.Offset]]) // revert the previous reloc
 						linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
 						// TODO - sanity check this
