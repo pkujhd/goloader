@@ -80,7 +80,7 @@ func (pkg *Pkg) Symbols() error {
 							// and adding Relocs{} to the symbols), but doing it fully involves re-implementing a lot of gcc/ld
 							sym := ObjSymbol{Name: symbol.Name, Kind: symkind.STEXT, DupOK: false, Size: symbol.Size, Func: &FuncInfo{}}
 
-							textOffset, text, err := objfEntry.Text()
+							_, text, err := objfEntry.Text()
 							if err != nil {
 								return fmt.Errorf("failed to extract text from objfile entry %s: %w", e.Name, err)
 							}
@@ -88,8 +88,9 @@ func (pkg *Pkg) Symbols() error {
 
 							// TODO - this should actually be as below, but since nothing applies native (elf/macho)
 							//  relocations, cgo code will panic
-							// copy(data, text[textOffset+symbol.Addr:int64(textOffset+symbol.Addr)+symbol.Size])
-							copy(data, text[textOffset:int64(textOffset)+symbol.Size])
+							//copy(data, text[textOffset+symbol.Addr:int64(textOffset+symbol.Addr)+symbol.Size])
+							copy(data, text)
+
 							sym.Data = data
 							if _, ok := pkg.Syms[symbol.Name]; !ok {
 								pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
