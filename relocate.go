@@ -13,9 +13,9 @@ import (
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) {
 	byteorder := linker.Arch.ByteOrder
 	signedOffset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
-	if oldMcode, ok := linker.appliedADRPRelocs[&mCode[loc.Offset]]; !ok {
-		linker.appliedADRPRelocs[&mCode[loc.Offset]] = make([]byte, 8)
-		copy(linker.appliedADRPRelocs[&mCode[loc.Offset]], mCode)
+	if oldMcode, ok := linker.appliedADRPRelocs[&mCode[0]]; !ok {
+		linker.appliedADRPRelocs[&mCode[0]] = make([]byte, 8)
+		copy(linker.appliedADRPRelocs[&mCode[0]], mCode)
 	} else {
 		copy(mCode, oldMcode)
 	}
@@ -24,12 +24,12 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		// Too far to fit inside an ADRP+ADD, do a jump to some extra code we add at the end big enough to fit any 64 bit address
 		symAddr += uintptr(loc.Add)
 		addr := byteorder.Uint32(mCode)
-		blcode := byteorder.Uint32(arm64BLcode)
-		blcode |= ((uint32(segment.codeOff) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
+		bcode := byteorder.Uint32(arm64Bcode) // Unconditional branch
+		bcode |= ((uint32(segment.codeOff) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
 		if segment.codeOff-loc.Offset < 0 {
-			blcode |= 0x02000000
+			bcode |= 0x02000000 // 26th bit is sign bit
 		}
-		byteorder.PutUint32(mCode, blcode)
+		byteorder.PutUint32(mCode, bcode) // The second ADD instruction in the ADRP reloc will be bypassed as we return from the jump after it
 		//low: MOV reg imm
 		llow := uint32(0xD2800000)
 		//lhigh: MOVK reg imm LSL#16
@@ -44,12 +44,12 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		hlow = ((addr & 0x1F) | hlow) | uint32(((uint64(symAddr)>>32)&0xFFFF)<<5)
 		hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
 		putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(hlow)|(uint64(hhigh)<<32))
-		blcode = byteorder.Uint32(arm64BLcode)
-		blcode |= ((uint32(loc.Offset) - uint32(segment.codeOff) + 8) >> 2) & 0x01FFFFFF
+		bcode = byteorder.Uint32(arm64Bcode)
+		bcode |= ((uint32(loc.Offset) - uint32(segment.codeOff) + 8) >> 2) & 0x01FFFFFF
 		if loc.Offset-segment.codeOff+8 < 0 {
-			blcode |= 0x02000000
+			bcode |= 0x02000000
 		}
-		byteorder.PutUint32(segment.codeByte[segment.codeOff:], blcode)
+		byteorder.PutUint32(segment.codeByte[segment.codeOff:], bcode)
 		segment.codeOff += Uint32Size
 	} else {
 		// Bit layout of ADRP instruction is:

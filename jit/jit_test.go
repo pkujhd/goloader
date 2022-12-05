@@ -119,6 +119,44 @@ func TestJitSimpleFunctions(t *testing.T) {
 	}
 }
 
+func TestHeapStrings(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              buildEnv,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           true,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: randomSymbolOrder,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_simple_func/test.go"},
+		pkg:   "./testdata/test_simple_func",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			testHeapStrings := symbols["TestHeapStrings"].(func() string)
+			theString := testHeapStrings()
+
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
+			runtime.GC()
+			runtime.GC()
+			fmt.Println(theString)
+		})
+	}
+}
+
 func TestJitJsonUnmarshal(t *testing.T) {
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,

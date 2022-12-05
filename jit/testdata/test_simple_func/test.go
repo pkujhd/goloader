@@ -17,3 +17,7 @@ func HandleBytes(input interface{}) (byteVal []byte, err error) {
 	byteVal = input.([]byte)
 	return
 }
+
+func TestHeapStrings() string {
+	return "string literal"
+}
