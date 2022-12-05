@@ -24,6 +24,6 @@ func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
 	C.cache_invalidate(unsafe.Pointer(ptr), C.size_t(len))
 }
 
-func WriteProtect() {
+func WriteProtectDisable() {
 	C.jit_write_protect(C.int(0))
 }

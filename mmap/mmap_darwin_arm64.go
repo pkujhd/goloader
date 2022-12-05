@@ -5,11 +5,23 @@ package mmap
 
 import (
 	"github.com/pkujhd/goloader/mmap/darwin_arm64"
+	"github.com/pkujhd/goloader/mprotect"
 	"os"
+	"reflect"
 	"syscall"
+	"unsafe"
 )
 
 func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
+	var pages []byte
+	pageSlice := (*reflect.SliceHeader)(unsafe.Pointer(&pages))
+	pageSlice.Data = ptr
+	pageSlice.Len = len
+	pageSlice.Cap = len
+	err := mprotect.MprotectMakeExecutable(pages)
+	if err != nil {
+		panic(err)
+	}
 	darwin_arm64.MakeThreadJITCodeExecutable(ptr, len)
 }
 
@@ -25,12 +37,12 @@ func mmapCode(size int, addr uintptr) ([]byte, error) {
 	// darwin arm64 won't accept MAP_FIXED, but seems to take addr as a hint...
 	data, err := mapper.Mmap(
 		addr,
-		0,
+		-1,
 		0,
 		size,
-		syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC,
+		syscall.PROT_READ|syscall.PROT_WRITE, // this is not yet executable, we will mprotect it after we're finished writing to it
 		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_JIT)
-	darwin_arm64.WriteProtect()
+	darwin_arm64.WriteProtectDisable()
 	return data, err
 }
 
@@ -38,7 +50,7 @@ func mmapData(size int, addr uintptr) ([]byte, error) {
 	// darwin arm64 won't accept MAP_FIXED, but seems to take addr as a hint...
 	data, err := mapper.Mmap(
 		addr,
-		0,
+		-1,
 		0,
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE,

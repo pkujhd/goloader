@@ -128,7 +128,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	return err
 }
 
-func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segment) {
+func (linker *Linker) relocateCALLARM(addr uintptr, loc obj.Reloc, segment *segment) {
 	byteorder := linker.Arch.ByteOrder
 	add := loc.Add
 	if loc.Type == reloctype.R_CALLARM {
@@ -197,7 +197,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				case reloctype.R_PCREL:
 					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
-					linker.relocteCALLARM(addr, loc, segment)
+					linker.relocateCALLARM(addr, loc, segment)
 				case reloctype.R_ADDRARM64:
 					if symbol.Kind != symkind.STEXT {
 						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
