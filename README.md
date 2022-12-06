@@ -65,4 +65,6 @@ Golang 1.8-1.19 (x64/x86, darwin, linux, windows)
 
 Golang 1.10-1.19 (arm, linux, android)
 
-Golang 1.8-1.19 (arm64(LE) linux, android)
+Golang 1.8-1.19 (arm64, linux, android)
+
+Golang 1.16-1.19 (arm64, darwin)
