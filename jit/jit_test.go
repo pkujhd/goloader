@@ -320,9 +320,6 @@ func TestJitCGoCall(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("Mach-O relocations not yet applied which will fault on darwin")
 	}
-	if runtime.GOARCH == "arm64" {
-		t.Skip("ELF relocations not yet applied which will fault on arm64")
-	}
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,
 		KeepTempFiles:         false,
@@ -348,18 +345,15 @@ func TestJitCGoCall(t *testing.T) {
 			mul, add, constant := cgoCall(2, 3)
 
 			// This won't pass since nothing currently applies native elf/macho relocations in native code
-			if false {
-				if mul != 6 {
-					t.Errorf("expected mul to be 2 * 3 == 6, got %d", mul)
-				}
-				if add != 6 {
-					t.Errorf("expected mul to be 2 + 3 == 5, got %d", add)
-				}
-				if constant != 5 {
-					t.Errorf("expected constant to be 5, got %d", add)
-				}
+			if mul != 6 {
+				t.Errorf("expected mul to be 2 * 3 == 6, got %d", mul)
 			}
-
+			if add != 5 {
+				t.Errorf("expected mul to be 2 + 3 == 5, got %d", add)
+			}
+			if constant != 5 {
+				t.Errorf("expected constant to be 5, got %d", add)
+			}
 			fmt.Println(mul, add, constant)
 
 			err := module.Unload()

@@ -4,13 +4,19 @@
 package obj
 
 import (
+	"bytes"
 	"cmd/objfile/archive"
 	"cmd/objfile/goobj"
 	"cmd/objfile/obj"
 	"cmd/objfile/objabi"
-	"cmd/objfile/objfile"
+	"compress/zlib"
+	"debug/elf"
+	"debug/macho"
+	"encoding/binary"
 	"fmt"
+	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
+	"io"
 	"strings"
 )
 
@@ -19,15 +25,6 @@ func (pkg *Pkg) Symbols() error {
 	if err != nil {
 		return err
 	}
-
-	// objfile.Open is capable of parsing native (CGo) archive entries where
-	objf, err := objfile.Open(pkg.F.Name())
-	if err != nil {
-		return fmt.Errorf("failed to open objfile '%s': %w", pkg.F.Name(), err)
-	}
-	objfEntries := objf.Entries()
-
-	defer objf.Close()
 
 	for _, e := range a.Entries {
 		switch e.Type {
@@ -63,41 +60,22 @@ func (pkg *Pkg) Symbols() error {
 			})
 		case archive.EntryNativeObj:
 			// CGo files must be parsed by an elf/macho etc. native reader
-			for _, objfEntry := range objfEntries {
-				if e.Name == objfEntry.Name() {
-					symbols, err := objfEntry.Symbols()
-					if err != nil {
-						return fmt.Errorf("failed to extract symbols from objfile entry %s: %w", e.Name, err)
-					}
-					for _, symbol := range symbols {
-						if symbol.Name != "" && symbol.Size > 0 && strings.ToUpper(string(byte(symbol.Code))) == "T" {
-							// Nothing in Goloader actually applies ELF/Macho relocations within native entries,
-							// so CGo code won't actually work if called, but at least this allows it to be built
-							// (in case a package imports C but the user doesn't do anything with it).
-
-							// It is possible to manually translate a subset of ELF relocations into their equivalent
-							// Go relocations using the debug/elf package (by reading all symbols, .text and .rel/.rela sections
-							// and adding Relocs{} to the symbols), but doing it fully involves re-implementing a lot of gcc/ld
-							sym := ObjSymbol{Name: symbol.Name, Kind: symkind.STEXT, DupOK: false, Size: symbol.Size, Func: &FuncInfo{}}
-
-							_, text, err := objfEntry.Text()
-							if err != nil {
-								return fmt.Errorf("failed to extract text from objfile entry %s: %w", e.Name, err)
-							}
-							data := make([]byte, symbol.Size)
-
-							// TODO - this should actually be as below, but since nothing applies native (elf/macho)
-							//  relocations, cgo code will panic
-							//copy(data, text[textOffset+symbol.Addr:int64(textOffset+symbol.Addr)+symbol.Size])
-							copy(data, text)
-
-							sym.Data = data
-							if _, ok := pkg.Syms[symbol.Name]; !ok {
-								pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
-							}
-							pkg.Syms[symbol.Name] = &sym
-						}
-					}
+			nr := io.NewSectionReader(pkg.F, e.Offset, e.Size)
+			elfFile, err := elf.NewFile(nr)
+			if err != nil {
+				_, _ = nr.Seek(0, 0)
+				machoFile, errMacho := macho.NewFile(nr)
+				if errMacho != nil {
+					return fmt.Errorf("only elf and macho relocations currently supported, failed to open as eitehr: (%s): %w", err, errMacho)
+				}
+				err = pkg.convertMachoRelocs(machoFile, e)
+				if err != nil {
+					return err
+				}
+			} else {
+				err = pkg.convertElfRelocs(elfFile, e)
+				if err != nil {
+					return err
 				}
 			}
 		default:
@@ -244,4 +222,216 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 			pkg.addSym(r, index, refNames)
 		}
 	}
+}
+
+func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
+	if f.Class != elf.ELFCLASS64 {
+		return fmt.Errorf("only 64-bit elf relocations currently supported")
+	}
+	if f.Machine != elf.EM_X86_64 && f.Machine != elf.EM_AARCH64 {
+		return fmt.Errorf("only amd64 and arm64 elf relocations currently supported")
+	}
+
+	elfSyms, err := f.Symbols()
+
+	if err != nil {
+		return fmt.Errorf("failed to extract symbols from objfile entry %s: %w", e.Name, err)
+	}
+
+	var textSect *elf.Section
+	var textIndex int
+	for i, s := range f.Sections {
+		if s.Name == ".text" {
+			textSect = s
+			textIndex = i
+			break
+		}
+	}
+
+	if textSect == nil {
+		return fmt.Errorf("failed to find .text elf section in objfile entry %s: %w", e.Name, err)
+	}
+
+	text, err := textSect.Data()
+	if err != nil {
+		return fmt.Errorf("failed to read text data from elf .text section %s: %w", e.Name, err)
+	}
+	textOffset := textSect.Addr
+
+	var (
+		dlen              uint64
+		compressionOffset int
+		dbuf              []byte
+	)
+	if len(text) >= 12 && string(text[:4]) == "ZLIB" {
+		dlen = binary.BigEndian.Uint64(text[4:12])
+		compressionOffset = 12
+	}
+	if dlen == 0 && len(text) >= 12 && textSect.Flags&elf.SHF_COMPRESSED != 0 &&
+		textSect.Flags&elf.SHF_ALLOC == 0 &&
+		f.FileHeader.ByteOrder.Uint32(text[:]) == uint32(elf.COMPRESS_ZLIB) {
+		switch f.FileHeader.Class {
+		case elf.ELFCLASS32:
+			// Chdr32.Size offset
+			dlen = uint64(f.FileHeader.ByteOrder.Uint32(text[4:]))
+			compressionOffset = 12
+		case elf.ELFCLASS64:
+			if len(text) < 24 {
+				return fmt.Errorf("invalid compress header 64")
+			}
+			// Chdr64.Size offset
+			dlen = f.FileHeader.ByteOrder.Uint64(text[8:])
+			compressionOffset = 24
+		default:
+			return fmt.Errorf("unsupported compress header:%s", f.FileHeader.Class)
+		}
+	}
+	if dlen > 0 {
+		dbuf = make([]byte, dlen)
+		r, err := zlib.NewReader(bytes.NewBuffer(text[compressionOffset:]))
+		if err != nil {
+			return fmt.Errorf("failed to decompress zlib elf section %s: %w", e.Name, err)
+		}
+		if _, err := io.ReadFull(r, dbuf); err != nil {
+			return fmt.Errorf("failed to read decompressed zlib elf section %s: %w", e.Name, err)
+		}
+		if err := r.Close(); err != nil {
+			return fmt.Errorf("failed to close zlib elf section %s: %w", e.Name, err)
+		}
+		text = dbuf
+	}
+
+	var objSymbols []*ObjSymbol
+	var objSymAddr []uint64
+	for _, s := range elfSyms {
+		var sym *ObjSymbol
+		var addr uint64
+		if s.Name != "" && s.Size != 0 {
+			addr = s.Value
+			data := make([]byte, s.Size)
+			copy(data, text[addr+textOffset:])
+			sym = &ObjSymbol{Name: s.Name, Data: data, Size: int64(s.Size), Func: &FuncInfo{}}
+		}
+		objSymbols = append(objSymbols, sym)
+		objSymAddr = append(objSymAddr, addr)
+		if sym == nil {
+			continue
+		}
+
+		switch s.Section {
+		case elf.SHN_UNDEF:
+			sym.Kind = symkind.Sxxx
+		case elf.SHN_COMMON:
+			sym.Kind = symkind.SBSS
+		default:
+			i := int(s.Section)
+			if i < 0 || i >= len(f.Sections) {
+				break
+			}
+			sect := f.Sections[i]
+			switch sect.Flags & (elf.SHF_WRITE | elf.SHF_ALLOC | elf.SHF_EXECINSTR) {
+			case elf.SHF_ALLOC | elf.SHF_EXECINSTR:
+				sym.Kind = symkind.STEXT
+			case elf.SHF_ALLOC:
+				sym.Kind = symkind.SRODATA
+
+			case elf.SHF_ALLOC | elf.SHF_WRITE:
+				sym.Kind = symkind.SDATA
+			}
+		}
+	}
+
+	for _, r := range f.Sections {
+		if r.Type != elf.SHT_RELA && r.Type != elf.SHT_REL {
+			continue
+		}
+		if int(r.Info) != textIndex {
+			continue
+		}
+		rd, err := r.Data()
+		if err != nil {
+			return fmt.Errorf("failed to read relocation data from elf section %s %s: %w", e.Name, r.Name, err)
+		}
+
+		relR := bytes.NewReader(rd)
+		var rela elf.Rela64
+
+		for relR.Len() > 0 {
+			binary.Read(relR, f.ByteOrder, &rela)
+			symNo := rela.Info >> 32
+			if symNo == 0 || symNo > uint64(len(elfSyms)) {
+				continue
+			}
+			sym := &elfSyms[symNo-1]
+
+			var target *ObjSymbol
+			var targetAddr uint64
+			for i, objSymbol := range objSymbols {
+				if objSymbol == nil {
+					continue
+				}
+				nextAddr := objSymAddr[i] + uint64(objSymbol.Size)
+				if rela.Off >= objSymAddr[i] && rela.Off < nextAddr {
+					target = objSymbol
+					targetAddr = objSymAddr[i]
+					break
+				}
+			}
+			if target == nil {
+				fmt.Println("Couldn't find target for offset ", rela.Off, sym.Name)
+				continue
+			}
+
+			if sym.Section == elf.SHN_UNDEF || sym.Section < elf.SHN_LORESERVE {
+				switch f.Machine {
+				case elf.EM_AARCH64:
+					t := elf.R_AARCH64(rela.Info & 0xffff)
+					switch t {
+					case elf.R_AARCH64_CALL26, elf.R_AARCH64_JUMP26:
+						target.Reloc = append(target.Reloc, Reloc{
+							Offset: int(rela.Off - targetAddr),
+							Sym:    &Sym{Name: sym.Name, Offset: InvalidOffset},
+							Size:   4,
+							Type:   reloctype.R_CALLARM64,
+							Add:    0, // Even though elf addend is -4, a Go PCREL reloc doesn't need this.
+						})
+					default:
+						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s", t.GoString())
+					}
+				case elf.EM_X86_64:
+					t := elf.R_X86_64(rela.Info & 0xffff)
+					switch t {
+					case elf.R_X86_64_64, elf.R_X86_64_32:
+						return fmt.Errorf("TODO: only a limited subset of elf relocations currently supported, got %s", t.GoString())
+					case elf.R_X86_64_PLT32:
+						target.Reloc = append(target.Reloc, Reloc{
+							Offset: int(rela.Off - targetAddr),
+							Sym:    &Sym{Name: sym.Name, Offset: InvalidOffset},
+							Size:   4,
+							Type:   reloctype.R_PCREL,
+							Add:    0, // Even though elf addend is -4, a Go PCREL reloc doesn't need this.
+						})
+					default:
+						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s", t.GoString())
+					}
+				}
+			} else {
+				return fmt.Errorf("got an unexpected symbol section %d", sym.Section)
+			}
+		}
+	}
+
+	for _, symbol := range objSymbols {
+		if symbol != nil && symbol.Name != "" && symbol.Size > 0 && symbol.Kind == symkind.STEXT {
+			if _, ok := pkg.Syms[symbol.Name]; !ok {
+				pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
+			}
+			pkg.Syms[symbol.Name] = symbol
+		}
+	}
+	return nil
+}
+
+func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
+	return fmt.Errorf("TODO - actually implement Mach-O relocs")
 }

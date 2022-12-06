@@ -2,6 +2,7 @@ package goloader
 
 import (
 	"cmd/objfile/objabi"
+	"encoding/binary"
 	"fmt"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
@@ -101,8 +102,15 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 			copy(bytes, x86amd64JMPLcode)
 		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
 			copy(bytes, x86amd64JMPLcode)
+		} else if (bytes[1] == x86amd64CALLcode) && binary.LittleEndian.Uint32(relocByte[loc.Offset:]) == 0 {
+			// Maybe a CGo call
+			copy(bytes, x86amd64JMPNearCode)
+			opcode = bytes[1]
+			byteorder.PutUint32(bytes[1:], uint32(offset))
+		} else if bytes[1] == x86amd64JMPcode && offset < 1<<32 {
+			byteorder.PutUint32(bytes[1:], uint32(offset))
 		} else {
-			return fmt.Errorf("not support code:%v!\n", relocByte[loc.Offset-2:loc.Offset])
+			return fmt.Errorf("do not support x86 opcode: %x for symbol %s (offset %d)!\n", relocByte[loc.Offset-2:loc.Offset], loc.Sym.Name, offset)
 		}
 		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		if opcode == x86amd64CMPLcode || opcode == x86amd64MOVcode {
@@ -119,6 +127,13 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 				segment.codeOff += len(x86amd64replaceMOVQcode)
 			}
 			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(addrBase+loc.Offset+loc.Size-loc.Add))
+		} else if opcode == x86amd64CALLcode {
+			copy(segment.codeByte[segment.codeOff:], x86amd64replaceCALLcode)
+			byteorder.PutUint64(segment.codeByte[segment.codeOff+4:], uint64(addr))
+			segment.codeOff += len(x86amd64replaceCALLcode)
+			copy(segment.codeByte[segment.codeOff:], x86amd64JMPNearCode)
+			byteorder.PutUint32(segment.codeByte[segment.codeOff+1:], uint32(offset))
+			segment.codeOff += len(x86amd64JMPNearCode)
 		} else {
 			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(addr))
 		}
@@ -165,6 +180,7 @@ func (linker *Linker) relocateCALLARM(addr uintptr, loc obj.Reloc, segment *segm
 func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	byteorder := linker.Arch.ByteOrder
+
 	for _, symbol := range linker.symMap {
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]

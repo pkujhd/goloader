@@ -4,6 +4,8 @@ const (
 	x86amd64MOVcode  byte = 0x8B
 	x86amd64LEAcode  byte = 0x8D
 	x86amd64CMPLcode byte = 0x83
+	x86amd64CALLcode byte = 0xE8
+	x86amd64JMPcode  byte = 0xE9
 )
 
 // arm/arm64
@@ -18,6 +20,13 @@ var (
 // x86/amd64
 var (
 	x86amd64JMPLcode        = []byte{0xff, 0x25, 0x00, 0x00, 0x00, 0x00} // JMPL *ADDRESS
+	x86amd64JMPNearCode     = []byte{0xE9, 0x00, 0x00, 0x00, 0x00}       // JMP (PCREL offset)+4
+	x86amd64replaceCALLcode = []byte{
+		0x50,                                                             // PUSH RAX
+		0x48, 0xb8, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // MOVABS RAX x (64 bit)
+		0xff, 0xd0, // CALL RAX
+		0x58, // POP RAX
+	}
 	x86amd64replaceCMPLcode = []byte{
 		0x50,                                     // PUSH EAX
 		0x53,                                     // PUSH EBX
