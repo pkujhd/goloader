@@ -52,9 +52,6 @@ func LookupDynamicSymbol(symName string) (uintptr, error) {
 	var cErr *C.char
 	addr := C.lookup(selfDlHandle, cName, &cErr)
 	if addr == nil {
-		if cErr != nil {
-			defer C.free(unsafe.Pointer(cErr))
-		}
 		return 0, fmt.Errorf("failed to lookup symbol %s: %s", symName, string(C.GoString(cErr)))
 	}
 	return uintptr(addr), nil

@@ -241,6 +241,13 @@ func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 			}
 			// TODO - if more symbols use the //go:cgo_import_dynamic linker pragma, then they would also need to be registered here
 		}
+	} else {
+		for k := range externalUnresolvedSymbols {
+			// CGo symbols don't have a package name
+			if strings.IndexByte(k, '.') == -1 {
+				RegisterCGoSymbol(k, k)
+			}
+		}
 	}
 }
 
