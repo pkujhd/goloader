@@ -496,7 +496,7 @@ func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
 			sym.Size = int64(len(text))
 		}
 
-		if sym.Size > 0 {
+		if sym.Size > 0 && s.Sect > 0 && f.Sections[s.Sect-1] == textSect {
 			addr = s.Value
 			data := make([]byte, sym.Size)
 			copy(data, text[addr:])
@@ -529,17 +529,34 @@ func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
 				// when Scattered == false && Extern == false, Value is the section number.
 				// when Scattered == true, Value is the value that this reloc refers to.
 
-				if !reloc.Scattered && reloc.Extern && reloc.Pcrel {
-					sym.Reloc = append(sym.Reloc, Reloc{
-						Offset: int(uint64(reloc.Addr) - s.Value),
-						Sym:    &Sym{Name: f.Symtab.Syms[reloc.Value].Name, Offset: InvalidOffset},
-						Size:   4,
-						Type:   reloctype.R_PCREL,
-						Add:    0,
-					})
+				if pkg.Arch == "arm64" {
+					if !reloc.Scattered && reloc.Extern && reloc.Pcrel {
+						sym.Reloc = append(sym.Reloc, Reloc{
+							Offset: int(uint64(reloc.Addr) - s.Value),
+							Sym:    &Sym{Name: f.Symtab.Syms[reloc.Value].Name, Offset: InvalidOffset},
+							Size:   4,
+							Type:   reloctype.R_CALLARM64,
+							Add:    0,
+						})
+					} else {
+						return fmt.Errorf("got an unsupported macho reloc: %#v", reloc)
+					}
+				} else if pkg.Arch == "amd64" {
+					if !reloc.Scattered && reloc.Extern && reloc.Pcrel {
+						sym.Reloc = append(sym.Reloc, Reloc{
+							Offset: int(uint64(reloc.Addr) - s.Value),
+							Sym:    &Sym{Name: f.Symtab.Syms[reloc.Value].Name, Offset: InvalidOffset},
+							Size:   4,
+							Type:   reloctype.R_PCREL,
+							Add:    0,
+						})
+					} else {
+						return fmt.Errorf("got an unsupported macho reloc: %#v", reloc)
+					}
 				} else {
-					return fmt.Errorf("got an unsupported macho reloc: %#v", reloc)
+					return fmt.Errorf("unsupported arch: %s", pkg.Arch)
 				}
+
 			}
 		}
 	}
