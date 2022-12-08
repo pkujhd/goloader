@@ -109,6 +109,7 @@ type BuildConfig struct {
 	StringContainerSize   int      // Whether to separately mmap a container for strings, to allow unmapping independently of unloading code modules
 	SymbolNameOrder       []string // Control the layout of symbols in the linker's linear memory - useful for reproducing bugs
 	RandomSymbolNameOrder bool     // Randomise the order of linker symbols (may identify linker bugs)
+	RelocationDebugWriter io.Writer
 }
 
 func execBuild(config BuildConfig, workDir, outputFilePath string, targets []string) error {
@@ -487,6 +488,9 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	if config.RandomSymbolNameOrder {
 		linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
 	}
+	if config.RelocationDebugWriter != nil {
+		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
+	}
 	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
 		return nil, err
@@ -590,6 +594,9 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	}
 	if config.RandomSymbolNameOrder {
 		linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
+	}
+	if config.RelocationDebugWriter != nil {
+		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
 	}
 	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
@@ -762,6 +769,9 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		if config.RandomSymbolNameOrder {
 			linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
 		}
+		if config.RelocationDebugWriter != nil {
+			linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
+		}
 		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 		if err != nil {
 			return nil, err
@@ -838,6 +848,9 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		}
 		if config.RandomSymbolNameOrder {
 			linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
+		}
+		if config.RelocationDebugWriter != nil {
+			linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
 		}
 		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, importPath, pkg, linkerOpts)
 		if err != nil {

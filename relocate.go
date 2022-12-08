@@ -9,6 +9,7 @@ import (
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"github.com/pkujhd/goloader/objabi/tls"
 	"strings"
+	"unsafe"
 )
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) {
@@ -199,6 +200,21 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				addr = uintptr(segment.dataBase + loc.Sym.Offset)
 				symbolMap[loc.Sym.Name] = addr
 				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
+			}
+
+			if linker.options.RelocationDebugWriter != nil {
+				isDup := "    "
+				if duplicated {
+					isDup = "DUP "
+				}
+				var weakness string
+				if loc.Type&reloctype.R_WEAK > 0 {
+					weakness = "WEAK|"
+				}
+				relocType := weakness + objabi.RelocType(loc.Type&^reloctype.R_WEAK).String()
+				_, _ = fmt.Fprintf(linker.options.RelocationDebugWriter, "RELOCATING %s %10s %10s %18s Base: 0x%x Pos: 0x%08x, Addr: 0x%016x AddrFromBase: %12d %s   to    %s\n",
+					isDup, objabi.SymKind(symbol.Kind), objabi.SymKind(sym.Kind), relocType, addrBase, uintptr(unsafe.Pointer(&relocByte[loc.Offset])),
+					addr, int(addr)-addrBase, symbol.Name, sym.Name)
 			}
 
 			if addr != InvalidHandleValue {

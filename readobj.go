@@ -3,6 +3,7 @@ package goloader
 import (
 	"cmd/objfile/sys"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -77,6 +78,7 @@ type LinkerOptions struct {
 	StringContainerSize   int
 	SymbolNameOrder       []string
 	RandomSymbolNameOrder bool
+	RelocationDebugWriter io.Writer
 }
 
 func WithHeapStrings() func(*LinkerOptions) {
@@ -102,6 +104,12 @@ func WithSymbolNameOrder(symNames []string) func(*LinkerOptions) {
 func WithRandomSymbolNameOrder() func(*LinkerOptions) {
 	return func(options *LinkerOptions) {
 		options.RandomSymbolNameOrder = true
+	}
+}
+
+func WithRelocationDebugWriter(writer io.Writer) func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.RelocationDebugWriter = writer
 	}
 }
 

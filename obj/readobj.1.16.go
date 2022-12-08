@@ -396,14 +396,14 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 							Add:    0, // Even though elf addend is -4, a Go PCREL reloc doesn't need this.
 						})
 					default:
-						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s", t.GoString())
+						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s for symbol %s reloc to %s", t.GoString(), target.Name, sym.Name)
 					}
 				case elf.EM_X86_64:
 					t := elf.R_X86_64(rela.Info & 0xffff)
 					switch t {
 					case elf.R_X86_64_64, elf.R_X86_64_32:
 						return fmt.Errorf("TODO: only a limited subset of elf relocations currently supported, got %s", t.GoString())
-					case elf.R_X86_64_PLT32:
+					case elf.R_X86_64_PLT32, elf.R_X86_64_PC32:
 						target.Reloc = append(target.Reloc, Reloc{
 							Offset: int(rela.Off - targetAddr),
 							Sym:    &Sym{Name: sym.Name, Offset: InvalidOffset},
@@ -412,7 +412,7 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 							Add:    0, // Even though elf addend is -4, a Go PCREL reloc doesn't need this.
 						})
 					default:
-						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s", t.GoString())
+						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s for symbol %s reloc to %s", t.GoString(), target.Name, sym.Name)
 					}
 				}
 			} else {

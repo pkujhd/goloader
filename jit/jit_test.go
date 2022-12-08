@@ -317,6 +317,9 @@ func TestJitEmbeddedStruct(t *testing.T) {
 }
 
 func TestJitCGoCall(t *testing.T) {
+	if os.Getenv("CGO_ENABLED") == "0" {
+		t.Skip("CGo disabled")
+	}
 	if runtime.GOOS == "darwin" {
 		t.Skip("Mach-O relocations not yet applied which will fault on darwin")
 	}
@@ -640,8 +643,16 @@ func TestJitGoroutines(t *testing.T) {
 			err = thing.Stop()
 			time.Sleep(100 * time.Millisecond)
 			afterStop := runtime.NumGoroutine()
-			if before != afterStop {
-				t.Fatalf("expected num goroutines %d and %d to be equal", before, afterStop)
+			sleepCount := 0
+			for afterStop != before {
+				time.Sleep(100 * time.Millisecond)
+				runtime.GC()
+				afterStop = runtime.NumGoroutine()
+				fmt.Printf("Waiting for last goroutine to stop before unloading, started with %d, now have %d\n", before, afterStop)
+				sleepCount++
+				if sleepCount > 20 {
+					t.Fatalf("expected num goroutines %d and %d to be equal", before, afterStop)
+				}
 			}
 			if afterStart != before+1 {
 				t.Fatalf("expected afterStart to be 1 greater than before, got %d and %d", afterStart, before)
@@ -717,8 +728,16 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 
 			err = thing.Stop()
 			afterStop := runtime.NumGoroutine()
-			if before != afterStop {
-				t.Fatalf("expected num goroutines %d and %d to be equal", before, afterStop)
+			sleepCount := 0
+			for afterStop != before {
+				time.Sleep(100 * time.Millisecond)
+				runtime.GC()
+				afterStop = runtime.NumGoroutine()
+				fmt.Printf("Waiting for last goroutine to stop before unloading, started with %d, now have %d\n", before, afterStop)
+				sleepCount++
+				if sleepCount > 20 {
+					t.Fatalf("expected num goroutines %d and %d to be equal", before, afterStop)
+				}
 			}
 			if afterStart != before+1 {
 				t.Fatalf("expected afterStart to be 1 greater than before, got %d and %d", afterStart, before)

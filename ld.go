@@ -604,6 +604,17 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 
 				// Only relocate code if the type is a duplicate
 				if t != prevT {
+					if linker.options.RelocationDebugWriter != nil {
+						var weakness string
+						if loc.Type&reloctype.R_WEAK > 0 {
+							weakness = "WEAK|"
+						}
+						relocType := weakness + objabi.RelocType(loc.Type&^reloctype.R_WEAK).String()
+						_, _ = fmt.Fprintf(linker.options.RelocationDebugWriter, "DEDUPLICATING   %10s %10s %18s Base: 0x%x Pos: 0x%08x, Addr: 0x%016x AddrFromBase: %12d %s   to    %s\n",
+							objabi.SymKind(symbol.Kind), objabi.SymKind(sym.Kind), relocType, addrBase, uintptr(unsafe.Pointer(&relocByte[loc.Offset])),
+							addr, int(addr)-addrBase, symbol.Name, sym.Name)
+					}
+
 					u := t.uncommon()
 					prevU := prevT.uncommon()
 					err := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
