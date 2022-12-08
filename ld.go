@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"unsafe"
@@ -688,6 +689,33 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr) ma
 		}
 	}
 	return symMap
+}
+
+func (linker *Linker) UnresolvedExternalSymbolUsers(symbolMap map[string]uintptr) map[string][]string {
+	requiredBy := map[string][]string{}
+	for symName, sym := range linker.symMap {
+		if sym.Offset == InvalidOffset {
+			if _, ok := symbolMap[symName]; !ok {
+				if _, ok := linker.objsymbolMap[symName]; !ok {
+					var requiredBySet = map[string]struct{}{}
+					for _, otherSym := range linker.symMap {
+						for _, reloc := range otherSym.Reloc {
+							if reloc.Sym.Name == symName {
+								requiredBySet[otherSym.Name] = struct{}{}
+							}
+						}
+					}
+					requiredByList := make([]string, 0, len(requiredBySet))
+					for k := range requiredBySet {
+						requiredByList = append(requiredByList, k)
+					}
+					sort.Strings(requiredByList)
+					requiredBy[sym.Name] = requiredByList
+				}
+			}
+		}
+	}
+	return requiredBy
 }
 
 func (linker *Linker) UnloadStrings() error {

@@ -186,14 +186,14 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 			return nil, fmt.Errorf("could not read symbols from dependency object files '%s': %w", depImportPaths, err)
 		}
 
-		externalSymbols := depsLinker.UnresolvedExternalSymbols(globalSymPtr)
-		if len(externalSymbols) > 0 {
-			unresolvedList := make([]string, 0, len(externalSymbols))
-			for symName := range externalSymbols {
-				unresolvedList = append(unresolvedList, symName)
+		requiredBy := depsLinker.UnresolvedExternalSymbolUsers(globalSymPtr)
+		if len(requiredBy) > 0 {
+			unresolvedList := make([]string, 0, len(requiredBy))
+			for symName, requiredByList := range requiredBy {
+				unresolvedList = append(unresolvedList, fmt.Sprintf("%s     required by: \n    %s\n", symName, strings.Join(requiredByList, "\n    ")))
 			}
 			sort.Strings(unresolvedList)
-			return nil, fmt.Errorf("still have %d unresolved external symbols despite building and linking dependencies...: \n%s", len(externalSymbols), strings.Join(unresolvedList, "\n"))
+			return nil, fmt.Errorf("still have %d unresolved external symbols despite building and linking dependencies...: \n%s", len(requiredBy), strings.Join(unresolvedList, "\n"))
 		}
 		_ = linker.UnloadStrings()
 		linker = depsLinker

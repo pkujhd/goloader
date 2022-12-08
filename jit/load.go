@@ -12,6 +12,8 @@ type LoadableUnit struct {
 	ImportPath           string
 	ParsedFiles          []*ParsedFile
 	SymbolTypeFuncLookup map[string]string
+	Module               *goloader.CodeModule
+	Functions            map[string]interface{}
 }
 
 func (l *LoadableUnit) Load() (module *goloader.CodeModule, functions map[string]interface{}, err error) {
@@ -45,5 +47,7 @@ func (l *LoadableUnit) Load() (module *goloader.CodeModule, functions map[string
 		(*valp)[1] = unsafe.Pointer(&symPtr)
 		functions[symName] = val
 	}
+	l.Functions = functions
+	l.Module = module
 	return module, functions, nil
 }
