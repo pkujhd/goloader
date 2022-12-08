@@ -24,7 +24,7 @@ import (
 // Can edit these flags to check all tests still work with different linker options
 var heapStrings = false
 var stringContainerSize = 0 // 512 * 1024
-var randomSymbolOrder = true
+var randomSymbolOrder = false
 var buildEnv = []string{}
 
 //var goBinary = "/mnt/rpool/go_versions/go1.18.8.linux-amd64/go/bin/go"
@@ -39,6 +39,9 @@ type testData struct {
 func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data testData) (module *goloader.CodeModule, symbols map[string]interface{}) {
 	var loadable *jit.LoadableUnit
 	var err error
+	if os.Getenv("GOLOADER_DEBUG_RELOCATIONS") == "1" {
+		conf.RelocationDebugWriter = os.Stderr
+	}
 	switch testName {
 	case "BuildGoFiles":
 		loadable, err = jit.BuildGoFiles(conf, data.files[0], data.files[1:]...)
@@ -319,9 +322,6 @@ func TestJitEmbeddedStruct(t *testing.T) {
 func TestJitCGoCall(t *testing.T) {
 	if os.Getenv("CGO_ENABLED") == "0" {
 		t.Skip("CGo disabled")
-	}
-	if runtime.GOOS == "darwin" {
-		t.Skip("Mach-O relocations not yet applied which will fault on darwin")
 	}
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,

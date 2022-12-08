@@ -231,13 +231,17 @@ func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 	if runtime.GOOS == "darwin" {
 		for k := range externalUnresolvedSymbols {
 			if strings.IndexByte(k, '.') == -1 {
-				// For dynlib symbols in $GOROOT/src/syscall/syscall_darwin.go
 				if strings.HasPrefix(k, "libc_") {
+					// For dynlib symbols in $GOROOT/src/syscall/syscall_darwin.go
 					RegisterCGoSymbol(strings.TrimPrefix(k, "libc_"), k)
-				}
-				// For dynlib symbols in $GOROOT/src/crypto/x509/internal/macos/corefoundation.go
-				if strings.HasPrefix(k, "x509_") {
+				} else if strings.HasPrefix(k, "x509_") {
+					// For dynlib symbols in $GOROOT/src/crypto/x509/internal/macos/corefoundation.go
 					RegisterCGoSymbol(strings.TrimPrefix(k, "x509_"), k)
+				} else {
+					RegisterCGoSymbol(k, k)
+					if k[0] == '_' {
+						RegisterCGoSymbol(k[1:], k)
+					}
 				}
 			}
 			// TODO - if more symbols use the //go:cgo_import_dynamic linker pragma, then they would also need to be registered here

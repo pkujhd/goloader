@@ -9,6 +9,7 @@ import (
 	"cmd/objfile/goobj"
 	"cmd/objfile/obj"
 	"cmd/objfile/objabi"
+	"cmd/objfile/objfile"
 	"compress/zlib"
 	"debug/elf"
 	"debug/macho"
@@ -17,6 +18,7 @@ import (
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"io"
+	"sort"
 	"strings"
 )
 
@@ -26,6 +28,7 @@ func (pkg *Pkg) Symbols() error {
 		return err
 	}
 
+	objfile.Open("")
 	for _, e := range a.Entries {
 		switch e.Type {
 		case archive.EntryPkgDef:
@@ -144,6 +147,11 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 		return
 	}
 	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
+		return
+	}
+	if objabi.SymKind(symbol.Kind) == objabi.SNOPTRBSS && strings.HasPrefix(symbol.Name, "_cgo_") && symbol.Size == 1 {
+		// This is a dummy symbol representing a byte whose address is taken to act as the function pointer to a CGo text address via the //go:linkname pragma
+		// We handle this separately at the end of convertMachoRelocs() by adding the actual target address as text under this symbol name.
 		return
 	}
 	if symbol.Size > 0 {
@@ -432,6 +440,128 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 	return nil
 }
 
+type uint64s []uint64
+
+func (x uint64s) Len() int           { return len(x) }
+func (x uint64s) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+func (x uint64s) Less(i, j int) bool { return x[i] < x[j] }
+
 func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
-	return fmt.Errorf("TODO - actually implement Mach-O relocs")
+	if f.Symtab == nil {
+		return nil
+	}
+	var text []byte
+	var err error
+	var textSect = f.Section("__text")
+
+	if textSect == nil {
+		return nil
+	}
+	text, err = textSect.Data()
+	if err != nil {
+		return fmt.Errorf("failed to read __text section data from %s: %w", e.Name, err)
+	}
+
+	// Build sorted list of addresses of all symbols.
+	// We infer the size of a symbol by looking at where the next symbol begins.
+	var addrs []uint64
+	for _, s := range f.Symtab.Syms {
+		// Skip stab debug info.
+		if s.Type&0xe0 == 0 {
+			addrs = append(addrs, s.Value)
+		}
+	}
+	sort.Sort(uint64s(addrs))
+
+	var objSymbols []*ObjSymbol
+	for _, s := range f.Symtab.Syms {
+		if s.Type&0xe0 != 0 {
+			// Skip stab debug info.
+			continue
+		}
+
+		if s.Name == "" || s.Sect == 0 {
+			continue
+		}
+
+		var sym *ObjSymbol
+		var addr uint64
+
+		sym = &ObjSymbol{Name: s.Name, Func: &FuncInfo{}}
+
+		i := sort.Search(len(addrs), func(x int) bool { return addrs[x] > s.Value })
+		if i < len(addrs) {
+			sym.Size = int64(addrs[i] - s.Value)
+		} else {
+			sym.Size = int64(len(text))
+		}
+
+		if sym.Size > 0 {
+			addr = s.Value
+			data := make([]byte, sym.Size)
+			copy(data, text[addr:])
+			sym.Data = data
+		}
+
+		objSymbols = append(objSymbols, sym)
+
+		if int(s.Sect) <= len(f.Sections) {
+			sect := f.Sections[s.Sect-1]
+			switch sect.Seg {
+			case "__TEXT", "__DATA_CONST":
+				sym.Kind = symkind.SRODATA
+			case "__DATA":
+				sym.Kind = symkind.SDATA
+			}
+			switch sect.Seg + " " + sect.Name {
+			case "__TEXT __text":
+				sym.Kind = symkind.STEXT
+			case "__DATA __bss":
+				sym.Kind = symkind.SBSS
+			case "__DATA __noptrbss":
+				sym.Kind = symkind.SNOPTRBSS
+			}
+		}
+
+		for _, reloc := range append(textSect.Relocs) {
+			if uint64(reloc.Addr) < s.Value+uint64(sym.Size) && uint64(reloc.Addr) > s.Value {
+				// when Scattered == false && Extern == true, Value is the symbol number.
+				// when Scattered == false && Extern == false, Value is the section number.
+				// when Scattered == true, Value is the value that this reloc refers to.
+
+				if !reloc.Scattered && reloc.Extern && reloc.Pcrel {
+					sym.Reloc = append(sym.Reloc, Reloc{
+						Offset: int(uint64(reloc.Addr) - s.Value),
+						Sym:    &Sym{Name: f.Symtab.Syms[reloc.Value].Name, Offset: InvalidOffset},
+						Size:   4,
+						Type:   reloctype.R_PCREL,
+						Add:    0,
+					})
+				} else {
+					return fmt.Errorf("got an unsupported macho reloc: %#v", reloc)
+				}
+			}
+		}
+	}
+
+	for _, symbol := range objSymbols {
+		if _, ok := pkg.Syms[symbol.Name]; !ok {
+			pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
+		}
+		pkg.Syms[symbol.Name] = symbol
+		if strings.HasPrefix(symbol.Name, "__cgo_") {
+			// Need to add symbol as _cgo_* so that the Go generated
+			pkg.Syms[symbol.Name[1:]] = &ObjSymbol{
+				Name:  symbol.Name[1:],
+				Kind:  symbol.Kind,
+				DupOK: true,
+				Size:  symbol.Size,
+				Data:  symbol.Data,
+				Type:  symbol.Type,
+				Reloc: symbol.Reloc,
+				Func:  symbol.Func,
+			}
+		}
+	}
+	return nil
 }

@@ -174,6 +174,9 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 		if strings.HasPrefix(sym.Name, ItabPrefix) {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
+		if strings.HasPrefix(sym.Name, "__cgo_") {
+			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
+		}
 	}
 
 	tlsG, x86Found := symPtr["runtime.tlsg"]
