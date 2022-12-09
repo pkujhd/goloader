@@ -70,9 +70,11 @@ type Sym struct {
 
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Reloc struct
 type Reloc struct {
-	Offset int
-	Sym    *Sym
-	Size   int
-	Type   int
-	Add    int
+	Offset         int
+	Sym            *Sym
+	Size           int
+	Type           int
+	Add            int
+	EpilogueOffset int // This is added to store the offset of the extra instructions added by goloader in the case of certain overflowing relocations, e.g. ADRP, PCREL, CALLARM64
+	EpilogueSize   int
 }

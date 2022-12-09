@@ -1,6 +1,7 @@
 package goloader
 
 import (
+	"bytes"
 	"cmd/objfile/objabi"
 	"cmd/objfile/sys"
 	"encoding/binary"
@@ -39,29 +40,30 @@ type segment struct {
 }
 
 type Linker struct {
-	code              []byte
-	data              []byte
-	noptrdata         []byte
-	bss               []byte
-	noptrbss          []byte
-	cuFiles           []obj.CompilationUnitFiles
-	symMap            map[string]*obj.Sym
-	objsymbolMap      map[string]*obj.ObjSymbol
-	namemap           map[string]int
-	fileNameMap       map[string]int
-	cutab             []uint32
-	filetab           []byte
-	funcnametab       []byte
-	functab           []byte
-	pctab             []byte
-	_func             []*_func
-	initFuncs         []string
-	symNameOrder      []string
-	Arch              *sys.Arch
-	options           LinkerOptions
-	heapStringMap     map[string]*string
-	stringMmap        *stringMmap
-	appliedADRPRelocs map[*byte][]byte
+	code               []byte
+	data               []byte
+	noptrdata          []byte
+	bss                []byte
+	noptrbss           []byte
+	cuFiles            []obj.CompilationUnitFiles
+	symMap             map[string]*obj.Sym
+	objsymbolMap       map[string]*obj.ObjSymbol
+	namemap            map[string]int
+	fileNameMap        map[string]int
+	cutab              []uint32
+	filetab            []byte
+	funcnametab        []byte
+	functab            []byte
+	pctab              []byte
+	_func              []*_func
+	initFuncs          []string
+	symNameOrder       []string
+	Arch               *sys.Arch
+	options            LinkerOptions
+	heapStringMap      map[string]*string
+	stringMmap         *stringMmap
+	appliedADRPRelocs  map[*byte][]byte
+	appliedPCRelRelocs map[*byte][]byte
 }
 
 type CodeModule struct {
@@ -89,15 +91,16 @@ func initLinker(c LinkerOptions) (*Linker, error) {
 		// if f.pcsp == 0 ...
 		// and
 		// if f.nameoff == 0
-		funcnametab:       make([]byte, PtrSize),
-		pctab:             make([]byte, PtrSize),
-		symMap:            make(map[string]*obj.Sym),
-		objsymbolMap:      make(map[string]*obj.ObjSymbol),
-		namemap:           make(map[string]int),
-		fileNameMap:       make(map[string]int),
-		heapStringMap:     make(map[string]*string),
-		appliedADRPRelocs: make(map[*byte][]byte),
-		options:           c,
+		funcnametab:        make([]byte, PtrSize),
+		pctab:              make([]byte, PtrSize),
+		symMap:             make(map[string]*obj.Sym),
+		objsymbolMap:       make(map[string]*obj.ObjSymbol),
+		namemap:            make(map[string]int),
+		fileNameMap:        make(map[string]int),
+		heapStringMap:      make(map[string]*string),
+		appliedADRPRelocs:  make(map[*byte][]byte),
+		appliedPCRelRelocs: make(map[*byte][]byte),
+		options:            c,
 	}
 	if c.HeapStrings && c.StringContainerSize > 0 {
 		return nil, fmt.Errorf("can only use HeapStrings or StringContainerSize, not both")
@@ -189,6 +192,9 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 		if offset != 0 {
 			for index := range sym.Reloc {
 				sym.Reloc[index].Offset += offset
+				if sym.Reloc[index].EpilogueOffset > 0 {
+					sym.Reloc[index].EpilogueOffset += offset
+				}
 			}
 		}
 	}
@@ -212,6 +218,26 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.STEXT:
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
+		for i, reloc := range objsym.Reloc {
+			// Pessimistically pad the function text with extra bytes for any relocations which might add extra
+			// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
+			// the PCData, PCLine, PCFile, PCSP etc in case of pre-emption or stack unwinding while the PC is running these hacked instructions.
+			// We find the relevant PCValues for the offset of the reloc, and reuse the values for the reloc's epilogue
+			switch reloc.Type {
+			case reloctype.R_ADDRARM64:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesADRP
+				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesADRP)...)
+			case reloctype.R_CALLARM64:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALLARM64
+				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALLARM64)...)
+			case reloctype.R_PCREL, reloctype.R_CALL:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesPCREL
+				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesPCREL)...)
+			}
+		}
 		bytearrayAlign(&linker.code, PtrSize)
 		symbol.Func = &obj.Func{}
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
@@ -264,6 +290,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	for _, loc := range objsym.Reloc {
 		reloc := loc
 		reloc.Offset = reloc.Offset + symbol.Offset
+		reloc.EpilogueOffset = reloc.EpilogueOffset + symbol.Offset
 		if _, ok := linker.objsymbolMap[reloc.Sym.Name]; ok {
 			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name)
 			if err != nil {
@@ -354,6 +381,24 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 		nameOff = offset
 	}
 
+	for _, reloc := range symbol.Reloc {
+		if reloc.EpilogueOffset > 0 {
+			if len(symbol.Func.PCSP) > 0 {
+				patchPCValuesForReloc(&symbol.Func.PCSP, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+			}
+			if len(symbol.Func.PCFile) > 0 {
+				patchPCValuesForReloc(&symbol.Func.PCFile, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+			}
+			if len(symbol.Func.PCLine) > 0 {
+				patchPCValuesForReloc(&symbol.Func.PCLine, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+			}
+			for i, pcdata := range symbol.Func.PCData {
+				if len(pcdata) > 0 {
+					patchPCValuesForReloc(&symbol.Func.PCData[i], reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+				}
+			}
+		}
+	}
 	pcspOff := len(linker.pctab)
 	linker.pctab = append(linker.pctab, symbol.Func.PCSP...)
 
@@ -483,6 +528,141 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	}
 
 	return err
+}
+
+func readPCData(p []byte, startPC uintptr) (pcs []uintptr, vals []int32) {
+	pc := startPC
+	val := int32(-1)
+	if len(p) == 0 {
+		return nil, nil
+	}
+	for {
+		var ok bool
+		p, ok = step(p, &pc, &val, pc == startPC)
+		if !ok {
+			break
+		}
+		pcs = append(pcs, pc)
+		vals = append(vals, val)
+		if len(p) == 0 {
+			break
+		}
+	}
+	return
+}
+
+func formatPCData(p []byte, startPC uintptr) string {
+	pcs, vals := readPCData(p, startPC)
+	var result string
+	if len(pcs) == 0 {
+		return "()"
+	}
+	prevPC := startPC
+	for i := range pcs {
+		result += fmt.Sprintf("(%d-%d => %d), ", prevPC, pcs[i], vals[i])
+		prevPC = startPC + pcs[i]
+	}
+	return result
+}
+
+func pcValue(p []byte, targetOffset uintptr) (int32, uintptr) {
+	startPC := uintptr(0)
+	pc := uintptr(0)
+	val := int32(-1)
+	if len(p) == 0 {
+		return -1, 1<<64 - 1
+	}
+	prevpc := pc
+	for {
+		var ok bool
+		p, ok = step(p, &pc, &val, pc == startPC)
+		if !ok {
+			break
+		}
+		if len(p) == 0 {
+			break
+		}
+		if targetOffset < pc {
+			return val, prevpc
+		}
+		prevpc = pc
+	}
+	return -1, 1<<64 - 1
+}
+
+func patchPCValuesForReloc(pcvalues *[]byte, relocOffet int, epilogueOffset int, epilogueSize int) {
+	// Use the pcvalue at the offset of the reloc for the entire of that reloc's epilogue.
+	// This ensures that if the code is pre-empted or the stack unwound while we're inside the epilogue, the runtime behaves correctly
+
+	var pcQuantum uintptr = 1
+	if runtime.GOARCH == "arm64" {
+		pcQuantum = 4
+	}
+	p := *pcvalues
+	if len(p) == 0 {
+		panic("trying to patch a zero sized pcvalue table. This shouldn't be possible...")
+	}
+	valAtRelocSite, startPC := pcValue(p, uintptr(relocOffet))
+	if startPC == 1<<64-1 && valAtRelocSite == -1 {
+		panic(fmt.Sprintf("couldn't interpret pcvalue data when trying to patch it... relocOffset: %d, pcdata: %v\n %s", relocOffet, p, formatPCData(p, 0)))
+	}
+	if p[len(p)-1] != 0 {
+		panic(fmt.Sprintf("got a pcvalue table with an unexpected ending (%d)...\n%s ", p[len(p)-1], formatPCData(p, 0)))
+	}
+	p = p[:len(p)-1] // Remove the terminating 0
+
+	// Table is (value, PC), (value, PC), (value, PC)... etc
+	// Each value is delta encoded (signed) relative to the last, and each PC is delta encoded (unsigned)
+
+	pcs, vals := readPCData(p, 0)
+	lastValue := vals[len(vals)-1]
+	lastPC := pcs[len(pcs)-1]
+	if lastValue == valAtRelocSite {
+		// Extend the lastPC delta to absorb our epilogue, keep the value the same
+		var pcDelta uintptr
+		if len(pcs) > 1 {
+			pcDelta = (lastPC - pcs[len(pcs)-2]) / pcQuantum
+		} else {
+			pcDelta = lastPC / pcQuantum
+		}
+
+		buf := make([]byte, 10)
+		n := binary.PutUvarint(buf, uint64(pcDelta))
+		buf = buf[:n]
+		index := bytes.LastIndex(p, buf)
+		if index == -1 {
+			panic(fmt.Sprintf("could not find varint PC delta of %d (%v)", pcDelta, buf))
+		}
+		p = p[:index]
+		if len(pcs) > 1 {
+			pcDelta = (uintptr(epilogueOffset+epilogueSize) - pcs[len(pcs)-2]) / pcQuantum
+		} else {
+			pcDelta = (uintptr(epilogueOffset + epilogueSize)) / pcQuantum
+		}
+
+		buf = make([]byte, 10)
+		n = binary.PutUvarint(buf, uint64(pcDelta))
+		p = append(p, buf[:n]...)
+	} else {
+		// Append a new (value, PC) pair
+		pcDelta := (epilogueOffset + epilogueSize - int(lastPC)) / int(pcQuantum)
+		if pcDelta < 0 {
+			panic(fmt.Sprintf("somehow the epilogue is not at the end?? lastPC %d, epilogue offset %d", lastPC, epilogueOffset))
+		}
+		valDelta := valAtRelocSite - lastValue
+
+		buf := make([]byte, 10)
+		n := binary.PutVarint(buf, int64(valDelta))
+		p = append(p, buf[:n]...)
+
+		n = binary.PutUvarint(buf, uint64(pcDelta))
+		p = append(p, buf[:n]...)
+	}
+
+	// Re-add the terminating 0 we stripped off
+	p = append(p, 0)
+
+	*pcvalues = p
 }
 
 func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
@@ -632,7 +812,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
-					case reloctype.R_CALLARM, reloctype.R_CALLARM64:
+					case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALL:
 						panic("This should not be possible")
 					case reloctype.R_ADDRARM64:
 						linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
@@ -736,8 +916,8 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	codeModule.bssLen = len(linker.bss)
 	codeModule.noptrbssLen = len(linker.noptrbss)
 	codeModule.sumDataLen = codeModule.dataLen + codeModule.noptrdataLen + codeModule.bssLen + codeModule.noptrbssLen
-	codeModule.maxCodeLength = alignof((codeModule.codeLen)*2, PageSize)
-	codeModule.maxDataLength = alignof((codeModule.sumDataLen)*2, PageSize)
+	codeModule.maxCodeLength = alignof(codeModule.codeLen, PageSize)
+	codeModule.maxDataLength = alignof(codeModule.sumDataLen, PageSize)
 	codeByte, err := Mmap(codeModule.maxCodeLength)
 	if err != nil {
 		return nil, err

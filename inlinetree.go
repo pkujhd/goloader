@@ -18,6 +18,11 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 		}
 		sym.Func.PCData[dataindex.PCDATA_InlTreeIndex] = uint32(len(linker.pctab))
 
+		for _, reloc := range symbol.Reloc {
+			if reloc.EpilogueOffset > 0 {
+				patchPCValuesForReloc(&symbol.Func.PCInline, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+			}
+		}
 		linker.pctab = append(linker.pctab, symbol.Func.PCInline...)
 		for _, inl := range symbol.Func.InlTree {
 			if _, ok := linker.namemap[inl.Func]; !ok {
