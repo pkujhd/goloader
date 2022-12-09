@@ -223,15 +223,17 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
 			// the PCData, PCLine, PCFile, PCSP etc in case of pre-emption or stack unwinding while the PC is running these hacked instructions.
 			// We find the relevant PCValues for the offset of the reloc, and reuse the values for the reloc's epilogue
+
 			switch reloc.Type {
 			case reloctype.R_ADDRARM64:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesADRP
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesADRP)...)
 			case reloctype.R_CALLARM64:
-				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueOffset = alignof(len(linker.code)-symbol.Offset, PtrSize)
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALLARM64
-				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALLARM64)...)
+				alignment := alignof(len(linker.code)-symbol.Offset, PtrSize) - (len(linker.code) - symbol.Offset)
+				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALLARM64+alignment)...)
 			case reloctype.R_PCREL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesPCREL
