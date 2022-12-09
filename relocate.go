@@ -16,6 +16,7 @@ const (
 	maxExtraInstructionBytesADRP      = 20
 	maxExtraInstructionBytesCALLARM64 = 16
 	maxExtraInstructionBytesPCREL     = 48
+	maxExtraInstructionBytesCALL      = 14
 )
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) {
@@ -82,6 +83,21 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		byteorder.PutUint32(mCode, adrp)
 		byteorder.PutUint32(mCode[4:], add)
 	}
+}
+
+func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) {
+	byteorder := linker.Arch.ByteOrder
+	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
+	epilogueOffset := loc.EpilogueOffset
+	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
+
+	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
+		copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
+		epilogueOffset += len(x86amd64JMPLcode)
+		putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
+	}
+	byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 }
 
 func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
@@ -230,7 +246,9 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
-				case reloctype.R_PCREL, reloctype.R_CALL:
+				case reloctype.R_CALL:
+					linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
+				case reloctype.R_PCREL:
 					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
 					linker.relocateCALLARM(addr, loc, segment)

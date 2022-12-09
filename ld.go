@@ -232,10 +232,14 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALLARM64
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALLARM64)...)
-			case reloctype.R_PCREL, reloctype.R_CALL:
+			case reloctype.R_PCREL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesPCREL
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesPCREL)...)
+			case reloctype.R_CALL:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
+				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALL)...)
 			}
 		}
 		bytearrayAlign(&linker.code, PtrSize)
