@@ -605,6 +605,14 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 
 				// Only relocate code if the type is a duplicate
 				if t != prevT {
+					u := t.uncommon()
+					prevU := prevT.uncommon()
+					err := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
+					if err != nil {
+						return err
+					}
+
+					addr = uintptr(unsafe.Pointer(t))
 					if linker.options.RelocationDebugWriter != nil {
 						var weakness string
 						if loc.Type&reloctype.R_WEAK > 0 {
@@ -615,15 +623,6 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 							objabi.SymKind(symbol.Kind), objabi.SymKind(sym.Kind), relocType, addrBase, uintptr(unsafe.Pointer(&relocByte[loc.Offset])),
 							addr, int(addr)-addrBase, symbol.Name, sym.Name)
 					}
-
-					u := t.uncommon()
-					prevU := prevT.uncommon()
-					err := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
-					if err != nil {
-						return err
-					}
-
-					addr = uintptr(unsafe.Pointer(t))
 					switch loc.Type {
 					case reloctype.R_PCREL:
 						// The replaced t from another module will probably yield a massive negative offset, but that's ok as
