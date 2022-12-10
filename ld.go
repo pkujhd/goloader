@@ -218,6 +218,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.STEXT:
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
+		bytearrayAlign(&linker.code, PtrSize)
 		for i, reloc := range objsym.Reloc {
 			// Pessimistically pad the function text with extra bytes for any relocations which might add extra
 			// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
@@ -243,8 +244,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALL)...)
 			}
+			bytearrayAlign(&linker.code, PtrSize)
 		}
-		bytearrayAlign(&linker.code, PtrSize)
+
 		symbol.Func = &obj.Func{}
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
