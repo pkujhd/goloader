@@ -104,11 +104,11 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	epilogueOffset := loc.EpilogueOffset
-	if oldMcode, ok := linker.appliedPCRelRelocs[&relocByte[loc.Offset]]; !ok {
-		linker.appliedPCRelRelocs[&relocByte[loc.Offset]] = make([]byte, loc.Size)
-		copy(linker.appliedPCRelRelocs[&relocByte[loc.Offset]], relocByte[loc.Offset:])
+	if oldMcode, ok := linker.appliedPCRelRelocs[&relocByte[loc.Offset-2]]; !ok {
+		linker.appliedPCRelRelocs[&relocByte[loc.Offset-2]] = make([]byte, loc.Size+2)
+		copy(linker.appliedPCRelRelocs[&relocByte[loc.Offset-2]], relocByte[loc.Offset-2:])
 	} else {
-		copy(relocByte[loc.Offset:], oldMcode)
+		copy(relocByte[loc.Offset-2:], oldMcode)
 	}
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
