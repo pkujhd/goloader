@@ -6,6 +6,8 @@ package mmap
 import (
 	"github.com/pkujhd/goloader/mmap/darwin_arm64"
 	"github.com/pkujhd/goloader/mprotect"
+
+	"fmt"
 	"os"
 	"reflect"
 	"syscall"
@@ -42,6 +44,13 @@ func mmapCode(size int, addr uintptr) ([]byte, error) {
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE, // this is not yet executable, we will mprotect it after we're finished writing to it
 		syscall.MAP_PRIVATE|syscall.MAP_ANON|syscall.MAP_JIT)
+	if err != nil {
+		return nil, err
+	}
+	if uintptr(unsafe.Pointer(&data[0]))-addr > 1<<24 {
+		defer mapper.Munmap(data)
+		return nil, fmt.Errorf("failed to acquire code mapping within 24 bit address of 0x%x, got %p", addr, &data[0])
+	}
 	darwin_arm64.WriteProtectDisable()
 	return data, err
 }
@@ -55,6 +64,13 @@ func mmapData(size int, addr uintptr) ([]byte, error) {
 		size,
 		syscall.PROT_READ|syscall.PROT_WRITE,
 		syscall.MAP_PRIVATE|syscall.MAP_ANON)
+	if err != nil {
+		return nil, err
+	}
+	if uintptr(unsafe.Pointer(&data[0]))-addr > 1<<24 {
+		defer mapper.Munmap(data)
+		return nil, fmt.Errorf("failed to acquire data mapping within 24 bit address of 0x%x, got %p", addr, &data[0])
+	}
 	return data, err
 }
 
