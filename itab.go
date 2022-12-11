@@ -45,7 +45,7 @@ var textIsWriteable = runtime.GOOS != "darwin"
 var firstModuleMissingMethods = map[*_type]map[int]struct{}{}
 
 // Similar to runtime.(*itab).init() but replaces method text pointers to start the offset from the specified base address
-func (m *itab) adjustMethods(codeBase uintptr, methodIndices map[int]struct{}) {
+func (m *itab) adjustMethods(codeBase uintptr, methodIndices map[int]struct{}, writeablePages map[*byte]struct{}) {
 	inter := m.inter
 	typ := m._type
 	x := typ.uncommon()
@@ -83,15 +83,14 @@ imethods:
 							ifn = unsafe.Pointer(codeBase + uintptr(t.ifn))
 						}
 						page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[k])))
-						err := mprotect.MprotectMakeWritable(page)
-						if err != nil {
-							panic(err)
+						if _, ok := writeablePages[&page[0]]; !ok {
+							err := mprotect.MprotectMakeWritable(page)
+							if err != nil {
+								panic(err)
+							}
+							writeablePages[&page[0]] = struct{}{}
 						}
 						methods[k] = ifn
-						err = mprotect.MprotectMakeReadOnly(page)
-						if err != nil {
-							panic(err)
-						}
 					}
 					continue imethods
 				}
@@ -203,26 +202,33 @@ func patchTypeMethodTextPtrs(codeBase uintptr, patchedTypeMethodsIfn, patchedTyp
 
 	firstModule := activeModules()[0]
 
+	var writeablePages = map[*byte]struct{}{}
 	for _, itab := range firstModule.itablinks {
 		methodIndicesIfn, ifnPatched := patchedTypeMethodsIfn[itab._type]
 		methodIndicesTfn, tfnPatched := patchedTypeMethodsTfn[itab._type]
 		if ifnPatched || tfnPatched {
 			page := mprotect.GetPage(uintptr(unsafe.Pointer(&itab.fun[0])))
-			err = mprotect.MprotectMakeWritable(page)
-			if err != nil {
-				return fmt.Errorf("failed to make page writeable while re-initing itab for type %s %p: %w", _name(itab._type.nameOff(itab._type.str)), unsafe.Pointer(&itab.fun[0]), err)
+			if _, ok := writeablePages[&page[0]]; !ok {
+				err = mprotect.MprotectMakeWritable(page)
+				if err != nil {
+					return fmt.Errorf("failed to make page writeable while re-initing itab for type %s %p: %w", _name(itab._type.nameOff(itab._type.str)), unsafe.Pointer(&itab.fun[0]), err)
+				}
+				writeablePages[&page[0]] = struct{}{}
 			}
 			if ifnPatched {
-				itab.adjustMethods(codeBase, methodIndicesIfn)
+				itab.adjustMethods(codeBase, methodIndicesIfn, writeablePages)
 			}
 			if tfnPatched {
-				itab.adjustMethods(codeBase, methodIndicesTfn)
+				itab.adjustMethods(codeBase, methodIndicesTfn, writeablePages)
 			}
 
-			err = mprotect.MprotectMakeReadOnly(page)
-			if err != nil {
-				return fmt.Errorf("failed to make page read only while re-initing itab for type %s: %w", _name(itab._type.nameOff(itab._type.str)), err)
-			}
+		}
+	}
+
+	for pageStart := range writeablePages {
+		err = mprotect.MprotectMakeReadOnly(mprotect.GetPage(uintptr(unsafe.Pointer(pageStart))))
+		if err != nil {
+			return fmt.Errorf("failed to make page %p read only while re-initing itab : %w", pageStart, err)
 		}
 	}
 	return nil
@@ -230,6 +236,8 @@ func patchTypeMethodTextPtrs(codeBase uintptr, patchedTypeMethodsIfn, patchedTyp
 
 func (cm *CodeModule) revertPatchedTypeMethods() error {
 	firstModuleItabs := firstModuleItabsByType()
+
+	var writeablePages = map[*byte]struct{}{}
 	for t, indices := range cm.patchedTypeMethodsIfn {
 		u := t.uncommon()
 		methods := u.methods()
@@ -237,26 +245,25 @@ func (cm *CodeModule) revertPatchedTypeMethods() error {
 		otherModule, ifnPatchedOther, tfnPatchedOther := getOtherPatchedMethodsForType(t, cm)
 		if otherModule != nil {
 			for _, itab := range firstModuleItabs[t] {
-				itab.adjustMethods(uintptr(otherModule.codeBase), ifnPatchedOther)
-				itab.adjustMethods(uintptr(otherModule.codeBase), tfnPatchedOther)
+				itab.adjustMethods(uintptr(otherModule.codeBase), ifnPatchedOther, writeablePages)
+				itab.adjustMethods(uintptr(otherModule.codeBase), tfnPatchedOther, writeablePages)
 			}
 		} else {
 			// Reset patched method offsets back to -1
 			for _, i := range sortInts(indices) {
 				page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].ifn)))
-				err := mprotect.MprotectMakeWritable(page)
-				if err != nil {
-					return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].ifn), err)
+				if _, ok := writeablePages[&page[0]]; !ok {
+					err := mprotect.MprotectMakeWritable(page)
+					if err != nil {
+						return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].ifn), err)
+					}
+					writeablePages[&page[0]] = struct{}{}
 				}
 				methods[i].ifn = -1
-				err = mprotect.MprotectMakeReadOnly(page)
-				if err != nil {
-					return fmt.Errorf("failed to make page read only while patching type %s: %w", _name(t.nameOff(t.str)), err)
-				}
 			}
 			for _, itab := range firstModuleItabs[t] {
 				// No other module found, all method offsets should be -1, so codeBase is irrelevant
-				itab.adjustMethods(0, indices)
+				itab.adjustMethods(0, indices, writeablePages)
 			}
 
 		}
@@ -268,27 +275,33 @@ func (cm *CodeModule) revertPatchedTypeMethods() error {
 		otherModule, ifnPatchedOther, tfnPatchedOther := getOtherPatchedMethodsForType(t, cm)
 		if otherModule != nil {
 			for _, itab := range firstModuleItabs[t] {
-				itab.adjustMethods(uintptr(otherModule.codeBase), ifnPatchedOther)
-				itab.adjustMethods(uintptr(otherModule.codeBase), tfnPatchedOther)
+				itab.adjustMethods(uintptr(otherModule.codeBase), ifnPatchedOther, writeablePages)
+				itab.adjustMethods(uintptr(otherModule.codeBase), tfnPatchedOther, writeablePages)
 			}
 		} else {
 			// Reset patched method offsets back to -1
 			for _, i := range sortInts(indices) {
 				page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].tfn)))
-				err := mprotect.MprotectMakeWritable(page)
-				if err != nil {
-					return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].tfn), err)
+				if _, ok := writeablePages[&page[0]]; !ok {
+					err := mprotect.MprotectMakeWritable(page)
+					if err != nil {
+						return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].tfn), err)
+					}
+					writeablePages[&page[0]] = struct{}{}
 				}
 				methods[i].tfn = -1
-				err = mprotect.MprotectMakeReadOnly(page)
-				if err != nil {
-					return fmt.Errorf("failed to make page read only while patching type %s: %w", _name(t.nameOff(t.str)), err)
-				}
 			}
 			for _, itab := range firstModuleItabs[t] {
 				// No other module found, all method offsets should be -1, so codeBase is irrelevant
-				itab.adjustMethods(0, indices)
+				itab.adjustMethods(0, indices, writeablePages)
 			}
+		}
+	}
+
+	for pageStart := range writeablePages {
+		err := mprotect.MprotectMakeReadOnly(mprotect.GetPage(uintptr(unsafe.Pointer(pageStart))))
+		if err != nil {
+			return fmt.Errorf("failed to make page %p read only while re-initing itab: %w", pageStart, err)
 		}
 	}
 	return nil

@@ -8,8 +8,10 @@ import (
 	"unsafe"
 )
 
+var pageSize = syscall.Getpagesize()
+
 func GetPage(p uintptr) []byte {
-	return (*(*[0xFFFFFF]byte)(unsafe.Pointer(p & ^uintptr(syscall.Getpagesize()-1))))[:syscall.Getpagesize()]
+	return (*(*[0xFFFFFF]byte)(unsafe.Pointer(p & ^uintptr(pageSize-1))))[:pageSize]
 }
 
 func RawMemoryAccess(b uintptr) []byte {
