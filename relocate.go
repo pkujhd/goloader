@@ -174,7 +174,6 @@ func (linker *Linker) relocateCALLARM(addr uintptr, loc obj.Reloc, segment *segm
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
 	offset := (int(addr) + add - (segment.codeBase + loc.Offset)) / 4
 	if offset > 0x7FFFFF || offset < -0x800000 {
-		epilogueOffset = alignof(epilogueOffset, PtrSize)
 		off := uint32(epilogueOffset-loc.Offset) / 4
 		if loc.Type == reloctype.R_CALLARM {
 			add = int(signext24(int64(loc.Add&0xFFFFFF)+2) * 4)

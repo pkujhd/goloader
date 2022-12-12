@@ -12,8 +12,13 @@ const (
 var (
 	armcode   = []byte{0x04, 0xF0, 0x1F, 0xE5} //LDR PC, [PC, #-4]
 	arm64code = []byte{
-		0x49, 0x00, 0x00, 0x58, // LDR X9 [PC+8]
-		0x20, 0x01, 0x1F, 0xD6} // BR X9
+		// X16 and X17 are the IP0 and IP1 intra-procedure-call corruptible registers -
+		// since Go only uses them for the stack prologue and epilogue calculations,
+		// and we should already be clear of that by the time we hit a R_CALLARM64,
+		// so we should be able to safely use them for far jumps
+		0x51, 0x00, 0x00, 0x58, // LDR X17 [PC+8] - read 64 bit address from PC+8 into X17
+		0x20, 0x02, 0x1f, 0xd6, // BR  X17 - jump to address in X17
+	}
 	arm64Bcode = []byte{0x00, 0x00, 0x00, 0x14} // B [PC+0x0]
 )
 
