@@ -38,7 +38,7 @@ func aarch64SyncInstructionCacheRange(start uintptr, end uintptr) {
 	iCacheLineSize = 4 << (cacheInfo & 0xF)
 	dCacheLineSize = 4 << ((cacheInfo >> 16) & 0xF)
 
-	if (cacheInfo & CTR_IDC_BIT << 0x1) == 0 {
+	if (cacheInfo & (CTR_IDC_BIT << 0x1)) == 0 {
 		start = alignAddress(start, uintptr(dCacheLineSize))
 		for addr := start; addr < end; addr += uintptr(dCacheLineSize) {
 			clearDataCacheLine(addr)
@@ -46,7 +46,7 @@ func aarch64SyncInstructionCacheRange(start uintptr, end uintptr) {
 	}
 	dataSyncBarrierInnerShareableDomain()
 
-	if (cacheInfo & CTR_DIC_BIT << 0x1) == 0 {
+	if (cacheInfo & (CTR_DIC_BIT << 0x1)) == 0 {
 		start = alignAddress(start, uintptr(iCacheLineSize))
 		for addr := start; addr < end; addr += uintptr(iCacheLineSize) {
 			clearInstructionCacheLine(addr)
