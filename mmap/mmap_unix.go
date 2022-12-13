@@ -1,5 +1,5 @@
-//go:build (darwin && !arm64) || dragonfly || freebsd || linux || openbsd || solaris || netbsd
-// +build darwin,!arm64 dragonfly freebsd linux openbsd solaris netbsd
+//go:build (darwin && !arm64) || (linux && !arm64) || dragonfly || freebsd || openbsd || solaris || netbsd
+// +build darwin,!arm64 linux,!arm64 dragonfly freebsd openbsd solaris netbsd
 
 package mmap
 

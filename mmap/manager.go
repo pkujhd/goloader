@@ -83,6 +83,13 @@ func AcquireMapping(size int, mapFunc func(size int, addr uintptr) ([]byte, erro
 			if err != nil {
 				// Keep going, try again
 			} else {
+				if uintptr(unsafe.Pointer(&mapping[len(mapping)-1]))-firstModuleAddr > 1<<32 {
+					err = mapper.Munmap(mapping)
+					if err != nil {
+						return nil, fmt.Errorf("failed to acquire a mapping within 32 bits of the first module address, wanted 0x%x, got %p - %p, also failed to munmap: %w", firstModuleAddr, &mapping[0], &mapping[len(mapping)-1], err)
+					}
+					return nil, fmt.Errorf("failed to acquire a mapping within 32 bits of the first module address, wanted 0x%x, got %p - %p", firstModuleAddr, &mapping[0], &mapping[len(mapping)-1])
+				}
 				return mapping, nil
 			}
 		}
