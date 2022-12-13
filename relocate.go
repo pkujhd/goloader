@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	maxExtraInstructionBytesADRP      = 20
+	maxExtraInstructionBytesADRP      = 16
 	maxExtraInstructionBytesCALLARM64 = 16
 	maxExtraInstructionBytesPCREL     = 48
 	maxExtraInstructionBytesCALL      = 14
@@ -41,20 +41,13 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 			bcode |= 0x02000000 // 26th bit is sign bit
 		}
 		byteorder.PutUint32(mCode, bcode) // The second ADD instruction in the ADRP reloc will be bypassed as we return from the jump after it
-		//low: MOV reg imm
-		llow := uint32(0xD2800000)
-		//lhigh: MOVK reg imm LSL#16
-		lhigh := uint32(0xF2A00000)
-		//llow: MOVK reg imm LSL#32
-		hlow := uint32(0xF2C00000)
-		//lhigh: MOVK reg imm LSL#48
-		hhigh := uint32(0xF2E00000)
-		llow = ((addr & 0x1F) | llow) | ((uint32(symAddr) & 0xFFFF) << 5)
-		lhigh = ((addr & 0x1F) | lhigh) | (uint32(symAddr) >> 16 << 5)
-		putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(llow)|(uint64(lhigh)<<32))
-		hlow = ((addr & 0x1F) | hlow) | uint32(((uint64(symAddr)>>32)&0xFFFF)<<5)
-		hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
-		putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(hlow)|(uint64(hhigh)<<32))
+
+		ldrCode := uint32(0x58000040) // LDR PC+8
+		ldrCode |= addr & 0x1F        // Set the register
+
+		byteorder.PutUint32(segment.codeByte[epilogueOffset:], ldrCode)
+		epilogueOffset += Uint32Size
+
 		bcode = byteorder.Uint32(arm64Bcode)
 		bcode |= ((uint32(loc.Offset) - uint32(epilogueOffset) + 8) >> 2) & 0x01FFFFFF
 		if loc.Offset-epilogueOffset+8 < 0 {
@@ -62,6 +55,8 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		}
 		byteorder.PutUint32(segment.codeByte[epilogueOffset:], bcode)
 		epilogueOffset += Uint32Size
+
+		putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(symAddr))
 	} else {
 		// Bit layout of ADRP instruction is:
 
@@ -181,8 +176,8 @@ func (linker *Linker) relocateCALLARM(addr uintptr, loc obj.Reloc, segment *segm
 		}
 		putUint24(segment.codeByte[loc.Offset:], off)
 		if loc.Type == reloctype.R_CALLARM64 {
-			copy(segment.codeByte[epilogueOffset:], arm64code)
-			epilogueOffset += len(arm64code)
+			copy(segment.codeByte[epilogueOffset:], arm64CALLCode)
+			epilogueOffset += len(arm64CALLCode)
 		} else {
 			copy(segment.codeByte[epilogueOffset:], armcode)
 			epilogueOffset += len(armcode)
