@@ -79,6 +79,7 @@ type LinkerOptions struct {
 	SymbolNameOrder       []string
 	RandomSymbolNameOrder bool
 	RelocationDebugWriter io.Writer
+	NoRelocationEpilogues bool
 }
 
 func WithHeapStrings() func(*LinkerOptions) {
@@ -110,6 +111,12 @@ func WithRandomSymbolNameOrder() func(*LinkerOptions) {
 func WithRelocationDebugWriter(writer io.Writer) func(*LinkerOptions) {
 	return func(options *LinkerOptions) {
 		options.RelocationDebugWriter = writer
+	}
+}
+
+func WithNoRelocationEpilogues() func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.NoRelocationEpilogues = true
 	}
 }
 

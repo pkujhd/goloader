@@ -225,6 +225,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			// the PCData, PCLine, PCFile, PCSP etc in case of pre-emption or stack unwinding while the PC is running these hacked instructions.
 			// We find the relevant PCValues for the offset of the reloc, and reuse the values for the reloc's epilogue
 
+			if linker.options.NoRelocationEpilogues && !(strings.HasPrefix(reloc.Sym.Name, TypeStringPrefix) && linker.options.HeapStrings) {
+				continue
+			}
 			switch reloc.Type {
 			case reloctype.R_ADDRARM64:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
@@ -237,8 +240,39 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALLARM64+alignment)...)
 			case reloctype.R_PCREL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
-				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesPCREL
-				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesPCREL)...)
+				instructionBytes := objsym.Data[reloc.Offset-2 : reloc.Offset+reloc.Size]
+				shortJmp := (objsym.Reloc[i].EpilogueOffset - (reloc.Offset + reloc.Size)) < 128
+				opcode := instructionBytes[0]
+				var epilogueSize int
+				switch opcode {
+				case x86amd64LEAcode:
+					epilogueSize = maxExtraInstructionBytesPCRELxLEAQ
+				case x86amd64MOVcode:
+					if shortJmp {
+						epilogueSize = maxExtraInstructionBytesPCRELxMOVShort
+					} else {
+						epilogueSize = maxExtraInstructionBytesPCRELxMOVNear
+					}
+				case x86amd64CMPLcode:
+					if shortJmp {
+						epilogueSize = maxExtraInstructionBytesPCRELxCMPLShort
+					} else {
+						epilogueSize = maxExtraInstructionBytesPCRELxCMPLNear
+					}
+				default:
+					switch instructionBytes[1] {
+					case x86amd64CALLcode:
+						if shortJmp {
+							epilogueSize = maxExtraInstructionBytesPCRELxCALLShort
+						} else {
+							epilogueSize = maxExtraInstructionBytesPCRELxCALLNear
+						}
+					case x86amd64JMPcode:
+						epilogueSize = maxExtraInstructionBytesPCRELxJMP
+					}
+				}
+				objsym.Reloc[i].EpilogueSize = epilogueSize
+				linker.code = append(linker.code, make([]byte, epilogueSize)...)
 			case reloctype.R_CALL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
