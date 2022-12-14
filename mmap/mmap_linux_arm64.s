@@ -1,7 +1,7 @@
 #include "textflag.h"
 
 // func read_CTR_ELO_Register() uint32
-TEXT ·read_CTR_ELO_Register(SB),NOSPLIT,$0
+TEXT ·read_CTR_ELO_Register(SB),NOSPLIT|NOFRAME,$0
   MRS  CTR_EL0, R0
   MOVW R0, ret+0(FP)
   RET
