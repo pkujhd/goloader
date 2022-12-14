@@ -218,7 +218,11 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.STEXT:
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
-		bytearrayAlign(&linker.code, PtrSize)
+		if linker.Arch.Family == sys.ARM64 {
+			bytearrayAlign(&linker.code, PtrSize)
+		} else {
+			bytearrayAlign(&linker.code, Uint32Size)
+		}
 		for i, reloc := range objsym.Reloc {
 			// Pessimistically pad the function text with extra bytes for any relocations which might add extra
 			// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
@@ -278,7 +282,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALL)...)
 			}
-			bytearrayAlign(&linker.code, PtrSize)
+			if linker.Arch.Family == sys.ARM64 {
+				bytearrayAlign(&linker.code, PtrSize)
+			}
 		}
 
 		symbol.Func = &obj.Func{}
@@ -288,7 +294,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SDATA:
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
-		if linker.Arch.Name == "arm64" {
+		if linker.Arch.Family == sys.ARM64 {
 			bytearrayAlign(&linker.data, PtrSize)
 		}
 	case symkind.SNOPTRDATA, symkind.SRODATA:
@@ -309,20 +315,20 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		} else {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
-			if linker.Arch.Name == "arm64" {
+			if linker.Arch.Family == sys.ARM64 {
 				bytearrayAlign(&linker.noptrdata, PtrSize)
 			}
 		}
 	case symkind.SBSS:
 		symbol.Offset = len(linker.bss)
 		linker.bss = append(linker.bss, objsym.Data...)
-		if linker.Arch.Name == "arm64" {
+		if linker.Arch.Family == sys.ARM64 {
 			bytearrayAlign(&linker.bss, PtrSize)
 		}
 	case symkind.SNOPTRBSS:
 		symbol.Offset = len(linker.noptrbss)
 		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
-		if linker.Arch.Name == "arm64" {
+		if linker.Arch.Family == sys.ARM64 {
 			bytearrayAlign(&linker.noptrbss, PtrSize)
 		}
 	default:
@@ -370,7 +376,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					linker.noptrdata = append(linker.noptrdata, nameLen...)
 					linker.noptrdata = append(linker.noptrdata, path...)
 					linker.noptrdata = append(linker.noptrdata, ZeroByte)
-					if linker.Arch.Name == "arm64" {
+					if linker.Arch.Family == sys.ARM64 {
 						bytearrayAlign(&linker.noptrdata, PtrSize)
 					}
 				}
@@ -386,7 +392,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 						reloc.Sym.Kind = symkind.SNOPTRDATA
 						reloc.Sym.Offset = len(linker.noptrdata)
 						linker.noptrdata = append(linker.noptrdata, bytes...)
-						if linker.Arch.Name == "arm64" {
+						if linker.Arch.Family == sys.ARM64 {
 							bytearrayAlign(&linker.noptrdata, PtrSize)
 						}
 					}
@@ -426,17 +432,17 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	for _, reloc := range symbol.Reloc {
 		if reloc.EpilogueOffset > 0 {
 			if len(symbol.Func.PCSP) > 0 {
-				patchPCValuesForReloc(&symbol.Func.PCSP, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+				linker.patchPCValuesForReloc(&symbol.Func.PCSP, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
 			}
 			if len(symbol.Func.PCFile) > 0 {
-				patchPCValuesForReloc(&symbol.Func.PCFile, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+				linker.patchPCValuesForReloc(&symbol.Func.PCFile, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
 			}
 			if len(symbol.Func.PCLine) > 0 {
-				patchPCValuesForReloc(&symbol.Func.PCLine, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+				linker.patchPCValuesForReloc(&symbol.Func.PCLine, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
 			}
 			for i, pcdata := range symbol.Func.PCData {
 				if len(pcdata) > 0 {
-					patchPCValuesForReloc(&symbol.Func.PCData[i], reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+					linker.patchPCValuesForReloc(&symbol.Func.PCData[i], reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
 				}
 			}
 		}
@@ -632,12 +638,12 @@ func pcValue(p []byte, targetOffset uintptr) (int32, uintptr) {
 	return -1, 1<<64 - 1
 }
 
-func patchPCValuesForReloc(pcvalues *[]byte, relocOffet int, epilogueOffset int, epilogueSize int) {
+func (linker *Linker) patchPCValuesForReloc(pcvalues *[]byte, relocOffet int, epilogueOffset int, epilogueSize int) {
 	// Use the pcvalue at the offset of the reloc for the entire of that reloc's epilogue.
 	// This ensures that if the code is pre-empted or the stack unwound while we're inside the epilogue, the runtime behaves correctly
 
 	var pcQuantum uintptr = 1
-	if runtime.GOARCH == "arm64" {
+	if linker.Arch.Family == sys.ARM64 {
 		pcQuantum = 4
 	}
 	p := *pcvalues

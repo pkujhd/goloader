@@ -20,7 +20,7 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 
 		for _, reloc := range symbol.Reloc {
 			if reloc.EpilogueOffset > 0 {
-				patchPCValuesForReloc(&symbol.Func.PCInline, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+				linker.patchPCValuesForReloc(&symbol.Func.PCInline, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
 			}
 		}
 		linker.pctab = append(linker.pctab, symbol.Func.PCInline...)
