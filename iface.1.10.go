@@ -38,22 +38,22 @@ var itabTableTyped = (**itabTableType)(unsafe.Pointer(&itabTable))
 var itabLock uintptr
 
 // Avoids "go.info.runtime.itabLock: relocation target go.info.github.com/pkujhd/goloader.mutex not defined"
-var itabLockTyped mutex = mutex{itabLock}
+var itabLockTyped = (*mutex)(unsafe.Pointer(&itabLock))
 
 //go:linkname itabAdd runtime.itabAdd
 func itabAdd(m *itab)
 
 func additabs(module *moduledata) {
-	lock(&itabLockTyped)
+	lock(itabLockTyped)
 	for _, itab := range module.itablinks {
 		itabAdd(itab)
 	}
-	unlock(&itabLockTyped)
+	unlock(itabLockTyped)
 }
 
 func removeitabs(module *moduledata) bool {
-	lock(&itabLockTyped)
-	defer unlock(&itabLockTyped)
+	lock(itabLockTyped)
+	defer unlock(itabLockTyped)
 
 	t := *itabTableTyped
 	for i := uintptr(0); i < t.size; i++ {
