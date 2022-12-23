@@ -25,6 +25,12 @@ func Copy(src, dest string, skipPattern []string) error {
 	}
 	if srcInfo.IsDir() {
 		err = copyDir(src, dest, skipPattern)
+	} else if srcInfo.Mode()&os.ModeSymlink != 0 {
+		linkSrc, err := os.Readlink(src)
+		if err != nil {
+			return fmt.Errorf("failed to follow symlink during Copy(): %w", err)
+		}
+		err = Copy(linkSrc, dest, skipPattern)
 	} else {
 		err = copyFile(src, dest)
 	}

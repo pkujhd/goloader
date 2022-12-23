@@ -74,12 +74,13 @@ func readObj(pkg *obj.Pkg, linker *Linker) error {
 type LinkerOptFunc func(options *LinkerOptions)
 
 type LinkerOptions struct {
-	HeapStrings           bool
-	StringContainerSize   int
-	SymbolNameOrder       []string
-	RandomSymbolNameOrder bool
-	RelocationDebugWriter io.Writer
-	NoRelocationEpilogues bool
+	HeapStrings                      bool
+	StringContainerSize              int
+	SymbolNameOrder                  []string
+	RandomSymbolNameOrder            bool
+	RelocationDebugWriter            io.Writer
+	NoRelocationEpilogues            bool
+	SkipTypeDeduplicationForPackages []string
 }
 
 func WithHeapStrings() func(*LinkerOptions) {
@@ -120,13 +121,14 @@ func WithNoRelocationEpilogues() func(*LinkerOptions) {
 	}
 }
 
-func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker, error) {
-	c := &LinkerOptions{}
-	for _, opt := range linkerOpts {
-		opt(c)
+func WithSkipTypeDeduplicationForPackages(packages []string) func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.SkipTypeDeduplicationForPackages = packages
 	}
+}
 
-	linker, err := initLinker(*c)
+func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker, error) {
+	linker, err := initLinker(linkerOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -136,21 +138,21 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 	}
 
 	symNames := pkg.SymNameOrder
-	if len(c.SymbolNameOrder) > 0 {
-		if len(pkg.SymNameOrder) == len(c.SymbolNameOrder) {
+	if len(linker.options.SymbolNameOrder) > 0 {
+		if len(pkg.SymNameOrder) == len(linker.options.SymbolNameOrder) {
 			isOk := true
-			for _, symName := range c.SymbolNameOrder {
+			for _, symName := range linker.options.SymbolNameOrder {
 				if _, ok := linker.objsymbolMap[symName]; !ok {
 					isOk = false
 				}
 			}
 			if isOk {
-				log.Printf("linker using provided symbol name order for %d symbols", len(c.SymbolNameOrder))
-				symNames = c.SymbolNameOrder
+				log.Printf("linker using provided symbol name order for %d symbols", len(linker.options.SymbolNameOrder))
+				symNames = linker.options.SymbolNameOrder
 			}
 		}
 	}
-	if c.RandomSymbolNameOrder {
+	if linker.options.RandomSymbolNameOrder {
 		rand.Shuffle(len(symNames), func(i, j int) {
 			symNames[i], symNames[j] = symNames[j], symNames[i]
 		})
@@ -162,11 +164,7 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 }
 
 func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*Linker, error) {
-	c := &LinkerOptions{}
-	for _, opt := range linkerOpts {
-		opt(c)
-	}
-	linker, err := initLinker(*c)
+	linker, err := initLinker(linkerOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -189,21 +187,21 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 		}
 		symNames = append(symNames, pkg.SymNameOrder...)
 	}
-	if len(c.SymbolNameOrder) > 0 {
-		if len(symNames) == len(c.SymbolNameOrder) {
+	if len(linker.options.SymbolNameOrder) > 0 {
+		if len(symNames) == len(linker.options.SymbolNameOrder) {
 			isOk := true
-			for _, symName := range c.SymbolNameOrder {
+			for _, symName := range linker.options.SymbolNameOrder {
 				if _, ok := linker.objsymbolMap[symName]; !ok {
 					isOk = false
 				}
 			}
 			if isOk {
-				log.Printf("linker using provided symbol name order for %d symbols", len(c.SymbolNameOrder))
-				symNames = c.SymbolNameOrder
+				log.Printf("linker using provided symbol name order for %d symbols", len(linker.options.SymbolNameOrder))
+				symNames = linker.options.SymbolNameOrder
 			}
 		}
 	}
-	if c.RandomSymbolNameOrder {
+	if linker.options.RandomSymbolNameOrder {
 		rand.Shuffle(len(symNames), func(i, j int) {
 			symNames[i], symNames[j] = symNames[j], symNames[i]
 		})

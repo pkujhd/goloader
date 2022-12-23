@@ -84,7 +84,8 @@ var (
 )
 
 // initialize Linker
-func initLinker(c LinkerOptions) (*Linker, error) {
+func initLinker(opts []LinkerOptFunc) (*Linker, error) {
+
 	linker := &Linker{
 		// Pad these tabs out so offsets don't start at 0, which is often used in runtime as a special value for "missing"
 		// e.g. runtime/traceback.go and runtime/symtab.go both contain checks like:
@@ -100,8 +101,9 @@ func initLinker(c LinkerOptions) (*Linker, error) {
 		heapStringMap:      make(map[string]*string),
 		appliedADRPRelocs:  make(map[*byte][]byte),
 		appliedPCRelRelocs: make(map[*byte][]byte),
-		options:            c,
 	}
+	linker.Opts(opts...)
+	c := &linker.options
 	if c.HeapStrings && c.StringContainerSize > 0 {
 		return nil, fmt.Errorf("can only use HeapStrings or StringContainerSize, not both")
 	}
@@ -119,6 +121,12 @@ func initLinker(c LinkerOptions) (*Linker, error) {
 	linker.functab = append(linker.functab, head...)
 	linker.functab[len(obj.ModuleHeadx86)-1] = PtrSize
 	return linker, nil
+}
+
+func (linker *Linker) Opts(linkerOpts ...LinkerOptFunc) {
+	for _, opt := range linkerOpts {
+		opt(&linker.options)
+	}
 }
 
 func (linker *Linker) addSymbols(symbolNames []string) error {
@@ -806,6 +814,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	segment := &codeModule.segment
 	byteorder := linker.Arch.ByteOrder
 	for _, symbol := range linker.symMap {
+	relocLoop:
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
 			sym := loc.Sym
@@ -833,6 +842,11 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 
 				// Only relocate code if the type is a duplicate
 				if t != prevT {
+					for _, pkgPathToSkip := range linker.options.SkipTypeDeduplicationForPackages {
+						if t.PkgPath() == pkgPathToSkip {
+							continue relocLoop
+						}
+					}
 					u := t.uncommon()
 					prevU := prevT.uncommon()
 					err := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
@@ -863,7 +877,10 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALL:
 						panic("This should not be possible")
 					case reloctype.R_ADDRARM64:
-						linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
+						err2 := linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
+						if err2 != nil {
+							err = err2
+						}
 					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
 						// TODO - sanity check this
 						address := uintptr(int(addr) + loc.Add)

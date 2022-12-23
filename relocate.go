@@ -240,7 +240,15 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 			addr := symbolMap[loc.Sym.Name]
 			fmAddr, duplicated := symbolMap[FirstModulePrefix+loc.Sym.Name]
 			if duplicated {
-				addr = fmAddr
+				isTypeWhichShouldNotBeDeduped := false
+				for _, pkgPath := range linker.options.SkipTypeDeduplicationForPackages {
+					if strings.HasPrefix(strings.TrimLeft(strings.TrimPrefix(loc.Sym.Name, TypePrefix), "*"), pkgPath) {
+						isTypeWhichShouldNotBeDeduped = true
+					}
+				}
+				if !isTypeWhichShouldNotBeDeduped {
+					addr = fmAddr
+				}
 			}
 			sym := loc.Sym
 			relocByte := segment.dataByte
@@ -249,10 +257,18 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
-			if addr == 0 && strings.HasPrefix(sym.Name, ItabPrefix) {
-				addr = uintptr(segment.dataBase + loc.Sym.Offset)
-				symbolMap[loc.Sym.Name] = addr
-				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
+			if strings.HasPrefix(sym.Name, ItabPrefix) {
+				isItabWhichShouldNotBeDeduped := false
+				for _, pkgPath := range linker.options.SkipTypeDeduplicationForPackages {
+					if strings.HasPrefix(strings.TrimLeft(strings.TrimPrefix(sym.Name, ItabPrefix), "*"), pkgPath) {
+						isItabWhichShouldNotBeDeduped = true
+					}
+				}
+				if addr == 0 || isItabWhichShouldNotBeDeduped {
+					addr = uintptr(segment.dataBase + loc.Sym.Offset)
+					symbolMap[loc.Sym.Name] = addr
+					codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
+				}
 			}
 
 			if linker.options.RelocationDebugWriter != nil {

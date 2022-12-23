@@ -98,18 +98,19 @@ func RegisterCGoSymbol(symNameC string, symNameGo string) bool {
 }
 
 type BuildConfig struct {
-	GoBinary              string // Path to go binary, defaults to "go"
-	KeepTempFiles         bool
-	ExtraBuildFlags       []string
-	BuildEnv              []string
-	TmpDir                string
-	DebugLog              bool
-	SkipCopyPatterns      []string // Paths to exclude from module copy
-	HeapStrings           bool     // Whether to put strings on the heap and allow GC to manage their lifecycle
-	StringContainerSize   int      // Whether to separately mmap a container for strings, to allow unmapping independently of unloading code modules
-	SymbolNameOrder       []string // Control the layout of symbols in the linker's linear memory - useful for reproducing bugs
-	RandomSymbolNameOrder bool     // Randomise the order of linker symbols (may identify linker bugs)
-	RelocationDebugWriter io.Writer
+	GoBinary                         string // Path to go binary, defaults to "go"
+	KeepTempFiles                    bool
+	ExtraBuildFlags                  []string
+	BuildEnv                         []string
+	TmpDir                           string
+	DebugLog                         bool
+	SkipCopyPatterns                 []string // Paths to exclude from module copy
+	HeapStrings                      bool     // Whether to put strings on the heap and allow GC to manage their lifecycle
+	StringContainerSize              int      // Whether to separately mmap a container for strings, to allow unmapping independently of unloading code modules
+	SymbolNameOrder                  []string // Control the layout of symbols in the linker's linear memory - useful for reproducing bugs
+	RandomSymbolNameOrder            bool     // Randomise the order of linker symbols (may identify linker bugs)
+	RelocationDebugWriter            io.Writer
+	SkipTypeDeduplicationForPackages []string
 }
 
 func execBuild(config BuildConfig, workDir, outputFilePath string, targets []string) error {
@@ -495,6 +496,9 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	if config.RelocationDebugWriter != nil {
 		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
 	}
+	if len(config.SkipTypeDeduplicationForPackages) > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
+	}
 	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
 		return nil, err
@@ -601,6 +605,9 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	}
 	if config.RelocationDebugWriter != nil {
 		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
+	}
+	if len(config.SkipTypeDeduplicationForPackages) > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
 	}
 	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 	if err != nil {
@@ -776,6 +783,9 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		if config.RelocationDebugWriter != nil {
 			linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
 		}
+		if len(config.SkipTypeDeduplicationForPackages) > 0 {
+			linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
+		}
 		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts)
 		if err != nil {
 			return nil, err
@@ -855,6 +865,9 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		}
 		if config.RelocationDebugWriter != nil {
 			linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
+		}
+		if len(config.SkipTypeDeduplicationForPackages) > 0 {
+			linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
 		}
 		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, importPath, pkg, linkerOpts)
 		if err != nil {
