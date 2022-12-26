@@ -52,7 +52,12 @@ go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ $GOPATH/src/github
 #build multiple go files
 go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go test2.go
 ./loader -o test.o -run main.main
+```
 
+```
+export GO111MODULE=on
+go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
+go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
 ```
 
 ## Warning
