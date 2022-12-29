@@ -22,6 +22,12 @@ type sliceHeader struct {
 	Cap  int
 }
 
+// See reflect/value.go stringHeader
+type stringHeader struct {
+	Data uintptr
+	Len  int
+}
+
 // Method on non-interface type
 type method struct {
 	name nameOff // name of method

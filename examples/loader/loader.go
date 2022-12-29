@@ -40,7 +40,6 @@ func main() {
 	var parseFile = flag.String("parse", "", "parse go object file")
 	var run = flag.String("run", "main.main", "run function")
 	var times = flag.Int("times", 1, "run count")
-	var enableStringContainer = flag.Int("s", 1, "enable string container")
 
 	flag.Parse()
 
@@ -68,10 +67,6 @@ func main() {
 		&http.Request{}, &http.Server{})
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
 	goloader.RegTypes(symPtr, fmt.Sprint)
-
-	if *enableStringContainer == 1 {
-		goloader.OpenStringMap()
-	}
 
 	linker, err := goloader.ReadObjs(files.File, files.PkgPath)
 	if err != nil {

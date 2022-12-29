@@ -44,6 +44,7 @@ type Linker struct {
 	symMap       map[string]*obj.Sym
 	objsymbolMap map[string]*obj.ObjSymbol
 	namemap      map[string]int
+	stringMap    map[string]*string
 	filetab      []uint32
 	pclntable    []byte
 	_func        []*_func
@@ -53,10 +54,11 @@ type Linker struct {
 
 type CodeModule struct {
 	segment
-	Syms   map[string]uintptr
-	module *moduledata
-	gcdata []byte
-	gcbss  []byte
+	Syms      map[string]uintptr
+	stringMap map[string]*string
+	module    *moduledata
+	gcdata    []byte
+	gcbss     []byte
 }
 
 var (
@@ -64,12 +66,13 @@ var (
 	modulesLock sync.Mutex
 )
 
-//initialize Linker
+// initialize Linker
 func initLinker() *Linker {
 	linker := &Linker{
 		symMap:       make(map[string]*obj.Sym),
 		objsymbolMap: make(map[string]*obj.ObjSymbol),
 		namemap:      make(map[string]int),
+		stringMap:    make(map[string]*string),
 	}
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
 	copy(head, obj.ModuleHeadx86)
@@ -99,7 +102,7 @@ func (linker *Linker) addSymbols() error {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if IsEnableStringMap() && strings.HasPrefix(sym.Name, TypeStringPrefix) {
+			if strings.HasPrefix(sym.Name, TypeStringPrefix) {
 				//nothing todo
 			} else {
 				offset += len(linker.data)
@@ -140,15 +143,12 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
 	case symkind.SNOPTRDATA, symkind.SRODATA:
-		//because golang string assignment is pointer assignment, so store go.string constants
-		//in a separate segment and not unload when module unload.
-		if IsEnableStringMap() && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
-			if stringContainer.index+len(objsym.Data) > stringContainer.size {
-				return nil, fmt.Errorf("overflow string container")
-			}
-			symbol.Offset = stringContainer.index
-			copy(stringContainer.bytes[stringContainer.index:], objsym.Data)
-			stringContainer.index += len(objsym.Data)
+		//because golang string assignment is pointer assignment, so store go.string constants in heap.
+		if strings.HasPrefix(symbol.Name, TypeStringPrefix) {
+			data := make([]byte, len(objsym.Data))
+			copy(data, objsym.Data)
+			stringVal := string(data)
+			linker.stringMap[symbol.Name] = &stringVal
 		} else {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
@@ -327,19 +327,15 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if _, ok := symPtr[name]; !ok {
-				if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
+				if strings.HasPrefix(name, TypeStringPrefix) {
+					symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
 				} else {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 				}
 			} else {
 				symbolMap[name] = symPtr[name]
 				if strings.HasPrefix(name, MainPkgPrefix) {
-					if IsEnableStringMap() && strings.HasPrefix(name, TypeStringPrefix) {
-						symbolMap[name] = uintptr(linker.symMap[name].Offset) + stringContainer.addr
-					} else {
-						symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-					}
+					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 				}
 			}
 		}
@@ -484,6 +480,8 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	codeModule.dataOff += codeModule.bssLen
 	copy(codeModule.dataByte[codeModule.dataOff:], linker.noptrbss)
 	codeModule.dataOff += codeModule.noptrbssLen
+
+	codeModule.stringMap = linker.stringMap
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
