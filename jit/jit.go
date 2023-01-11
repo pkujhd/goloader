@@ -290,7 +290,7 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 		h := sha256.New()
 		h.Write([]byte(missingDep))
 
-		filename := path.Join(buildDir, hex.EncodeToString(h.Sum(nil))+"___pkg___.a")
+		filename := filepath.Join(buildDir, hex.EncodeToString(h.Sum(nil))+"___pkg___.a")
 
 		go func(filename, missingDep string) {
 			if config.DebugLog {
@@ -458,7 +458,7 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 			}
 			parsedFiles = append(parsedFiles, parsed)
 		}
-		newPath := path.Join(buildDir, path.Base(file))
+		newPath := filepath.Join(buildDir, filepath.Base(file))
 		err = os.WriteFile(newPath, data, 0655)
 		if err != nil {
 			return nil, fmt.Errorf("failed to write file '%s': %w", newPath, err)
@@ -470,7 +470,7 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 		return nil, fmt.Errorf("failed to generated reflect code: %w", err)
 	}
 
-	outputFilePath := path.Join(buildDir, hex.EncodeToString(h.Sum(nil))+".a")
+	outputFilePath := filepath.Join(buildDir, hex.EncodeToString(h.Sum(nil))+".a")
 
 	tmpReflectFilePath := strings.TrimSuffix(newFiles[0], ".go") + "___reflect.go"
 	err = os.WriteFile(tmpReflectFilePath, reflectCode, 0655)
@@ -537,7 +537,7 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 		defer os.RemoveAll(buildDir)
 	}
 
-	tmpFilePath := path.Join(buildDir, hexHash+".go")
+	tmpFilePath := filepath.Join(buildDir, hexHash+".go")
 
 	err = os.WriteFile(tmpFilePath, []byte(goText), 0655)
 	if err != nil {
@@ -588,7 +588,7 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 		}
 	}
 
-	outputFilePath := path.Join(buildDir, hexHash+".a")
+	outputFilePath := filepath.Join(buildDir, hexHash+".a")
 
 	err = execBuild(config, "", outputFilePath, []string{tmpFilePath, tmpReflectFilePath})
 	if err != nil {
@@ -673,7 +673,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 	h := sha256.New()
 
 	for _, goFile := range append(pkg.GoFiles, pkg.CgoFiles...) {
-		file := path.Join(absPath, goFile)
+		file := filepath.Join(absPath, goFile)
 		data, err := os.ReadFile(file)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file '%s': %w", file, err)
@@ -702,7 +702,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 	}
 
 	// Check if source package is writable, if so, work there, otherwise, copy the entire parent module to a tmp dir
-	tmpTestFile := path.Join(absPath, "test")
+	tmpTestFile := filepath.Join(absPath, "test")
 	err = os.WriteFile(tmpTestFile, nil, os.ModePerm)
 	if err != nil {
 		rootBuildDir1, err := os.MkdirTemp(config.TmpDir, hexHash+"_*")
@@ -723,7 +723,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 			return nil, fmt.Errorf("could not copy package module %s: %w", pkg.Module.Dir, err)
 		}
 
-		buildDir := path.Join(rootBuildDir, strings.TrimPrefix(pkg.Dir, pkg.Module.Dir))
+		buildDir := filepath.Join(rootBuildDir, strings.TrimPrefix(pkg.Dir, pkg.Module.Dir))
 		err = os.MkdirAll(buildDir, 0755)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new tmp directory %s: %w", buildDir, err)
@@ -732,7 +732,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		newFiles := make([]string, 0, len(pkg.GoFiles)+len(pkg.CgoFiles)+1)
 		var parsedFiles []*ParsedFile
 		for _, goFile := range append(pkg.GoFiles, pkg.CgoFiles...) {
-			file := path.Join(absPath, goFile)
+			file := filepath.Join(absPath, goFile)
 			data, err := os.ReadFile(file)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read file '%s': %w", file, err)
@@ -744,7 +744,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 				}
 				parsedFiles = append(parsedFiles, parsed)
 			}
-			newPath := path.Join(buildDir, path.Base(file))
+			newPath := filepath.Join(buildDir, filepath.Base(file))
 			err = os.WriteFile(newPath, data, 0655)
 			if err != nil {
 				return nil, fmt.Errorf("failed to write file '%s': %w", newPath, err)
@@ -752,7 +752,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 			newFiles = append(newFiles, newPath)
 		}
 
-		outputFilePath := path.Join(buildDir, hexHash+".a")
+		outputFilePath := filepath.Join(buildDir, hexHash+".a")
 
 		reflectCode, symbolToTypeFuncName, err := generateReflectCode(parsedFiles)
 		tmpReflectFilePath := strings.TrimSuffix(newFiles[0], ".go") + "___reflect.go"
@@ -820,7 +820,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		var parsedFiles []*ParsedFile
 		allGoFiles := append(pkg.GoFiles, pkg.CgoFiles...)
 		for _, goFile := range allGoFiles {
-			file := path.Join(absPath, goFile)
+			file := filepath.Join(absPath, goFile)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read file '%s': %w", file, err)
 			}
@@ -833,10 +833,10 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 			}
 		}
 
-		outputFilePath := path.Join(rootBuildDir, hexHash+".a")
+		outputFilePath := filepath.Join(rootBuildDir, hexHash+".a")
 
 		reflectCode, symbolToTypeFuncName, err := generateReflectCode(parsedFiles)
-		tmpReflectFilePath := path.Join(absPath, strings.TrimSuffix(allGoFiles[0], ".go")+"___reflect.go")
+		tmpReflectFilePath := filepath.Join(absPath, strings.TrimSuffix(allGoFiles[0], ".go")+"___reflect.go")
 		err = os.WriteFile(tmpReflectFilePath, reflectCode, 0655)
 		if !config.KeepTempFiles {
 			defer os.Remove(tmpReflectFilePath)

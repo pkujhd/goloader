@@ -10,7 +10,9 @@ func TestMmapVmData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(mappings)
+	for _, mapping := range mappings {
+		fmt.Printf("%016x - %016x\n", mapping.StartAddr, mapping.EndAddr)
+	}
 }
 
 func TestMmapManager(t *testing.T) {
