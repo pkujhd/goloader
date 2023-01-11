@@ -157,7 +157,8 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 	}
 
 	globalMutex.Lock()
-	externalSymbols := linker.UnresolvedExternalSymbols(globalSymPtr)
+	externalSymbols := linker.UnresolvedExternalSymbols(globalSymPtr, config.SkipTypeDeduplicationForPackages)
+	externalSymbolsWithoutSkip := linker.UnresolvedExternalSymbols(globalSymPtr, nil)
 	globalMutex.Unlock()
 
 	addCGoSymbols(externalSymbols)
@@ -175,9 +176,9 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 
 	if len(externalSymbols) > 0 {
 		if config.DebugLog {
-			log.Printf("%d unresolved external symbols missing from main binary, will attempt to build dependencies\n", len(externalSymbols))
+			log.Printf("%d unresolved external symbols missing from main binary, will attempt to build dependencies\n", len(externalSymbolsWithoutSkip))
 		}
-		errDeps := buildAndLoadDeps(config, workDir, buildDir, sortedDeps, externalSymbols, seen, &depImportPaths, &depBinaries, 0, linkerOpts)
+		errDeps := buildAndLoadDeps(config, workDir, buildDir, sortedDeps, externalSymbols, externalSymbolsWithoutSkip, seen, &depImportPaths, &depBinaries, 0, linkerOpts)
 		if errDeps != nil {
 			return nil, errDeps
 		}
@@ -202,7 +203,7 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 	return linker, nil
 }
 
-func getMissingDeps(sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, seen map[string]struct{}, debug bool) map[string]struct{} {
+func getMissingDeps(sortedDeps []string, unresolvedSymbols, unresolvedSymbolsWithoutSkip map[string]*obj.Sym, seen map[string]struct{}, debug bool) map[string]struct{} {
 	var missingDeps = map[string]struct{}{}
 	unresolvedSymbolNames := make([]string, 0, len(unresolvedSymbols))
 	for symName := range unresolvedSymbols {
@@ -213,11 +214,15 @@ func getMissingDeps(sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, 
 		for _, dep := range sortedDeps {
 			// Unescape dots in the symName path since the compiler would have escaped them
 			symName = strings.Replace(symName, "%2e", ".", -1)
-			if strings.Contains(symName, dep+".") {
+			if strings.Contains(symName, "."+dep+".") || strings.Contains(symName, "/"+dep+".") || strings.HasPrefix(symName, dep+".") {
 				if _, forbidden := forbiddenSystemPkgs[dep]; !forbidden {
 					if _, haveSeen := seen[dep]; !haveSeen {
 						if _, ok := globalPkgSet[dep]; ok && debug {
-							log.Printf("main binary contains partial package '%s', but not symbol %s\n", dep, symName)
+							if _, ok := unresolvedSymbolsWithoutSkip[symName]; !ok {
+								log.Printf("main binary contains package '%s', but symbol deduplication was skipped so forcing rebuild\n", dep)
+							} else {
+								log.Printf("main binary contains partial package '%s', but not symbol %s\n", dep, symName)
+							}
 						}
 						missingDeps[dep] = struct{}{}
 					}
@@ -257,12 +262,12 @@ func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 	}
 }
 
-func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps []string, unresolvedSymbols map[string]*obj.Sym, seen map[string]struct{}, builtPackageImportPaths, buildPackageFilePaths *[]string, depth int, linkerOpts []goloader.LinkerOptFunc) error {
+func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps []string, unresolvedSymbols, unresolvedSymbolsWithoutSkip map[string]*obj.Sym, seen map[string]struct{}, builtPackageImportPaths, buildPackageFilePaths *[]string, depth int, linkerOpts []goloader.LinkerOptFunc) error {
 	const maxRecursionDepth = 150
 	if depth > maxRecursionDepth {
 		return fmt.Errorf("failed to buildAndLoadDeps: recursion depth %d exceeded maximum of %d", depth, maxRecursionDepth)
 	}
-	missingDeps := getMissingDeps(sortedDeps, unresolvedSymbols, seen, config.DebugLog)
+	missingDeps := getMissingDeps(sortedDeps, unresolvedSymbols, unresolvedSymbolsWithoutSkip, seen, config.DebugLog)
 
 	if len(missingDeps) == 0 {
 		return nil
@@ -340,7 +345,7 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 	}
 
 	globalMutex.Lock()
-	nextUnresolvedSymbols := linker.UnresolvedExternalSymbols(globalSymPtr)
+	nextUnresolvedSymbols := linker.UnresolvedExternalSymbols(globalSymPtr, nil)
 	globalMutex.Unlock()
 
 	addCGoSymbols(nextUnresolvedSymbols)
@@ -359,13 +364,13 @@ func buildAndLoadDeps(config BuildConfig, workDir, buildDir string, sortedDeps [
 		}
 		if config.DebugLog {
 			var missingList []string
-			for k := range getMissingDeps(newSortedDeps, nextUnresolvedSymbols, seen, config.DebugLog) {
+			for k := range getMissingDeps(newSortedDeps, nextUnresolvedSymbols, nextUnresolvedSymbols, seen, config.DebugLog) {
 				missingList = append(missingList, k)
 			}
 			sort.Strings(missingList)
 			log.Printf("Still have %d unresolved symbols after building dependencies. Recursing further to build: [\n  %s\n]\n", len(nextUnresolvedSymbols), strings.Join(missingList, ",\n  "))
 		}
-		return buildAndLoadDeps(config, workDir, buildDir, newSortedDeps, nextUnresolvedSymbols, seen, builtPackageImportPaths, buildPackageFilePaths, depth+1, linkerOpts)
+		return buildAndLoadDeps(config, workDir, buildDir, newSortedDeps, nextUnresolvedSymbols, nextUnresolvedSymbols, seen, builtPackageImportPaths, buildPackageFilePaths, depth+1, linkerOpts)
 	}
 	return nil
 }

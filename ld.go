@@ -506,6 +506,8 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
+				// Mark the symbol as a duplicate
+				symbolMap[FirstModulePrefix+name] = ptr
 			} else {
 				symbolMap[name] = InvalidHandleValue
 				return nil, fmt.Errorf("unresolved external symbol: %s", sym.Name)
@@ -515,6 +517,10 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		} else if sym.Kind == symkind.STEXT {
 			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
+			if _, ok := symPtr[name]; ok {
+				// Mark the symbol as a duplicate
+				symbolMap[FirstModulePrefix+name] = symbolMap[name]
+			}
 		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
@@ -548,7 +554,20 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 						symbolMap[FirstModulePrefix+name] = addr
 					}
 				} else {
-					symbolMap[name] = symPtr[name]
+					shouldSkipDedup := false
+					for _, pkgPath := range linker.options.SkipTypeDeduplicationForPackages {
+						if strings.HasPrefix(name, pkgPath) {
+							shouldSkipDedup = true
+						}
+					}
+					if shouldSkipDedup {
+						// Use the new version of the symbol
+						symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					} else {
+						symbolMap[name] = symPtr[name]
+						// Mark the symbol as a duplicate
+						symbolMap[FirstModulePrefix+name] = symPtr[name]
+					}
 				}
 			}
 		}
@@ -921,12 +940,18 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	return err
 }
 
-func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr) map[string]*obj.Sym {
+func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ignorePackages []string) map[string]*obj.Sym {
 	symMap := make(map[string]*obj.Sym)
 	for symName, sym := range linker.symMap {
-		if sym.Offset == InvalidOffset {
-			if _, ok := symbolMap[symName]; !ok {
-				if _, ok := linker.objsymbolMap[symName]; !ok {
+		shouldSkipDedup := false
+		for _, pkgPath := range ignorePackages {
+			if strings.HasPrefix(symName, pkgPath) {
+				shouldSkipDedup = true
+			}
+		}
+		if sym.Offset == InvalidOffset || shouldSkipDedup {
+			if _, ok := symbolMap[symName]; !ok || shouldSkipDedup {
+				if _, ok := linker.objsymbolMap[symName]; !ok || shouldSkipDedup {
 					symMap[symName] = sym
 				}
 			}
