@@ -51,6 +51,7 @@ type ConvertibleWithInterface struct {
 	theInterface                      io.ReadSeeker
 	theEmptyInterfaceWithExternalType interface{}
 	theEmptyInterfaceWithCustomType   interface{}
+	theEmptyInferfaceWithComplexValue interface{}
 	chanOfExternalType                chan int
 	chanOfCustomType                  chan *exclHereImpl
 	arrayOfExternalType               [77]int
@@ -88,11 +89,24 @@ func NewThingWithInterface() common.SomeInterface {
 		theInterface:                      bytes.NewReader([]byte{1, 2, 3}),
 		theEmptyInterfaceWithExternalType: int64(5),
 		theEmptyInterfaceWithCustomType:   &exclHereImpl{},
-		anotherInterfaceOnlyHere:          &exclHereImpl{counter: 0},
-		mapValuesExternalType:             map[interface{}]string{},
-		mapValuesCustomType:               map[string]*exclHereImpl{},
-		mapKeyedByCustomType:              map[*exclHereImpl]interface{}{},
-		mapKeyedByExternalType:            map[string]interface{}{},
+		theEmptyInferfaceWithComplexValue: map[string]interface{}{
+			"a": true,
+			"b": []interface{}{
+				map[string]interface{}{
+					"a": "b",
+					"c": 2,
+				},
+				map[string]interface{}{
+					"d": "e",
+					"f": 3,
+				},
+			},
+		},
+		anotherInterfaceOnlyHere: &exclHereImpl{counter: 0},
+		mapValuesExternalType:    map[interface{}]string{},
+		mapValuesCustomType:      map[string]*exclHereImpl{},
+		mapKeyedByCustomType:     map[*exclHereImpl]interface{}{},
+		mapKeyedByExternalType:   map[string]interface{}{},
 	}
 }
 
@@ -181,6 +195,7 @@ func (c *ConvertibleWithInterface) Method1(input common.SomeStruct) (common.Some
 		panic(err)
 	}
 	input.Val2["current"] = c.someInt
+	input.Val2["complex"] = c.theEmptyInferfaceWithComplexValue
 	input.Val2["exclusive_interface_counter"] = c.anotherInterfaceOnlyHere.ExclusivelyHere()
 	input.Val2["bytes_reader_output"] = bytesContent
 	return input, nil

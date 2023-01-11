@@ -294,14 +294,22 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 							*funcPtrContainer = funcContainer
 							manipulation.ptr = unsafe.Pointer(funcPtrContainer)
 							manipulation.typ = toType(newType)
+							doSet := true
 							if !oldValue.CanSet() {
 								if oldValue.CanAddr() {
 									oldValue = Value{NewAt(newType, unsafe.Pointer(oldValue.UnsafeAddr())).Elem()}
 								} else {
-									panic(fmt.Sprintf("can't set old func of type %s with new value 0x%x (can't address or indirect)", oldValue.Type(), entry))
+									if oldValueBeforeElem != nil && oldValueBeforeElem.Kind() == Interface {
+										doSet = false
+										oldValueBeforeElem.Set(newValue.Value)
+									} else {
+										panic(fmt.Sprintf("can't set old func of type %s with new value 0x%x (can't address or indirect)", oldValue.Type(), entry))
+									}
 								}
 							}
-							oldValue.Set(newValue.Value)
+							if doSet {
+								oldValue.Set(newValue.Value)
+							}
 							found = true
 							break
 						}
@@ -360,14 +368,22 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 				cvt(oldModule, newModule, nk, newType.Key(), &oldValue, cycleDetector, typeHash)
 				newMap.SetMapIndex(nk.Value, nv.Value)
 			}
+			doSet := true
 			if !oldValue.CanSet() {
 				if oldValue.CanAddr() {
 					oldValue = Value{NewAt(oldValue.Type(), unsafe.Pointer(oldValue.UnsafeAddr())).Elem()}
 				} else {
-					panic(fmt.Sprintf("can't set old map of type %s with new value (can't address or indirect)", oldValue.Type()))
+					if oldValueBeforeElem != nil && oldValueBeforeElem.Kind() == Interface {
+						doSet = false
+						oldValueBeforeElem.Set(newMap)
+					} else {
+						panic(fmt.Sprintf("can't set old map of type %s with new value (can't address or indirect)", oldValue.Type()))
+					}
 				}
 			}
-			oldValue.Set(newMap)
+			if doSet {
+				oldValue.Set(newMap)
+			}
 		}
 	case Ptr:
 		if !oldValue.IsNil() {

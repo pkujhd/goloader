@@ -576,10 +576,7 @@ func (f flag) mustBeAssignableSlow() {
 	if f == 0 {
 		panic(&ValueError{valueMethodName(), Invalid})
 	}
-	// Assignable if addressable and not read-only.
-	if f&flagRO != 0 {
-		panic("reflect: " + valueMethodName() + " using value obtained using unexported field")
-	}
+	// Assignable if addressable.
 	if f&flagAddr == 0 {
 		panic("reflect: " + valueMethodName() + " using unaddressable value")
 	}
@@ -598,7 +595,7 @@ func directlyAssignable(T, V *rtype, seen map[_typePair]struct{}) bool {
 
 	// Otherwise at least one of T and V must not be defined
 	// and they must have the same kind.
-	if T.hasName() && V.hasName() || T.Kind() != V.Kind() {
+	if T.Kind() != V.Kind() {
 		return false
 	}
 
@@ -607,7 +604,7 @@ func directlyAssignable(T, V *rtype, seen map[_typePair]struct{}) bool {
 	}
 
 	// x's type T and V must have identical underlying types.
-	return haveIdenticalUnderlyingType(T, V, true, false, seen)
+	return haveIdenticalUnderlyingType(T, V, false, false, seen)
 }
 
 // assignTo returns a value v that can be assigned directly to dst.

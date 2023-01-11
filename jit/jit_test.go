@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -1067,11 +1068,13 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			ifaceCounter1 := ifaceOut1.Val2["exclusive_interface_counter"].(string)
 			byteReader1 := ifaceOut1.Val2["bytes_reader_output"].([]byte)
 			ifaceCurrent1 := ifaceOut1.Val2["current"].(int64)
+			ifaceCurrentComplex1 := ifaceOut1.Val2["complex"].(map[string]interface{})
 
 			ifaceOut12, _ := thingIface1.Method1(common.SomeStruct{Val1: []byte{4, 5, 6}, Val2: map[string]interface{}{}})
 			ifaceCounter12 := ifaceOut12.Val2["exclusive_interface_counter"].(string)
 			byteReader12 := ifaceOut12.Val2["bytes_reader_output"].([]byte)
 			ifaceCurrent12 := ifaceOut12.Val2["current"].(int64)
+			ifaceCurrentComplex12 := ifaceOut12.Val2["complex"].(map[string]interface{})
 			_ = thingIface1.Method2(nil)
 
 			newThingIface2, err := goloader.ConvertTypesAcrossModules(module1, module2, thingIface1, thingIface2)
@@ -1117,6 +1120,9 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			}
 			if !bytes.Equal(byteReader12, []byte{4, 5, 6}) {
 				t.Fatalf("expected byteReader2 to be []byte{4,5,6}, got %v", byteReader2)
+			}
+			if !reflect.DeepEqual(ifaceCurrentComplex1, ifaceCurrentComplex12) {
+				t.Fatalf("expected ifaceCurrentComplex12 to be %v, got %v", ifaceCurrentComplex1, ifaceCurrentComplex12)
 			}
 			out2, _ := thing2.Method1(common.SomeStruct{Val1: nil, Val2: map[string]interface{}{}})
 			converted2 := out2.Val2["current"].(int64)

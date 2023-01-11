@@ -223,10 +223,7 @@ func (f flag) mustBeAssignableSlow() {
 	if f == 0 {
 		panic(&ValueError{methodNameSkip(), Invalid})
 	}
-	// Assignable if addressable and not read-only.
-	if f&flagRO != 0 {
-		panic("reflect: " + methodNameSkip() + " using value obtained using unexported field")
-	}
+	// Assignable if addressable.
 	if f&flagAddr == 0 {
 		panic("reflect: " + methodNameSkip() + " using unaddressable value")
 	}
