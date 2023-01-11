@@ -30,6 +30,9 @@ func Copy(src, dest string, skipPattern []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to follow symlink during Copy(): %w", err)
 		}
+		if !filepath.IsAbs(linkSrc) {
+			linkSrc = filepath.Join(filepath.Dir(src), linkSrc)
+		}
 		err = Copy(linkSrc, dest, skipPattern)
 	} else {
 		err = copyFile(src, dest)
