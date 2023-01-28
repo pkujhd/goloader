@@ -179,6 +179,9 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 					iface.itab = newItab
 				}
 			}
+		} else {
+			eface := (*emptyInterface)(((*fakeValue)(unsafe.Pointer(&oldValue))).ptr)
+			eface._type = newTypeInner
 		}
 
 		innerValKind := innerVal.Kind()
