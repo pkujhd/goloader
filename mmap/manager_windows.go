@@ -1,99 +1,66 @@
 package mmap
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/pkujhd/goloader/mmap/mapping"
-	"os"
 	"sort"
 	"syscall"
 	"unsafe"
 )
 
-const (
-	TH32CS_SNAPMODULE32 = 0x00000010
-	TH32CS_SNAPMODULE   = 0x00000008
-	TH32CS_SNAPTHREAD   = 0x00000004
-	TH32CS_SNAPHEAPLIST = 0x00000001
-)
-
-func getIntPtr() *int {
-	var x int
-	x = 5
-	return &x
+func init() {
+	pageSize = uintptr(GetAllocationGranularity())
 }
 
+const (
+	MEM_COMMIT  = 0x1000
+	MEM_FREE    = 0x10000
+	MEM_RESERVE = 0x2000
+)
+
+const (
+	MEM_IMAGE   = 0x1000000
+	MEM_MAPPED  = 0x40000
+	MEM_PRIVATE = 0x20000
+)
+
 func getCurrentProcMaps() ([]mapping.Mapping, error) {
-	// TODO - this function currently only fetches executable code addresses and native heaps. Still need to:
-	//  Fetch all OS threads from the snapshot, SuspendThread run GetThreadContext and get their stack addresses
-	//  Find out how sysinternals VMMap retrieves a list of all VirtualAlloc blocks...
-	//  Find a way to get the mapping addresses of all mapped files - again, sysinternals VMMap seems to manage it
-
-	// TODO - could also populate more stuff using VirtualQueryEx (e.g. permissions etc into mappings), for now only addresses are populated
-
 	var mappings []mapping.Mapping
 
-	hSnapshot, err := CreateToolhelp32Snapshot(TH32CS_SNAPMODULE|TH32CS_SNAPMODULE32|TH32CS_SNAPTHREAD|TH32CS_SNAPHEAPLIST, uint32(os.Getpid()))
+	pHandle, err := syscall.GetCurrentProcess()
 	if err != nil {
-		return nil, fmt.Errorf("failed to CreateToolhelp32Snapshot: %w", err)
+		return nil, fmt.Errorf("failed to GetCurrentProcess: %w", err)
 	}
-	m := ModuleEntry32{}
-	ok, err := Module32First(hSnapshot, &m)
-	if err != nil {
-		return nil, fmt.Errorf("failed to Module32First: %w", err)
-	}
-	var modules = []ModuleEntry32{m}
+	info := new(MemoryBasicInformation)
 
-	if ok {
-		for err == nil && ok {
-			m = ModuleEntry32{}
-			ok, err = Module32Next(hSnapshot, &m)
-			if ok {
-				modules = append(modules, m)
-			}
+	addr := uintptr(0)
+	infoSize := unsafe.Sizeof(*info)
+	for {
+		infoSize, err = VirtualQueryEx(pHandle, addr, info)
+		if err != nil {
+			return nil, fmt.Errorf("failed to VirtualQueryEx: %w", err)
 		}
-	}
+		if infoSize != unsafe.Sizeof(*info) {
+			break
+		}
 
-	for _, m := range modules {
-		path := string(m.szExePath[:bytes.IndexByte(m.szExePath[:], 0)])
-		mappings = append(mappings, mapping.Mapping{
-			StartAddr: uintptr(m.modBaseAddr),
-			EndAddr:   uintptr(m.modBaseAddr + uint64(m.modBaseSize)),
-			PathName:  path,
-		})
+		if info.State != MEM_FREE {
+			mappings = append(mappings, mapping.Mapping{
+				StartAddr:   addr,
+				EndAddr:     addr + info.RegionSize,
+				ReadPerm:    info.AllocationProtect&syscall.PAGE_EXECUTE_READWRITE != 0 || info.AllocationProtect&syscall.PAGE_EXECUTE_READ != 0 || info.AllocationProtect&syscall.PAGE_READWRITE != 0 || info.AllocationProtect&syscall.PAGE_READONLY != 0,
+				WritePerm:   info.AllocationProtect&syscall.PAGE_EXECUTE_READWRITE != 0 || info.AllocationProtect&syscall.PAGE_EXECUTE_WRITECOPY != 0 || info.AllocationProtect&syscall.PAGE_READWRITE != 0 || info.AllocationProtect&syscall.PAGE_WRITECOPY != 0,
+				ExecutePerm: info.AllocationProtect&syscall.PAGE_EXECUTE_READWRITE != 0 || info.AllocationProtect&syscall.PAGE_EXECUTE_READ != 0 || info.AllocationProtect&syscall.PAGE_EXECUTE_WRITECOPY != 0,
+				PrivatePerm: info.State&MEM_PRIVATE != 0,
+			})
+		}
+		addr += info.RegionSize
 	}
-	buf, err := RtlCreateQueryDebugBuffer()
-	if err != nil {
-		return nil, fmt.Errorf("failed to RtlCreateQueryDebugBuffer: %w", err)
-	}
-
-	err = RtlQueryProcessDebugInformation(buf)
-	if err != nil {
-		return nil, fmt.Errorf("failed to RtlQueryProcessDebugInformation: %w", err)
-	}
-
-	var heapNodeCount int
-	if buf.HeapInformation != nil {
-		heapNodeCount = int(*buf.HeapInformation)
-	}
-
-	heapInfos := (*(*[1 << 31]DebugHeapInfo)(unsafe.Pointer(uintptr(unsafe.Pointer(buf.HeapInformation)) + 8)))[:heapNodeCount:heapNodeCount]
-	for i := range heapInfos {
-		mappings = append(mappings, mapping.Mapping{
-			StartAddr: heapInfos[i].Base,
-			EndAddr:   heapInfos[i].Base + heapInfos[i].Committed,
-		})
-	}
-	err = RtlDestroyQueryDebugBuffer(buf)
-	if err != nil {
-		return nil, fmt.Errorf("failed to RtlDestroyQueryDebugBuffer: %w", err)
-	}
-
 	sort.Slice(mappings, func(i, j int) bool {
 		return mappings[i].StartAddr < mappings[j].StartAddr
 	})
 
-	err = syscall.CloseHandle(hSnapshot)
+	err = syscall.CloseHandle(pHandle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to CloseHandle: %w", err)
 	}

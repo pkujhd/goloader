@@ -10,7 +10,7 @@ import (
 	"unsafe"
 )
 
-var pageSize = uintptr(syscall.Getpagesize())
+var pageSize = uintptr(syscall.Getpagesize()) // Overridden for windows to use GetAllocationGranularity()
 
 func roundPageUp(p uintptr) uintptr {
 	return (p & ^(pageSize - 1)) + pageSize
@@ -33,12 +33,12 @@ func findNextFreeAddressesAfterTarget(targetAddr uintptr, size int, mappings []m
 	var allGaps []gap
 	for i, mapping := range mappings[:len(mappings)-1] {
 		allGaps = append(allGaps, gap{
-			startAddr: mapping.EndAddr,
+			startAddr: roundPageUp(mapping.EndAddr),
 			endAddr:   roundPageDown(mappings[i+1].StartAddr),
 		})
 	}
 	allGaps = append(allGaps, gap{
-		startAddr: mappings[len(mappings)-1].EndAddr,
+		startAddr: roundPageUp(mappings[len(mappings)-1].EndAddr),
 		endAddr:   math.MaxUint64, // We really shouldn't be in this situation...
 	})
 	var suitableGaps []gap
