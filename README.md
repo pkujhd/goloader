@@ -1,9 +1,11 @@
 
-# Goloader
+# Goloader/JIT
 
 ![Build Status](https://github.com/pkujhd/goloader/workflows/goloader%20Testing/badge.svg)
 
 Goloader can load and run Golang code at runtime.
+
+The `goloader/jit` package can compile and load Go code from text, file or folder (including code with package imports).
 
 Forked from **https://github.com/dearplain/goloader**, Take over maintenance because the original author is not in maintenance
 
@@ -21,13 +23,69 @@ Goloader reuses the Go runtime, which makes it much smaller. And code loaded by 
 
 Goloader supports pprof tool(Yes, you can see code loaded by Goloader in pprof).
 
+## OS/Arch Compatibility
+JIT compiler tested/passing on:
+
+| **OS/Arch** | amd64/+CGo         | arm64/+CGo          | amd64/-CGo         | arm64/-CGo         |
+|-------------|--------------------|---------------------|--------------------|--------------------|
+| Linux       | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: |
+| Darwin      | :heavy_check_mark: | :heavy_check_mark:  | partial            | :x:                |
+| Windows     | :x:                | :interrobang:       | :x:                | :interrobang:      |
+
 ## Build
 
-**Make sure you're using go >= 1.8.**
+**Make sure you're using go >= 1.18.**
 
 First, execute the following command, then do build and test. This is because Goloader relies on the internal package, which is forbidden by the Go compiler.
 ```
 cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
+```
+
+## JIT compiler 
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/pkujhd/goloader/jit"
+)
+
+func main() {
+	conf := jit.BuildConfig{
+		DebugLog:    false,
+		HeapStrings: true,
+	}
+	loadable, err := jit.BuildGoText(conf, `
+package mypackage
+
+import "encoding/json"
+
+func MyFunc(input []byte) (interface{}, error) {
+	var output interface{}
+	err := json.Unmarshal(input, &output)
+	return output, err
+}
+`)
+
+	if err != nil {
+		panic(err)
+	}
+	m, funcs, err := loadable.Load()
+	if err != nil {
+		panic(err)
+	}
+	defer m.Unload()
+
+	f := funcs["MyFunc"].(func(input []byte) (interface{}, error))
+	result, err := f([]byte(`{"test": "value"}`))
+	if err != nil {
+		panic(err)
+	}
+	
+	fmt.Println("Parsed:", result)
+}
+
 ```
 
 ## Examples

@@ -89,25 +89,26 @@ func modulesinit()
 //go:linkname progToPointerMask runtime.progToPointerMask
 func progToPointerMask(prog *byte, size uintptr) bitvector
 
-func addModule(codeModule *CodeModule) {
-	modules[codeModule.module] = true
+func addModule(cm *CodeModule) {
+	modules[cm] = true
 	for datap := &firstmoduledata; ; {
 		if datap.next == nil {
-			datap.next = codeModule.module
+			datap.next = cm.module
 			break
 		}
 		datap = datap.next
 	}
 }
-func removeModule(module interface{}) {
+
+func removeModule(cm *CodeModule) {
 	prevp := &firstmoduledata
 	for datap := &firstmoduledata; datap != nil; {
-		if datap == module {
+		if datap == cm.module {
 			prevp.next = datap.next
 			break
 		}
 		prevp = datap
 		datap = datap.next
 	}
-	delete(modules, module)
+	delete(modules, cm)
 }

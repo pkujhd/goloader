@@ -7,6 +7,9 @@ import (
 	"unsafe"
 )
 
+//go:linkname activeModules runtime.activeModules
+func activeModules() []*moduledata
+
 // pcHeader holds data used by the pclntab lookups.
 type pcHeader struct {
 	magic          uint32  // 0xFFFFFFF0
@@ -65,7 +68,7 @@ type moduledata struct {
 
 	gcdatamask, gcbssmask bitvector
 
-	typemap map[typeOff]uintptr // offset to *_rtype in previous module
+	typemap map[typeOff]*_type // offset to *_rtype in previous module
 
 	bad bool // module failed to load and should be ignored
 
@@ -77,10 +80,10 @@ func initmodule(module *moduledata, linker *Linker) {
 	module.pcHeader.textStart = module.text
 	module.pcHeader.nfunc = len(module.ftab)
 	module.pcHeader.nfiles = (uint)(len(module.filetab))
-	module.funcnametab = module.pclntable
-	module.pctab = module.pclntable
-	module.cutab = linker.filetab
-	module.filetab = module.pclntable
+	module.funcnametab = linker.funcnametab
+	module.pctab = linker.pctab
+	module.cutab = linker.cutab
+	module.filetab = linker.filetab
 	module.hasmain = 0
 	module.bad = false
 	module.gofunc = module.noptrdata

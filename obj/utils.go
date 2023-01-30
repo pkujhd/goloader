@@ -1,13 +1,13 @@
 package obj
 
-func findFileTab(filename string, namemap map[string]int, filetab []uint32) int32 {
+func findFileTab(filename string, namemap map[string]int, filetab []uint32) uint32 {
 	tab := namemap[filename]
 	for index, value := range filetab {
 		if uint32(tab) == value {
-			return int32(index)
+			return uint32(index)
 		}
 	}
-	return -1
+	return 1<<32 - 1
 }
 
 func grow(bytes *[]byte, size int) {

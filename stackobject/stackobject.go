@@ -48,8 +48,7 @@ func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[s
 			if ptr, ok := symbolMap[name]; ok {
 				setStackObjectPtr(&((*objects)[i]), adduintptr(ptr, 0), noptrdata)
 			} else {
-				return fmt.Errorf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name)
-
+				return fmt.Errorf("unresolved external var! Function name: %s index: %d, name:%s", funcname, i, name)
 			}
 		}
 	}
