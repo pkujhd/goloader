@@ -20,7 +20,6 @@ const (
 const (
 	EmptyString    = ""
 	DefaultPkgPath = "main"
-	EmptyPkgPath   = `""`
 	ZeroByte       = byte(0x00)
 )
 
@@ -37,12 +36,7 @@ const (
 const (
 	FileSymPrefix              = "gofile.."
 	MainPkgPrefix              = "main."
-	TypeImportPathPrefix       = "type..importpath."
-	TypeDoubleDotPrefix        = "type.."
-	TypePrefix                 = "type."
-	ItabPrefix                 = "go.itab."
 	OsStdout                   = "os.Stdout"
-	TypeStringPrefix           = "go.string."
 	FirstModulePrefix          = "firstmodule."
 	DefaultStringContainerSize = 1024 * 1024 * 16
 )

@@ -138,7 +138,7 @@ loop:
 
 func funcPkgPath(funcName string) string {
 	// Anonymous struct methods can't have a package
-	if strings.HasPrefix(funcName, "go.struct {") || strings.HasPrefix(funcName, "go.(*struct {") {
+	if strings.HasPrefix(funcName, "go"+ObjSymbolSeparator+"struct {") || strings.HasPrefix(funcName, "go"+ObjSymbolSeparator+"(*struct {") {
 		return ""
 	}
 	lastSlash := strings.LastIndexByte(funcName, '/')
@@ -156,7 +156,7 @@ func funcPkgPath(funcName string) string {
 	for ; dot < len(funcName) && funcName[dot] != '.' && funcName[dot] != '('; dot++ {
 	}
 	pkgPath := funcName[:dot]
-	return strings.TrimPrefix(strings.TrimPrefix(pkgPath, "type..eq."), "[...]")
+	return strings.TrimPrefix(strings.TrimPrefix(pkgPath, TypePrefix+".eq."), "[...]")
 }
 
 func (t *_type) PkgPath() string {

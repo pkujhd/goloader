@@ -19,20 +19,21 @@ type Pkg struct {
 }
 
 type FuncInfo struct {
-	Args     uint32
-	Locals   uint32
-	FuncID   uint8
-	FuncFlag uint8
-	PCSP     []byte
-	PCFile   []byte
-	PCLine   []byte
-	PCInline []byte
-	PCData   [][]byte
-	File     []string
-	FuncData []string
-	InlTree  []InlTreeNode
-	ABI      uint16
-	CUOffset int
+	Args      uint32
+	Locals    uint32
+	FuncID    uint8
+	FuncFlag  uint8
+	StartLine int32
+	PCSP      []byte
+	PCFile    []byte
+	PCLine    []byte
+	PCInline  []byte
+	PCData    [][]byte
+	File      []string
+	FuncData  []string
+	InlTree   []InlTreeNode
+	ABI       uint16
+	CUOffset  int
 }
 
 type ObjSymbol struct {

@@ -28,7 +28,7 @@ var stringContainerSize = 0 // 512 * 1024
 var randomSymbolOrder = false
 var buildEnv = []string{}
 
-//var goBinary = "/mnt/rpool/go_versions/go1.18.8.linux-amd64/go/bin/go"
+// var goBinary = "/mnt/rpool/go_versions/go1.18.8.linux-amd64/go/bin/go"
 
 var goBinary = ""
 
@@ -474,6 +474,10 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// crypto/tls package caches server certificates in a sync.Map (tls.clientCertCache), and each JIT package would store a different
+			// type of cache entry in the cache, causing a panic during type assertion, so GC twice to empty the cache before making the second request
+			runtime.GC()
+			runtime.GC()
 			result2, err := httpGet2("https://ipinfo.io/ip")
 			if err != nil {
 				t.Fatal(err)

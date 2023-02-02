@@ -4,6 +4,8 @@ import (
 	"cmd/objfile/sys"
 	"encoding/binary"
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"unsafe"
 
@@ -77,9 +79,10 @@ func append2Slice(dst *[]byte, src uintptr, size int) {
 	*dst = append(*dst, *(*[]byte)(unsafe.Pointer(&s))...)
 }
 
+// see runtime.internal.atomic.Loadp
+//
 //go:nosplit
 //go:noinline
-//see runtime.internal.atomic.Loadp
 func loadp(ptr unsafe.Pointer) unsafe.Pointer {
 	return *(*unsafe.Pointer)(ptr)
 }
@@ -116,7 +119,7 @@ func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
 	mmap.MakeThreadJITCodeExecutable(ptr, len)
 }
 
-//see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
+// see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
 func ispreprocesssymbol(name string) bool {
 	if len(name) > 5 {
 		switch name[:5] {
@@ -146,4 +149,12 @@ func preprocesssymbol(byteOrder binary.ByteOrder, name string, bytes []byte) err
 		return fmt.Errorf("unrecognized $-symbol: %s", name)
 	}
 	return nil
+}
+
+func expandGoroot(s string) string {
+	const n = len("$GOROOT")
+	if len(s) >= n+1 && s[:n] == "$GOROOT" && (s[n] == '/' || s[n] == '\\') {
+		return filepath.ToSlash(filepath.Join(runtime.GOROOT(), s[n:]))
+	}
+	return s
 }

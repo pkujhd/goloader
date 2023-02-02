@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"reflect"
 	"sync"
 	"unsafe"
@@ -89,6 +90,9 @@ var test_z64, test_x64 uint64
 //go:linkname complex128div runtime.complex128div
 func complex128div(n complex128, m complex128) complex128
 
+//go:linkname uncommon reflect.(*rtype).uncommon
+func uncommon(t *rtype) uintptr
+
 func testAtomic64() {
 	test_z64 = 42
 	test_x64 = 0
@@ -145,6 +149,7 @@ func check() {
 	// To bake in all of sync.Cond's methods referencing functions defined in runtime since runtime is a forbidden package
 	var _ = reflect.ValueOf(sync.Cond{})
 	var _ = reflect.DeepEqual(1, 2)
+	var _ = reflect.TypeOf(reflect.ValueOf(uncommon))
 	// reflect.Call disables most of linker's deadcode analysis $GOROOT/src/cmd/link/internal/ld/deadcode.go
 	var _ = reflect.MakeFunc(reflect.TypeOf(func() {}), func(args []reflect.Value) (results []reflect.Value) {
 		return nil
@@ -164,8 +169,13 @@ func check() {
 		Stru  []*struct {
 			I int
 		}
-		Msi map[string]int
+		Msi  map[string]int
+		c128 []complex128
+		c64  []complex64
+		u    []uint
 	}
 	f := forcedJson{}
 	_, _ = json.Marshal(&f)
+
+	_ = rand.Float64() // to prevent the internal/godebug Setting cache (a sync.Map) from storing "randautoseed" from dynamic memory
 }

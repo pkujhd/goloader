@@ -68,11 +68,12 @@ func main() {
 
 	// most of time you don't need to register function, but if loader complain about it, you have to.
 	w := sync.WaitGroup{}
+	str := make([]string, 0)
 	goloader.RegTypes(symPtr, http.ListenAndServe, http.Dir("/"),
 		http.Handler(http.FileServer(http.Dir("/"))), http.FileServer, http.HandleFunc,
 		&http.Request{}, &http.Server{})
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
-	goloader.RegTypes(symPtr, fmt.Sprint)
+	goloader.RegTypes(symPtr, fmt.Sprint, str)
 
 	var linkerOpts []goloader.LinkerOptFunc
 	if *enableStringContainer == 1 {

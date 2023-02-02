@@ -37,7 +37,6 @@ func init() {
 // Forbidden packages should never be rebuilt as dependencies, a lot of the runtime
 // assembly code expects there to be only 1 instance of certain runtime symbols
 var forbiddenSystemPkgs = map[string]struct{}{
-	"crypto/subtle":           {}, // All inlined
 	"runtime":                 {}, // Not a good idea
 	"runtime/internal/atomic": {}, // Not a good idea
 	"runtime/internal":        {}, // Not a good idea
@@ -214,7 +213,7 @@ func getMissingDeps(sortedDeps []string, unresolvedSymbols, unresolvedSymbolsWit
 		for _, dep := range sortedDeps {
 			// Unescape dots in the symName path since the compiler would have escaped them
 			symName = strings.Replace(symName, "%2e", ".", -1)
-			if strings.Contains(symName, "."+dep+".") || strings.Contains(symName, "/"+dep+".") || strings.HasPrefix(symName, dep+".") {
+			if strings.Contains(symName, goloader.ObjSymbolSeparator+dep+".") || strings.Contains(symName, "/"+dep+".") || strings.HasPrefix(symName, dep+".") {
 				if _, forbidden := forbiddenSystemPkgs[dep]; !forbidden {
 					if _, haveSeen := seen[dep]; !haveSeen {
 						if _, ok := globalPkgSet[dep]; ok && debug {

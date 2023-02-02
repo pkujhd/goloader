@@ -130,7 +130,7 @@ func (linker *Linker) Opts(linkerOpts ...LinkerOptFunc) {
 }
 
 func (linker *Linker) addSymbols(symbolNames []string) error {
-	//static_tmp is 0, golang compile not allocate memory.
+	// static_tmp is 0, golang compile not allocate memory.
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
 
 	for _, cuFileSet := range linker.cuFiles {
@@ -138,7 +138,7 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 			if offset, ok := linker.fileNameMap[fileName]; !ok {
 				linker.cutab = append(linker.cutab, (uint32)(len(linker.filetab)))
 				linker.fileNameMap[fileName] = len(linker.filetab)
-				fileName = strings.TrimPrefix(fileName, FileSymPrefix)
+				fileName = expandGoroot(strings.TrimPrefix(fileName, FileSymPrefix))
 				linker.filetab = append(linker.filetab, []byte(fileName)...)
 				linker.filetab = append(linker.filetab, ZeroByte)
 			} else {
@@ -187,7 +187,7 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
 			if (linker.options.HeapStrings || linker.options.StringContainerSize > 0) && strings.HasPrefix(sym.Name, TypeStringPrefix) {
-				//nothing todo
+				// nothing todo
 			} else {
 				offset += len(linker.data)
 			}
@@ -306,8 +306,8 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			bytearrayAlign(&linker.data, PtrSize)
 		}
 	case symkind.SNOPTRDATA, symkind.SRODATA:
-		//because golang string assignment is pointer assignment, so store go.string constants
-		//in a separate segment and not unload when module unload.
+		// because golang string assignment is pointer assignment, so store go.string constants
+		// in a separate segment and not unload when module unload.
 		if linker.options.HeapStrings && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
 			data := make([]byte, len(objsym.Data))
 			copy(data, objsym.Data)
@@ -353,8 +353,8 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				return nil, err
 			}
 			if len(linker.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
-				//static_tmp is 0, golang compile not allocate memory.
-				//goloader add IntSize bytes on linker.noptrdata[0]
+				// static_tmp is 0, golang compile not allocate memory.
+				// goloader add IntSize bytes on linker.noptrdata[0]
 				if reloc.Size <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
@@ -377,8 +377,8 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
 					reloc.Sym.Kind = symkind.SNOPTRDATA
 					reloc.Sym.Offset = len(linker.noptrdata)
-					//name memory layout
-					//name { tagLen(byte), len(uint16), str*}
+					// name memory layout
+					// name { tagLen(byte), len(uint16), str*}
 					nameLen := []byte{0, 0, 0}
 					binary.BigEndian.PutUint16(nameLen[1:], uint16(len(path)))
 					linker.noptrdata = append(linker.noptrdata, nameLen...)
@@ -407,8 +407,8 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				}
 			}
 			if !exist {
-				//golang1.8, some function generates more than one (MOVQ (TLS), CX)
-				//so when same name symbol in linker.symMap, do not update it
+				// golang1.8, some function generates more than one (MOVQ (TLS), CX)
+				// so when same name symbol in linker.symMap, do not update it
 				if reloc.Sym.Name != "" {
 					linker.symMap[reloc.Sym.Name] = reloc.Sym
 				}
@@ -479,7 +479,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 					return err
 				}
 			} else if len(name) == 0 {
-				//nothing todo
+				// nothing todo
 			} else {
 				return errors.New("unknown gcobj:" + name)
 			}
@@ -513,7 +513,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				return nil, fmt.Errorf("unresolved external symbol: %s", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
-			//nothing todo
+			// nothing todo
 		} else if sym.Kind == symkind.STEXT {
 			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
@@ -770,7 +770,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	}
 	module.ftab = append(module.ftab, initfunctab(module.maxpc, uintptr(len(module.pclntable)), module.text))
 
-	//see:^src/cmd/link/internal/ld/pcln.go findfunctab
+	// see:^src/cmd/link/internal/ld/pcln.go findfunctab
 	funcbucket := []findfuncbucket{}
 	for k, _func := range linker._func {
 		funcname := gostringnocopy(&linker.funcnametab[_func.nameoff])

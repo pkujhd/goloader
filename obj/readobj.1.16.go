@@ -1,5 +1,5 @@
-//go:build go1.16 && !go1.20
-// +build go1.16,!go1.20
+//go:build go1.16 && !go1.21
+// +build go1.16,!go1.21
 
 package obj
 
@@ -9,7 +9,6 @@ import (
 	"cmd/objfile/goobj"
 	"cmd/objfile/obj"
 	"cmd/objfile/objabi"
-	"cmd/objfile/objfile"
 	"compress/zlib"
 	"debug/elf"
 	"debug/macho"
@@ -28,11 +27,10 @@ func (pkg *Pkg) Symbols() error {
 		return err
 	}
 
-	objfile.Open("")
 	for _, e := range a.Entries {
 		switch e.Type {
 		case archive.EntryPkgDef:
-			//nothing todo
+			// nothing todo
 		case archive.EntryGoObj:
 			b := make([]byte, e.Obj.Size)
 			_, err := pkg.F.ReadAt(b, e.Obj.Offset)
@@ -146,9 +144,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
 		return
 	}
-	if objabi.SymKind(symbol.Kind) == objabi.Sxxx || symbol.Name == EmptyString {
-		return
-	}
+
 	if objabi.SymKind(symbol.Kind) == objabi.SNOPTRBSS && strings.HasPrefix(symbol.Name, "_cgo_") && symbol.Size == 1 {
 		// This is a dummy symbol representing a byte whose address is taken to act as the function pointer to a CGo text address via the //go:linkname pragma
 		// We handle this separately at the end of convertMachoRelocs() by adding the actual target address as text under this symbol name.
