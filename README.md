@@ -32,6 +32,13 @@ cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
 
 ## Examples
 
+If use go module or go version >= 1.20
+```
+export GO111MODULE=on
+go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
+go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
+```
+If use go path and go version < 1.20
 ```
 export GO111MODULE=auto
 go build github.com/pkujhd/goloader/examples/loader
@@ -54,22 +61,16 @@ go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go
 ./loader -o test.o -run main.main
 ```
 
-```
-export GO111MODULE=on
-go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
-go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
-```
-
 ## Warning
 
 Don't use "-s -w" compile argument, It strips symbol table.
 
 This has currently only been tested and developed on:
 
-Golang 1.8-1.19 (x64/x86, darwin, linux, windows)
+Golang 1.8-1.20 (x64/x86, darwin, linux, windows)
 
-Golang 1.10-1.19 (arm, linux, android)
+Golang 1.10-1.20 (arm, linux, android)
 
-Golang 1.8-1.19 (arm64, linux, android)
+Golang 1.8-1.20 (arm64, linux, android)
 
-Golang 1.16-1.19 (arm64, darwin)
+Golang 1.16-1.20 (arm64, darwin)
