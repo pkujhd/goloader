@@ -16,6 +16,7 @@ type FuncInfo struct {
 	Locals   uint32
 	FuncID   uint8
 	FuncFlag uint8
+	StartLine int32
 	PCSP     []byte
 	PCFile   []byte
 	PCLine   []byte
