@@ -30,7 +30,7 @@ JIT compiler tested/passing on:
 |-------------|--------------------|---------------------|--------------------|--------------------|
 | Linux       | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: |
 | Darwin      | :heavy_check_mark: | :heavy_check_mark:  | partial            | :x:                |
-| Windows     | :x:                | :interrobang:       | :x:                | :interrobang:      |
+| Windows     | :x:                | :interrobang:       | :heavy_check_mark: | :interrobang:      |
 
 ## Build
 
