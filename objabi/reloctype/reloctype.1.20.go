@@ -1,5 +1,5 @@
-//go:build go1.17 && !go1.20
-// +build go1.17,!go1.20
+//go:build go1.20 && !go1.21
+// +build go1.20,!go1.21
 
 package reloctype
 
@@ -58,16 +58,23 @@ const (
 	// symbol's DWARF compile unit.
 	R_ADDRCUOFF = (int)(objabi.R_ADDRCUOFF)
 
-	R_WEAK = 0x8000
+	// R_ARM64_PCREL_LDST8 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD8 or ST8 instruction.
+	R_ARM64_PCREL_LDST8 = (int)(objabi.R_ARM64_PCREL_LDST8)
+
+	// R_ARM64_PCREL_LDST16 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD16 or ST16 instruction.
+	R_ARM64_PCREL_LDST16 = (int)(objabi.R_ARM64_PCREL_LDST16)
+
+	// R_ARM64_PCREL_LDST32 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD32 or ST32 instruction.
+	R_ARM64_PCREL_LDST32 = (int)(objabi.R_ARM64_PCREL_LDST32)
+
+	// R_ARM64_PCREL_LDST64 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD64 or ST64 instruction.
+	R_ARM64_PCREL_LDST64 = (int)(objabi.R_ARM64_PCREL_LDST64)
+	R_WEAK               = 0x8000
 
 	R_WEAKADDR    = R_WEAK | R_ADDR
 	R_WEAKADDROFF = R_WEAK | R_ADDROFF
-)
-
-const (
-	//not used, only adapter golang higher version
-	R_ARM64_PCREL_LDST8  = 0x10000000 - 8
-	R_ARM64_PCREL_LDST16 = 0x10000000 - 7
-	R_ARM64_PCREL_LDST32 = 0x10000000 - 6
-	R_ARM64_PCREL_LDST64 = 0x10000000 - 5
 )

@@ -142,6 +142,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SDATA:
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
+		bytearrayAlign(&linker.data, PtrSize)
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants in heap.
 		if strings.HasPrefix(symbol.Name, TypeStringPrefix) {
@@ -152,13 +153,16 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		} else {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
+			bytearrayAlign(&linker.noptrdata, PtrSize)
 		}
 	case symkind.SBSS:
 		symbol.Offset = len(linker.bss)
 		linker.bss = append(linker.bss, objsym.Data...)
+		bytearrayAlign(&linker.bss, PtrSize)
 	case symkind.SNOPTRBSS:
 		symbol.Offset = len(linker.noptrbss)
 		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
+		bytearrayAlign(&linker.noptrbss, PtrSize)
 	default:
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
@@ -203,6 +207,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					linker.noptrdata = append(linker.noptrdata, nameLen...)
 					linker.noptrdata = append(linker.noptrdata, path...)
 					linker.noptrdata = append(linker.noptrdata, ZeroByte)
+					bytearrayAlign(&linker.noptrbss, PtrSize)
 				}
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
@@ -216,6 +221,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 						reloc.Sym.Kind = symkind.SNOPTRDATA
 						reloc.Sym.Offset = len(linker.noptrdata)
 						linker.noptrdata = append(linker.noptrdata, bytes...)
+						bytearrayAlign(&linker.noptrbss, PtrSize)
 					}
 				}
 			}

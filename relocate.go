@@ -10,12 +10,13 @@ import (
 	"github.com/pkujhd/goloader/objabi/tls"
 )
 
-func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) {
+func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
 	byteorder := linker.Arch.ByteOrder
-	offset := uint64(int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF))
+	offset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
 	//overflow
-	if offset > 0xFFFFFFFF {
-		if symAddr < 0xFFFFFFFF {
+	if offset >= 1<<32 || offset < -1<<32 {
+		symAddr = symAddr + uintptr(loc.Add)
+		if symAddr < 0xFFFFFFFF && loc.Type == reloctype.R_ADDRARM64 {
 			addr := byteorder.Uint32(mCode)
 			//low:	MOV reg imm
 			low := uint32(0xD2800000)
@@ -26,6 +27,9 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 			byteorder.PutUint64(mCode, uint64(low)|(uint64(high)<<32))
 		} else {
 			addr := byteorder.Uint32(mCode)
+			if loc.Type != reloctype.R_ADDRARM64 {
+				addr = uint32(byteorder.Uint64(mCode) >> 32)
+			}
 			blcode := byteorder.Uint32(arm64BLcode)
 			blcode |= ((uint32(segment.codeOff) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
 			if segment.codeOff-loc.Offset < 0 {
@@ -46,9 +50,15 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 			hlow = ((addr & 0x1F) | hlow) | uint32(((uint64(symAddr)>>32)&0xFFFF)<<5)
 			hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
 			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(hlow)|(uint64(hhigh)<<32))
+			if loc.Type != reloctype.R_ADDRARM64 {
+				//LDR
+				ldrcode := byteorder.Uint32(arm64LDRcode) | addr&0x1F | ((addr & 0x1F) << 5)
+				byteorder.PutUint32(segment.codeByte[segment.codeOff:], ldrcode)
+				segment.codeOff += Uint32Size
+			}
 			blcode = byteorder.Uint32(arm64BLcode)
-			blcode |= ((uint32(loc.Offset) - uint32(segment.codeOff) + 8) >> 2) & 0x01FFFFFF
-			if loc.Offset-segment.codeOff+8 < 0 {
+			blcode |= ((uint32(loc.Offset) - uint32(segment.codeOff) + PtrSize) >> 2) & 0x01FFFFFF
+			if loc.Offset-segment.codeOff+PtrSize < 0 {
 				blcode |= 0x02000000
 			}
 			byteorder.PutUint32(segment.codeByte[segment.codeOff:], blcode)
@@ -57,11 +67,31 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 	} else {
 		// 2bit + 19bit + low(12bit) = 33bit
 		low := (uint32((offset>>12)&3) << 29) | (uint32((offset>>12>>2)&0x7FFFF) << 5)
-		high := uint32(offset&0xFFF) << 10
+		high := uint32(0)
+		switch loc.Type {
+		case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8:
+			high = uint32(offset&0xFFF) << 10
+		case reloctype.R_ARM64_PCREL_LDST16:
+			if offset&0x1 != 0 {
+				err = fmt.Errorf("offset for 16-bit load/store has unaligned value %d", offset&0xFFF)
+			}
+			high = (uint32(offset&0xFFF) >> 1) << 10
+		case reloctype.R_ARM64_PCREL_LDST32:
+			if offset&0x3 != 0 {
+				err = fmt.Errorf("offset for 32-bit load/store has unaligned value %d", offset&0xFFF)
+			}
+			high = (uint32(offset&0xFFF) >> 2) << 10
+		case reloctype.R_ARM64_PCREL_LDST64:
+			if offset&0x7 != 0 {
+				err = fmt.Errorf("offset for 64-bit load/store has unaligned value %d", offset&0xFFF)
+			}
+			high = (uint32(offset&0xFFF) >> 3) << 10
+		}
 		value := byteorder.Uint64(mCode)
 		value = (uint64(uint32(value>>32)|high) << 32) | uint64(uint32(value&0xFFFFFFFF)|low)
 		byteorder.PutUint64(mCode, value)
 	}
+	return err
 }
 
 func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) {
@@ -185,11 +215,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
 					case reloctype.R_CALLARM, reloctype.R_CALLARM64:
 						linker.relocteCALLARM(addr, loc, segment)
-					case reloctype.R_ADDRARM64:
+					case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 						if symbol.Kind != symkind.STEXT {
 							err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
 						}
-						linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
+						err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 					case reloctype.R_ADDR, reloctype.R_WEAKADDR:
 						address := uintptr(int(addr) + loc.Add)
 						putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
