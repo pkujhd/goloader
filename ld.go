@@ -380,7 +380,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					// name memory layout
 					// name { tagLen(byte), len(uint16), str*}
 					nameLen := []byte{0, 0, 0}
-					binary.BigEndian.PutUint16(nameLen[1:], uint16(len(path)))
+					binary.PutUvarint(nameLen[1:], uint64(len(path)))
 					linker.noptrdata = append(linker.noptrdata, nameLen...)
 					linker.noptrdata = append(linker.noptrdata, path...)
 					linker.noptrdata = append(linker.noptrdata, ZeroByte)
