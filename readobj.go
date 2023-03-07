@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkujhd/goloader/obj"
+	"github.com/eh-steve/goloader/obj"
 )
 
 func Parse(f *os.File, pkgpath *string) ([]string, error) {

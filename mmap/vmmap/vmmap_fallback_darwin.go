@@ -6,7 +6,7 @@ package vmmap
 import (
 	"bytes"
 	"fmt"
-	"github.com/pkujhd/goloader/mmap/mapping"
+	"github.com/eh-steve/goloader/mmap/mapping"
 	"os"
 	"os/exec"
 	"strconv"

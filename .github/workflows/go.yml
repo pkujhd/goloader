@@ -50,17 +50,17 @@ jobs:
       
     - name: Build
       run:
-        go build github.com/pkujhd/goloader/examples/loader
+        go build github.com/eh-steve/goloader/examples/loader
         
     - name: Compile const.go
       shell: sh
       run:
-        go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go
+        go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/const/const.go
         
     - name: Compile base.go
       shell: sh
       run:
-        go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
+        go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/base/base.go
         
     - name: Test base.o
       run: 

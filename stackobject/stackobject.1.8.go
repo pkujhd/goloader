@@ -3,7 +3,7 @@
 
 package stackobject
 
-import "github.com/pkujhd/goloader/obj"
+import "github.com/eh-steve/goloader/obj"
 
 func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[string]uintptr, noptrdata uintptr) (err error) {
 	return nil

@@ -1,9 +1,9 @@
 package reflectlite
 
 import (
-	"github.com/pkujhd/goloader/reflectlite/internal/goarch"
-	"github.com/pkujhd/goloader/reflectlite/internal/itoa"
-	"github.com/pkujhd/goloader/reflectlite/internal/unsafeheader"
+	"github.com/eh-steve/goloader/reflectlite/internal/goarch"
+	"github.com/eh-steve/goloader/reflectlite/internal/itoa"
+	"github.com/eh-steve/goloader/reflectlite/internal/unsafeheader"
 	"runtime"
 	"unsafe"
 )
@@ -654,7 +654,7 @@ func (v Value) assignTo(context string, dst *rtype, target unsafe.Pointer) Value
 // As in Go, x's value must be assignable to v's type.
 func (v Value) Set(x Value) {
 	v.mustBeAssignable()
-	//x.mustBeExported() // do not let unexported x leak
+	// x.mustBeExported() // do not let unexported x leak
 	var target unsafe.Pointer
 	if v.kind() == Interface {
 		target = v.ptr
@@ -727,8 +727,8 @@ const (
 // and elem's value must be assignable to the map's elem type.
 func (v Value) SetMapIndex(key, elem Value) {
 	v.mustBe(Map)
-	//v.mustBeExported()
-	//key.mustBeExported()
+	// v.mustBeExported()
+	// key.mustBeExported()
 	tt := (*mapType)(unsafe.Pointer(v.typ))
 
 	if (tt.key == stringType || key.kind() == String) && tt.key == key.typ && tt.elem.size <= maxValSize {
@@ -737,7 +737,7 @@ func (v Value) SetMapIndex(key, elem Value) {
 			mapdelete_faststr(v.typ, v.pointer(), k)
 			return
 		}
-		//elem.mustBeExported()
+		// elem.mustBeExported()
 		elem = elem.assignTo("reflect.Value.SetMapIndex", tt.elem, nil)
 		var e unsafe.Pointer
 		if elem.flag&flagIndir != 0 {
@@ -760,7 +760,7 @@ func (v Value) SetMapIndex(key, elem Value) {
 		mapdelete(v.typ, v.pointer(), k)
 		return
 	}
-	//elem.mustBeExported()
+	// elem.mustBeExported()
 	elem = elem.assignTo("reflect.Value.SetMapIndex", tt.elem, nil)
 	var e unsafe.Pointer
 	if elem.flag&flagIndir != 0 {
@@ -861,7 +861,7 @@ func (v Value) bytesSlow() []byte {
 		// Slice is always bigger than a word; assume flagIndir.
 		return *(*[]byte)(v.ptr)
 		// Unsafe.Slice() not available until 1.17
-		//case Array:
+		// case Array:
 		//	if v.typ.Elem().Kind() != Uint8 {
 		//		panic("reflect.Value.Bytes of non-byte array")
 		//	}

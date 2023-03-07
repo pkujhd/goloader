@@ -1,6 +1,6 @@
 package test_goroutines
 
-import "github.com/pkujhd/goloader/jit/testdata/common"
+import "github.com/eh-steve/goloader/jit/testdata/common"
 
 type Thing struct {
 	inChan   chan common.SomeStruct

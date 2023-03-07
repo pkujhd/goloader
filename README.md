@@ -1,7 +1,7 @@
 
 # Goloader/JIT
 
-![Build Status](https://github.com/pkujhd/goloader/workflows/goloader%20Testing/badge.svg)
+![Build Status](https://github.com/eh-steve/goloader/workflows/goloader%20Testing/badge.svg)
 
 Goloader can load and run Golang code at runtime.
 
@@ -48,7 +48,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/pkujhd/goloader/jit"
+	"github.com/eh-steve/goloader/jit"
 )
 
 func main() {
@@ -92,20 +92,20 @@ func MyFunc(input []byte) (interface{}, error) {
 
 ```
 export GO111MODULE=auto
-go build github.com/pkujhd/goloader/examples/loader
+go build github.com/eh-steve/goloader/examples/loader
 
-go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
+go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/schedule/schedule.go
 ./loader -o schedule.o -run main.main -times 10
 
-go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
+go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/base/base.go
 ./loader -o base.o -run main.main
 
-go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/http/http.go
+go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/http/http.go
 ./loader -o http.o -run main.main
 
-go install github.com/pkujhd/goloader/examples/basecontext
-go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ $GOPATH/src/github.com/pkujhd/goloader/examples/inter/inter.go
-./loader -o $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/github.com/pkujhd/goloader/examples/basecontext.a:github.com/pkujhd/goloader/examples/basecontext -o inter.o
+go install github.com/eh-steve/goloader/examples/basecontext
+go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ $GOPATH/src/github.com/eh-steve/goloader/examples/inter/inter.go
+./loader -o $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/github.com/eh-steve/goloader/examples/basecontext.a:github.com/eh-steve/goloader/examples/basecontext -o inter.o
 
 #build multiple go files
 go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go test2.go

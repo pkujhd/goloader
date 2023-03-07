@@ -2,7 +2,7 @@ package mmap
 
 import (
 	"fmt"
-	"github.com/pkujhd/goloader/mmap/mapping"
+	"github.com/eh-steve/goloader/mmap/mapping"
 	"math"
 	"sort"
 	"sync"

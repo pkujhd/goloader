@@ -31,13 +31,13 @@ type itabTableType struct {
 //go:linkname itabTable runtime.itabTable
 var itabTable unsafe.Pointer // pointer to current table
 
-// Avoids "go.info.runtime.itabTable: relocation target go.info.*github.com/pkujhd/goloader.itabTableType not defined"
+// Avoids "go.info.runtime.itabTable: relocation target go.info.*github.com/eh-steve/goloader.itabTableType not defined"
 var itabTableTyped = (**itabTableType)(unsafe.Pointer(&itabTable))
 
 //go:linkname itabLock runtime.itabLock
 var itabLock uintptr
 
-// Avoids "go.info.runtime.itabLock: relocation target go.info.github.com/pkujhd/goloader.mutex not defined"
+// Avoids "go.info.runtime.itabLock: relocation target go.info.github.com/eh-steve/goloader.mutex not defined"
 var itabLockTyped = (*mutex)(unsafe.Pointer(&itabLock))
 
 //go:linkname itabAdd runtime.itabAdd

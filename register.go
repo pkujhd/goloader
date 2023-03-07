@@ -4,8 +4,8 @@ import (
 	"cmd/objfile/objfile"
 	"debug/elf"
 	"fmt"
-	"github.com/pkujhd/goloader/obj"
-	"github.com/pkujhd/goloader/objabi/dataindex"
+	"github.com/eh-steve/goloader/obj"
+	"github.com/eh-steve/goloader/objabi/dataindex"
 	"log"
 	"os"
 	"reflect"
@@ -108,7 +108,7 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 			panic(fmt.Sprintf("typelinksregister found unexpected type (kind %s): %s", t.Kind(), _name(t.nameOff(t.str))))
 		}
 	}
-	//register function
+	// register function
 	for _, f := range md.ftab {
 		if int(f.funcoff) < len(md.pclntable) {
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
@@ -163,8 +163,8 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 	}
-	//Address space layout randomization(ASLR)
-	//golang 1.15 symbol address has offset, before 1.15 offset is 0
+	// Address space layout randomization(ASLR)
+	// golang 1.15 symbol address has offset, before 1.15 offset is 0
 	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OsStdout])
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))

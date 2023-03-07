@@ -6,8 +6,8 @@ import (
 	"sort"
 	"unsafe"
 
-	"github.com/pkujhd/goloader/obj"
-	"github.com/pkujhd/goloader/objabi/symkind"
+	"github.com/eh-steve/goloader/obj"
+	"github.com/eh-steve/goloader/objabi/symkind"
 )
 
 const (
@@ -16,8 +16,9 @@ const (
 
 func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
 	segment := &codeModule.segment
-	//if symbol is in loader, ignore generate gc data
-	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.sumDataLen) {
+	// if symbol is in loader, ignore generate gc data
+	firstModuleSymAddr, isInFirstModule := symbolMap[sym.Name]
+	if isInFirstModule && (firstModuleSymAddr < uintptr(segment.dataBase) || firstModuleSymAddr > uintptr(segment.dataBase+segment.sumDataLen)) {
 		return nil
 	}
 	objsym := linker.objsymbolMap[sym.Name]

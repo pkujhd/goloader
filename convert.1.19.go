@@ -3,7 +3,7 @@
 
 package goloader
 
-import "github.com/pkujhd/goloader/reflectlite/reflectlite1.19"
+import "github.com/eh-steve/goloader/reflectlite/reflectlite1.19"
 
 const (
 	Invalid       = reflectlite.Invalid

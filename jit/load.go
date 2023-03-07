@@ -2,7 +2,7 @@ package jit
 
 import (
 	"fmt"
-	"github.com/pkujhd/goloader"
+	"github.com/eh-steve/goloader"
 	"reflect"
 	"unsafe"
 )

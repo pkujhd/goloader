@@ -4,10 +4,10 @@ import (
 	"cmd/objfile/objabi"
 	"encoding/binary"
 	"fmt"
-	"github.com/pkujhd/goloader/obj"
-	"github.com/pkujhd/goloader/objabi/reloctype"
-	"github.com/pkujhd/goloader/objabi/symkind"
-	"github.com/pkujhd/goloader/objabi/tls"
+	"github.com/eh-steve/goloader/obj"
+	"github.com/eh-steve/goloader/objabi/reloctype"
+	"github.com/eh-steve/goloader/objabi/symkind"
+	"github.com/eh-steve/goloader/objabi/tls"
 	"strings"
 	"unsafe"
 )
@@ -308,7 +308,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					address := uintptr(int(addr) + loc.Add)
 					putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
 				case reloctype.R_CALLIND:
-					//nothing todo
+					// nothing todo
 				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF:
 					offset := int(addr) - addrBase + loc.Add
 					if offset > 0x7FFFFFFF || offset < -0x80000000 {
@@ -325,15 +325,15 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_USETYPE:
-					//nothing todo
+					// nothing todo
 				case reloctype.R_USEIFACE:
-					//nothing todo
+					// nothing todo
 				case reloctype.R_USEIFACEMETHOD:
-					//nothing todo
+					// nothing todo
 				case reloctype.R_ADDRCUOFF:
-					//nothing todo
+					// nothing todo
 				case reloctype.R_KEEP:
-					//nothing todo
+					// nothing todo
 				default:
 					err = fmt.Errorf("unknown reloc type: %s sym: %s", objabi.RelocType(loc.Type).String(), sym.Name)
 				}

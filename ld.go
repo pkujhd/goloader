@@ -14,10 +14,10 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/pkujhd/goloader/obj"
-	"github.com/pkujhd/goloader/objabi/reloctype"
-	"github.com/pkujhd/goloader/objabi/symkind"
-	"github.com/pkujhd/goloader/stackobject"
+	"github.com/eh-steve/goloader/obj"
+	"github.com/eh-steve/goloader/objabi/reloctype"
+	"github.com/eh-steve/goloader/objabi/symkind"
+	"github.com/eh-steve/goloader/stackobject"
 )
 
 // ourself defined struct

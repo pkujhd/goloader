@@ -4,8 +4,8 @@
 package mmap
 
 import (
-	"github.com/pkujhd/goloader/mmap/darwin_arm64"
-	"github.com/pkujhd/goloader/mprotect"
+	"github.com/eh-steve/goloader/mmap/darwin_arm64"
+	"github.com/eh-steve/goloader/mprotect"
 
 	"fmt"
 	"os"

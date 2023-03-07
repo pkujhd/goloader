@@ -15,7 +15,7 @@ mach_port_t get_mach_task_self() {
 import "C"
 import (
 	"fmt"
-	"github.com/pkujhd/goloader/mmap/mapping"
+	"github.com/eh-steve/goloader/mmap/mapping"
 	"math"
 	"unsafe"
 )

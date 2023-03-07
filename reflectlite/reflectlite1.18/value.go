@@ -6,9 +6,9 @@ package reflectlite
 
 import (
 	"errors"
-	"github.com/pkujhd/goloader/reflectlite/internal/goarch"
-	"github.com/pkujhd/goloader/reflectlite/internal/itoa"
-	"github.com/pkujhd/goloader/reflectlite/internal/unsafeheader"
+	"github.com/eh-steve/goloader/reflectlite/internal/goarch"
+	"github.com/eh-steve/goloader/reflectlite/internal/itoa"
+	"github.com/eh-steve/goloader/reflectlite/internal/unsafeheader"
 	"math"
 	"runtime"
 	"unsafe"

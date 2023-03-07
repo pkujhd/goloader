@@ -2,7 +2,7 @@ package test_complex_func
 
 import (
 	"fmt"
-	"github.com/pkujhd/goloader/jit/testdata/common"
+	"github.com/eh-steve/goloader/jit/testdata/common"
 )
 
 type Blah struct {

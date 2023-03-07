@@ -1,4 +1,4 @@
-module github.com/pkujhd/goloader/jit/testdata
+module github.com/eh-steve/goloader/jit/testdata
 
 go 1.12
 

@@ -3,7 +3,7 @@ package goloader
 import (
 	"fmt"
 
-	"github.com/pkujhd/goloader/objabi/dataindex"
+	"github.com/eh-steve/goloader/objabi/dataindex"
 )
 
 func dumpPCData(b []byte, prefix string) {

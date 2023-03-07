@@ -8,7 +8,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/pkujhd/goloader"
+	"github.com/eh-steve/goloader"
 )
 
 import "C"

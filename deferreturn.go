@@ -7,7 +7,7 @@ import (
 	"cmd/objfile/sys"
 	"fmt"
 
-	"github.com/pkujhd/goloader/objabi/dataindex"
+	"github.com/eh-steve/goloader/objabi/dataindex"
 )
 
 func (linker *Linker) addDeferReturn(_func *_func) (err error) {
@@ -17,7 +17,7 @@ func (linker *Linker) addDeferReturn(_func *_func) (err error) {
 		sym := linker.symMap[funcname]
 		for _, r := range sym.Reloc {
 			if r.Sym.Name == RuntimeDeferReturn {
-				//../cmd/link/internal/ld/pcln.go:pclntab
+				// ../cmd/link/internal/ld/pcln.go:pclntab
 				switch linker.Arch.Name {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:
 					_func.deferreturn = uint32(r.Offset) - uint32(sym.Offset) - 1

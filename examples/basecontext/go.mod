@@ -1,3 +1,3 @@
-module github.com/pkujhd/goloader/examples/basecontext
+module github.com/eh-steve/goloader/examples/basecontext
 
 go 1.11

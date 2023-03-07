@@ -3,7 +3,7 @@
 
 package goloader
 
-import "github.com/pkujhd/goloader/obj"
+import "github.com/eh-steve/goloader/obj"
 
 // A funcID identifies particular functions that need to be treated
 // specially by the runtime.

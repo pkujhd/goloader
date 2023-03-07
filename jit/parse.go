@@ -3,7 +3,7 @@ package jit
 import (
 	"bytes"
 	"fmt"
-	"github.com/pkujhd/goloader/jit/syntax"
+	"github.com/eh-steve/goloader/jit/syntax"
 	"text/template"
 	"unicode"
 )

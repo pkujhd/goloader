@@ -1,7 +1,7 @@
 package test_stack_trace
 
 import (
-	. "github.com/pkujhd/goloader/jit/testdata/common"
+	. "github.com/eh-steve/goloader/jit/testdata/common"
 )
 
 type SomeType struct {

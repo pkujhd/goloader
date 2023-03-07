@@ -14,7 +14,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/pkujhd/goloader/jit"
+	"github.com/eh-steve/goloader/jit"
 )
 
 func main() {
