@@ -1086,3 +1086,17 @@ func (cm *CodeModule) UnloadStringMap() error {
 	runtime.GC()
 	return nil
 }
+
+func (cm *CodeModule) TextAddr() (start, end uintptr) {
+	if cm.module == nil {
+		return 0, 0
+	}
+	return cm.module.text, cm.module.etext
+}
+
+func (cm *CodeModule) DataAddr() (start, end uintptr) {
+	if cm.module == nil {
+		return 0, 0
+	}
+	return cm.module.data, cm.module.edata
+}
