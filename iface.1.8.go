@@ -1,5 +1,5 @@
-// +build go1.8
-// +build !go1.10
+//go:build go1.8 && !go1.10
+// +build go1.8,!go1.10
 
 package goloader
 
@@ -23,17 +23,21 @@ type itab struct {
 // See: src/runtime/iface.go
 const hashSize = 1009
 
-//go:linkname hash runtime.hash
-var hash [hashSize]*itab
+//go:linkname __hash runtime.hash
+var __hash uintptr
 
-//go:linkname ifaceLock runtime.ifaceLock
-var ifaceLock mutex
+var hash = (*[hashSize]*itab)(unsafe.Pointer(&__hash))
+
+//go:linkname __ifaceLock runtime.ifaceLock
+var __ifaceLock uintptr
+
+var ifaceLock = (*mutex)(unsafe.Pointer(&__ifaceLock))
 
 //go:linkname additab runtime.additab
 func additab(m *itab, locked, canfail bool)
 
 func additabs(module *moduledata) {
-	lock(&ifaceLock)
+	lock(ifaceLock)
 	for _, itab := range module.itablinks {
 		//golang1.8-1.9 not relocate itab.fun, in additab function, itab.fun is setted. but additab check type match,
 		//interface _type is in first moduledata, but type in loaded moduledata, set module.typemap[typeOff](trick)
@@ -52,15 +56,15 @@ func additabs(module *moduledata) {
 			additab(itab, true, false)
 		}
 	}
-	unlock(&ifaceLock)
+	unlock(ifaceLock)
 }
 
 func removeitabs(module *moduledata) bool {
-	lock(&ifaceLock)
-	defer unlock(&ifaceLock)
+	lock(ifaceLock)
+	defer unlock(ifaceLock)
 
 	//the itab alloc by runtime.persistentalloc, can't free
-	for index, h := range &hash {
+	for index, h := range hash {
 		last := h
 		for m := h; m != nil; m = m.link {
 			uintptrm := uintptr(unsafe.Pointer(m))
