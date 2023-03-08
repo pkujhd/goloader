@@ -239,6 +239,9 @@ func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 				if strings.HasPrefix(k, "libc_") {
 					// For dynlib symbols in $GOROOT/src/syscall/syscall_darwin.go
 					RegisterCGoSymbol(strings.TrimPrefix(k, "libc_"), k)
+				} else if strings.HasPrefix(k, "libresolv_") {
+					// For dynlib symbols in $GOROOT/src/internal/syscall/net_darwin.go etc.
+					RegisterCGoSymbol(strings.TrimPrefix(k, "libresolv_"), k)
 				} else if strings.HasPrefix(k, "x509_") {
 					// For dynlib symbols in $GOROOT/src/crypto/x509/internal/macos/corefoundation.go
 					RegisterCGoSymbol(strings.TrimPrefix(k, "x509_"), k)
