@@ -164,11 +164,11 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segme
 		}
 		putUint24(segment.codeByte[loc.Offset:], off)
 		if loc.Type == reloctype.R_CALLARM64 {
-			copy(segment.codeByte[segment.codeOff:], arm64code)
-			segment.codeOff += len(arm64code)
+			copy(segment.codeByte[segment.codeOff:], armReplace64CALLCode)
+			segment.codeOff += len(armReplace64CALLCode)
 		} else {
-			copy(segment.codeByte[segment.codeOff:], armcode)
-			segment.codeOff += len(armcode)
+			copy(segment.codeByte[segment.codeOff:], armReplaceCallCode)
+			segment.codeOff += len(armReplaceCallCode)
 		}
 		putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(int(addr)+add))
 	} else {
