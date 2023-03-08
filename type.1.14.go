@@ -1,5 +1,5 @@
-//go:build go1.14 && !go1.20
-// +build go1.14,!go1.20
+//go:build go1.14 && !go1.21
+// +build go1.14,!go1.21
 
 package goloader
 
@@ -35,9 +35,22 @@ type _type struct {
 // Using a pointer to this struct reduces the overall size required
 // to describe an unnamed type with no methods.
 type uncommonType struct {
-	pkgPath nameOff
+	pkgpath nameOff
 	mcount  uint16 // number of methods
 	xcount  uint16 // number of exported methods
 	moff    uint32 // offset from this uncommontype to [mcount]method
 	_       uint32 // unused
+}
+
+type mapType struct {
+	_type
+	key    *_type // map key type
+	elem   *_type // map element (value) type
+	bucket *_type // internal bucket structure
+	// function for hashing keys (ptr to key, seed) -> hash
+	hasher     func(unsafe.Pointer, uintptr) uintptr
+	keysize    uint8  // size of key slot
+	valuesize  uint8  // size of value slot
+	bucketsize uint16 // size of bucket
+	flags      uint32
 }

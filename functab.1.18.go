@@ -1,12 +1,12 @@
-//go:build go1.18 && !go1.20
-// +build go1.18,!go1.20
+//go:build go1.18 && !go1.21
+// +build go1.18,!go1.21
 
 package goloader
 
 import (
 	"unsafe"
 
-	"github.com/pkujhd/goloader/obj"
+	"github.com/eh-steve/goloader/obj"
 )
 
 type functab struct {

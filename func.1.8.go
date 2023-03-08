@@ -3,7 +3,7 @@
 
 package goloader
 
-import "github.com/pkujhd/goloader/obj"
+import "github.com/eh-steve/goloader/obj"
 
 type _func struct {
 	entry   uintptr // start pc

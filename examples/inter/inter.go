@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/pkujhd/goloader/examples/basecontext"
+	"github.com/eh-steve/goloader/examples/basecontext"
 )
 
 func init() {

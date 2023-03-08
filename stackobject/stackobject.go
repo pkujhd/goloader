@@ -1,5 +1,5 @@
-//go:build go1.12 && !go1.20
-// +build go1.12,!go1.20
+//go:build go1.12 && !go1.21
+// +build go1.12,!go1.21
 
 package stackobject
 
@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/pkujhd/goloader/obj"
-	"github.com/pkujhd/goloader/objabi/dataindex"
+	"github.com/eh-steve/goloader/obj"
+	"github.com/eh-steve/goloader/objabi/dataindex"
 )
 
 // See reflect/value.go sliceHeader
@@ -48,8 +48,7 @@ func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[s
 			if ptr, ok := symbolMap[name]; ok {
 				setStackObjectPtr(&((*objects)[i]), adduintptr(ptr, 0), noptrdata)
 			} else {
-				return fmt.Errorf("unresolve external Var! Function name:%s index:%d, name:%s", funcname, i, name)
-
+				return fmt.Errorf("unresolved external var! Function name: %s index: %d, name:%s", funcname, i, name)
 			}
 		}
 	}

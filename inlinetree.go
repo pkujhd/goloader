@@ -3,8 +3,8 @@ package goloader
 import (
 	"unsafe"
 
-	"github.com/pkujhd/goloader/obj"
-	"github.com/pkujhd/goloader/objabi/dataindex"
+	"github.com/eh-steve/goloader/obj"
+	"github.com/eh-steve/goloader/objabi/dataindex"
 )
 
 func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err error) {
@@ -16,20 +16,25 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 			sym.Func.PCData = append(sym.Func.PCData, uint32(0))
 			_func.npcdata++
 		}
-		sym.Func.PCData[dataindex.PCDATA_InlTreeIndex] = uint32(len(linker.pclntable))
+		sym.Func.PCData[dataindex.PCDATA_InlTreeIndex] = uint32(len(linker.pctab))
 
-		linker.pclntable = append(linker.pclntable, symbol.Func.PCInline...)
+		for _, reloc := range symbol.Reloc {
+			if reloc.EpilogueOffset > 0 {
+				linker.patchPCValuesForReloc(&symbol.Func.PCInline, reloc.Offset, reloc.EpilogueOffset, reloc.EpilogueSize)
+			}
+		}
+		linker.pctab = append(linker.pctab, symbol.Func.PCInline...)
 		for _, inl := range symbol.Func.InlTree {
 			if _, ok := linker.namemap[inl.Func]; !ok {
-				linker.namemap[inl.Func] = len(linker.pclntable)
-				linker.pclntable = append(linker.pclntable, []byte(inl.Func)...)
-				linker.pclntable = append(linker.pclntable, ZeroByte)
+				linker.namemap[inl.Func] = len(linker.funcnametab)
+				linker.funcnametab = append(linker.funcnametab, []byte(inl.Func)...)
+				linker.funcnametab = append(linker.funcnametab, ZeroByte)
 			}
 		}
 
 		bytes := make([]byte, len(Func.InlTree)*obj.InlinedCallSize)
 		for k, inl := range Func.InlTree {
-			inlinedcall := obj.InitInlinedCall(inl, getfuncID(_func), linker.namemap, linker.filetab)
+			inlinedcall := obj.InitInlinedCall(inl, getfuncID(_func), linker.namemap, linker.cutab)
 			copy2Slice(bytes[k*obj.InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedcall)), obj.InlinedCallSize)
 		}
 		offset := len(linker.noptrdata)

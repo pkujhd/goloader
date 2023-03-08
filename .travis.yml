@@ -28,8 +28,8 @@ before_install:
 
 script:
   - export GO111MODULE=auto
-  - go build github.com/pkujhd/goloader/examples/loader
-  - go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
-  - go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go
+  - go build github.com/eh-steve/goloader/examples/loader
+  - go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/base/base.go
+  - go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/const/const.go
   - ./loader -o base.o -run main.main
   - ./loader -o const.o -run main.main

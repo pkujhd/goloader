@@ -53,6 +53,10 @@ const (
 
 const (
 	//not used, only adapter golang higher version
-	R_USETYPE  = 0x10000000 - 4
-	R_WEAKADDR = 0x20000000
+	R_ARM64_PCREL_LDST8  = 0x10000000 - 8
+	R_ARM64_PCREL_LDST16 = 0x10000000 - 7
+	R_ARM64_PCREL_LDST32 = 0x10000000 - 6
+	R_ARM64_PCREL_LDST64 = 0x10000000 - 5
+	R_USETYPE            = 0x10000000 - 4
+	R_WEAKADDR           = 0x20000000
 )

@@ -5,7 +5,7 @@ package goloader
 
 import (
 	"cmd/objfile/objabi"
-	"github.com/pkujhd/goloader/obj"
+	"github.com/eh-steve/goloader/obj"
 	"strings"
 )
 

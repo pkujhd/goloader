@@ -8,7 +8,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/pkujhd/goloader"
+	"github.com/eh-steve/goloader"
 )
 
 import "C"
@@ -16,7 +16,8 @@ import "C"
 //export loader
 func loader(name, run, selfpath string) {
 	symPtr := make(map[string]uintptr)
-	err := goloader.RegSymbolWithSo(symPtr, selfpath)
+	pkgSet := make(map[string]struct{})
+	err := goloader.RegSymbolWithSo(symPtr, pkgSet, selfpath)
 	if err != nil {
 		fmt.Println(err)
 		return

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/pkujhd/goloader"
+	"github.com/eh-steve/goloader"
 )
 
 type arrayFlags struct {
@@ -31,6 +31,10 @@ func (i *arrayFlags) Set(value string) error {
 	}
 	i.PkgPath = append(i.PkgPath, path)
 	return nil
+}
+
+type Waiter interface {
+	Wait()
 }
 
 func main() {
@@ -55,7 +59,8 @@ func main() {
 	}
 
 	symPtr := make(map[string]uintptr)
-	err := goloader.RegSymbol(symPtr)
+	pkgSet := make(map[string]struct{})
+	err := goloader.RegSymbol(symPtr, pkgSet)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -63,14 +68,16 @@ func main() {
 
 	// most of time you don't need to register function, but if loader complain about it, you have to.
 	w := sync.WaitGroup{}
+	str := make([]string, 0)
 	goloader.RegTypes(symPtr, http.ListenAndServe, http.Dir("/"),
 		http.Handler(http.FileServer(http.Dir("/"))), http.FileServer, http.HandleFunc,
 		&http.Request{}, &http.Server{})
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
-	goloader.RegTypes(symPtr, fmt.Sprint)
+	goloader.RegTypes(symPtr, fmt.Sprint, str)
 
+	var linkerOpts []goloader.LinkerOptFunc
 	if *enableStringContainer == 1 {
-		goloader.OpenStringMap()
+		linkerOpts = append(linkerOpts, goloader.WithStringContainer(16*1024*1024))
 	}
 
 	linker, err := goloader.ReadObjs(files.File, files.PkgPath)
