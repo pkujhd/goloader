@@ -14,6 +14,7 @@ import (
 
 const (
 	maxExtraInstructionBytesADRP            = 16
+	maxExtraInstructionBytesADRPLDST        = 20
 	maxExtraInstructionBytesCALLARM64       = 16
 	maxExtraInstructionBytesPCRELxLEAQ      = 8
 	maxExtraInstructionBytesPCRELxMOVShort  = 12
@@ -26,7 +27,7 @@ const (
 	maxExtraInstructionBytesCALL            = 14
 )
 
-func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) error {
+func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
 	byteorder := linker.Arch.ByteOrder
 	signedOffset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
 	if oldMcode, ok := linker.appliedADRPRelocs[&mCode[0]]; !ok {
@@ -37,30 +38,42 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 	}
 	epilogueOffset := loc.EpilogueOffset
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
-	// R_ADDRARM64 relocs include 2x 32 bit instructions, one ADRP, and one ADD - both contain the destination register in the lowest 5 bits
+	// R_ADDRARM64 relocs include 2x 32 bit instructions, one ADRP, and one ADD/LDR/STR - both contain the destination register in the lowest 5 bits
 	if signedOffset > 1<<32 || signedOffset < -1<<32 {
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >32-bit ADRP reloc with offset %d: %s", signedOffset, loc.Sym.Name)
 		}
 		// Too far to fit inside an ADRP+ADD, do a jump to some extra code we add at the end big enough to fit any 64 bit address
 		symAddr += uintptr(loc.Add)
-		addr := byteorder.Uint32(mCode)
+		adrp := byteorder.Uint32(mCode)
 		bcode := byteorder.Uint32(arm64Bcode) // Unconditional branch
 		bcode |= ((uint32(epilogueOffset) - uint32(loc.Offset)) >> 2) & 0x01FFFFFF
 		if epilogueOffset-loc.Offset < 0 {
 			bcode |= 0x02000000 // 26th bit is sign bit
 		}
-		byteorder.PutUint32(mCode, bcode) // The second ADD instruction in the ADRP reloc will be bypassed as we return from the jump after it
+		byteorder.PutUint32(mCode, bcode) // The second ADD/LD/ST instruction in the ADRP reloc will be bypassed as we return from the jump after it
 
-		ldrCode := uint32(0x58000040) // LDR PC+8
-		ldrCode |= addr & 0x1F        // Set the register
+		ldrCode8Bytes := uint32(0x58000040)  // LDR PC+8
+		ldrCode12Bytes := uint32(0x58000060) // LDR PC+12
+		ldrCode8Bytes |= adrp & 0x1F         // Set the register
+		ldrCode12Bytes |= adrp & 0x1F        // Set the register
 
-		byteorder.PutUint32(segment.codeByte[epilogueOffset:], ldrCode)
-		epilogueOffset += Uint32Size
+		if loc.Type == reloctype.R_ADDRARM64 {
+			byteorder.PutUint32(segment.codeByte[epilogueOffset:], ldrCode8Bytes)
+			epilogueOffset += Uint32Size
+		} else {
+			// must be LDR/STR reloc - the entire 64 bit address will be loaded in the register specified in the ADRP instruction,
+			// so should be able to just append the LDR or STR immediately after
+			byteorder.PutUint32(segment.codeByte[epilogueOffset:], ldrCode12Bytes)
+			epilogueOffset += Uint32Size
+			ldOrSt := byteorder.Uint32(mCode[4:])
+			byteorder.PutUint32(segment.codeByte[epilogueOffset:], ldOrSt)
+			epilogueOffset += Uint32Size
+		}
 
 		bcode = byteorder.Uint32(arm64Bcode)
-		bcode |= ((uint32(loc.Offset) - uint32(epilogueOffset) + 8) >> 2) & 0x01FFFFFF
-		if loc.Offset-epilogueOffset+8 < 0 {
+		bcode |= ((uint32(loc.Offset) - uint32(epilogueOffset) + PtrSize) >> 2) & 0x01FFFFFF
+		if loc.Offset-epilogueOffset+PtrSize < 0 {
 			bcode |= 0x02000000
 		}
 		byteorder.PutUint32(segment.codeByte[epilogueOffset:], bcode)
@@ -83,12 +96,30 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		immHigh := uint32((uint64(signedOffset)>>12>>2)&0x7FFFF) << 5
 		adrp := byteorder.Uint32(mCode[0:4])
 		adrp |= immLow | immHigh
-		add := byteorder.Uint32(mCode[4:8])
-		add |= uint32(uint64(signedOffset)&0xFFF) << 10
+		addOrLdOrSt := byteorder.Uint32(mCode[4:8])
+		switch loc.Type {
+		case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8:
+			addOrLdOrSt |= uint32(uint64(signedOffset)&0xFFF) << 10
+		case reloctype.R_ARM64_PCREL_LDST16:
+			if signedOffset&0x1 != 0 {
+				err = fmt.Errorf("offset for 16-bit load/store has unaligned value %d", signedOffset&0xFFF)
+			}
+			addOrLdOrSt |= (uint32(signedOffset&0xFFF) >> 1) << 10
+		case reloctype.R_ARM64_PCREL_LDST32:
+			if signedOffset&0x3 != 0 {
+				err = fmt.Errorf("offset for 32-bit load/store has unaligned value %d", signedOffset&0xFFF)
+			}
+			addOrLdOrSt |= (uint32(signedOffset&0xFFF) >> 2) << 10
+		case reloctype.R_ARM64_PCREL_LDST64:
+			if signedOffset&0x7 != 0 {
+				err = fmt.Errorf("offset for 64-bit load/store has unaligned value %d", signedOffset&0xFFF)
+			}
+			addOrLdOrSt |= (uint32(signedOffset&0xFFF) >> 3) << 10
+		}
 		byteorder.PutUint32(mCode, adrp)
-		byteorder.PutUint32(mCode[4:], add)
+		byteorder.PutUint32(mCode[4:], addOrLdOrSt)
 	}
-	return nil
+	return err
 }
 
 func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) error {
@@ -299,7 +330,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
 					err = linker.relocateCALLARM(addr, loc, segment)
-				case reloctype.R_ADDRARM64:
+				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 					if symbol.Kind != symkind.STEXT {
 						err = fmt.Errorf("impossible! Sym: %s is not in code segment! (kind %s)\n", sym.Name, objabi.SymKind(sym.Kind))
 					}

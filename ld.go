@@ -245,6 +245,10 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesADRP
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesADRP)...)
+			case reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesADRPLDST
+				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesADRPLDST)...)
 			case reloctype.R_CALLARM64:
 				objsym.Reloc[i].EpilogueOffset = alignof(len(linker.code)-symbol.Offset, PtrSize)
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALLARM64
@@ -895,7 +899,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALL:
 						panic("This should not be possible")
-					case reloctype.R_ADDRARM64:
+					case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 						err2 := linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 						if err2 != nil {
 							err = err2
