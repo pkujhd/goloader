@@ -51,9 +51,9 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 			hhigh = ((addr & 0x1F) | hhigh) | uint32((uint64(symAddr)>>48)<<5)
 			putAddressAddOffset(byteorder, segment.codeByte, &segment.codeOff, uint64(hlow)|(uint64(hhigh)<<32))
 			if loc.Type != reloctype.R_ADDRARM64 {
-				//LDR
-				ldrcode := byteorder.Uint32(arm64LDRcode) | addr&0x1F | ((addr & 0x1F) << 5)
-				byteorder.PutUint32(segment.codeByte[segment.codeOff:], ldrcode)
+				//LDR or STR
+				ldrOrStr := (byteorder.Uint32(mCode[4:]) & 0xFFFFFC00) | addr&0x1F | ((addr & 0x1F) << 5)
+				byteorder.PutUint32(segment.codeByte[segment.codeOff:], ldrOrStr)
 				segment.codeOff += Uint32Size
 			}
 			blcode = byteorder.Uint32(arm64BLcode)
