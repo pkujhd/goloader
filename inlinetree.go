@@ -20,8 +20,8 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 
 		linker.pclntable = append(linker.pclntable, symbol.Func.PCInline...)
 		for _, inl := range symbol.Func.InlTree {
-			if _, ok := linker.namemap[inl.Func]; !ok {
-				linker.namemap[inl.Func] = len(linker.pclntable)
+			if _, ok := linker.nameMap[inl.Func]; !ok {
+				linker.nameMap[inl.Func] = len(linker.pclntable)
 				linker.pclntable = append(linker.pclntable, []byte(inl.Func)...)
 				linker.pclntable = append(linker.pclntable, ZeroByte)
 			}
@@ -29,7 +29,7 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 
 		bytes := make([]byte, len(Func.InlTree)*obj.InlinedCallSize)
 		for k, inl := range Func.InlTree {
-			inlinedcall := obj.InitInlinedCall(inl, getfuncID(_func), linker.namemap, linker.filetab)
+			inlinedcall := obj.InitInlinedCall(inl, getfuncID(_func), linker.nameMap, linker.filetab)
 			copy2Slice(bytes[k*obj.InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedcall)), obj.InlinedCallSize)
 		}
 		offset := len(linker.noptrdata)

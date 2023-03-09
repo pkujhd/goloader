@@ -9,22 +9,24 @@ type Pkg struct {
 	Arch    string
 	PkgPath string
 	F       *os.File
+	CUFiles []string
 }
 
 type FuncInfo struct {
-	Args     uint32
-	Locals   uint32
-	FuncID   uint8
-	FuncFlag uint8
+	Args      uint32
+	Locals    uint32
+	FuncID    uint8
+	FuncFlag  uint8
 	StartLine int32
-	PCSP     []byte
-	PCFile   []byte
-	PCLine   []byte
-	PCInline []byte
-	PCData   [][]byte
-	File     []string
-	FuncData []string
-	InlTree  []InlTreeNode
+	PCSP      []byte
+	PCFile    []byte
+	PCLine    []byte
+	PCInline  []byte
+	PCData    [][]byte
+	File      []string
+	FuncData  []string
+	InlTree   []InlTreeNode
+	CUOffset  int32
 }
 
 type ObjSymbol struct {

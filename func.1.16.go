@@ -68,3 +68,6 @@ func getfuncname(f *_func, md *moduledata) string {
 func getfuncID(f *_func) uint8 {
 	return uint8(f.funcID)
 }
+
+func adaptePCFile(linker *Linker, symbol *obj.ObjSymbol) {
+}

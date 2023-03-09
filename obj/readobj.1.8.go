@@ -54,6 +54,8 @@ func (pkg *Pkg) Symbols() error {
 			symbol.Func = &FuncInfo{}
 			symbol.Func.Args = uint32(sym.Func.Args)
 			symbol.Func.File = sym.Func.File
+			symbol.Func.CUOffset = 0
+			pkg.CUFiles = append(pkg.CUFiles, symbol.Func.File...)
 			symbol.Func.PCSP, err = fd.BytesAt(sym.Func.PCSP.Offset, sym.Func.PCSP.Size)
 			if err != nil {
 				return fmt.Errorf("read error: %v", err)

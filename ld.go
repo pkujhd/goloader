@@ -43,7 +43,7 @@ type Linker struct {
 	noptrbss     []byte
 	symMap       map[string]*obj.Sym
 	objsymbolMap map[string]*obj.ObjSymbol
-	namemap      map[string]int
+	nameMap      map[string]int
 	stringMap    map[string]*string
 	filetab      []uint32
 	pclntable    []byte
@@ -71,7 +71,7 @@ func initLinker() *Linker {
 	linker := &Linker{
 		symMap:       make(map[string]*obj.Sym),
 		objsymbolMap: make(map[string]*obj.ObjSymbol),
-		namemap:      make(map[string]int),
+		nameMap:      make(map[string]int),
 		stringMap:    make(map[string]*string),
 	}
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
@@ -79,6 +79,20 @@ func initLinker() *Linker {
 	linker.pclntable = append(linker.pclntable, head...)
 	linker.pclntable[len(obj.ModuleHeadx86)-1] = PtrSize
 	return linker
+}
+
+func (linker *Linker) addFiles(files []string) {
+	for _, fileName := range files {
+		if offset, ok := linker.nameMap[fileName]; !ok {
+			linker.filetab = append(linker.filetab, (uint32)(len(linker.pclntable)))
+			linker.nameMap[fileName] = len(linker.pclntable)
+			fileName = strings.TrimPrefix(fileName, FileSymPrefix)
+			linker.pclntable = append(linker.pclntable, []byte(fileName)...)
+			linker.pclntable = append(linker.pclntable, ZeroByte)
+		} else {
+			linker.filetab = append(linker.filetab, uint32(offset))
+		}
+	}
 }
 
 func (linker *Linker) addSymbols() error {
@@ -245,28 +259,16 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 }
 
 func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err error) {
-	cuOffset := len(linker.filetab) - 1
-	for _, fileName := range symbol.Func.File {
-		if offset, ok := linker.namemap[fileName]; !ok {
-			linker.filetab = append(linker.filetab, (uint32)(len(linker.pclntable)))
-			linker.namemap[fileName] = len(linker.pclntable)
-			fileName = strings.TrimPrefix(fileName, FileSymPrefix)
-			linker.pclntable = append(linker.pclntable, []byte(fileName)...)
-			linker.pclntable = append(linker.pclntable, ZeroByte)
-		} else {
-			linker.filetab = append(linker.filetab, uint32(offset))
-		}
-	}
-
 	nameOff := len(linker.pclntable)
-	if offset, ok := linker.namemap[symbol.Name]; !ok {
-		linker.namemap[symbol.Name] = len(linker.pclntable)
+	if offset, ok := linker.nameMap[symbol.Name]; !ok {
+		linker.nameMap[symbol.Name] = len(linker.pclntable)
 		linker.pclntable = append(linker.pclntable, []byte(symbol.Name)...)
 		linker.pclntable = append(linker.pclntable, ZeroByte)
 	} else {
 		nameOff = offset
 	}
 
+	adaptePCFile(linker, symbol)
 	pcspOff := len(linker.pclntable)
 	linker.pclntable = append(linker.pclntable, symbol.Func.PCSP...)
 
@@ -276,7 +278,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	pclnOff := len(linker.pclntable)
 	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
 
-	_func := initfunc(symbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOffset)
+	_func := initfunc(symbol, nameOff, pcspOff, pcfileOff, pclnOff, int(symbol.Func.CUOffset))
 	linker._func = append(linker._func, &_func)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {

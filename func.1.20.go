@@ -61,7 +61,6 @@ type _func struct {
 	// funcdata [nfuncdata]uint32
 }
 
-
 func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
 		entryoff:    uint32(0),
@@ -73,7 +72,7 @@ func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff i
 		pcln:        uint32(pclnOff),
 		npcdata:     uint32(len(symbol.Func.PCData)),
 		cuOffset:    uint32(cuOff),
-		startLine:	 int32(symbol.Func.StartLine),
+		startLine:   int32(symbol.Func.StartLine),
 		funcID:      funcID(symbol.Func.FuncID),
 		flag:        funcFlag(symbol.Func.FuncFlag),
 		nfuncdata:   uint8(len(symbol.Func.FuncData)),
@@ -98,4 +97,7 @@ func getfuncname(f *_func, md *moduledata) string {
 
 func getfuncID(f *_func) uint8 {
 	return uint8(f.funcID)
+}
+
+func adaptePCFile(linker *Linker, symbol *obj.ObjSymbol) {
 }

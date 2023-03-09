@@ -34,6 +34,9 @@ func (pkg *Pkg) Symbols() error {
 				rn := r.RefName(i)
 				refNames[rn.Sym()] = rn.Name(r)
 			}
+			for i := 0; i < r.NFile(); i++ {
+				pkg.CUFiles = append(pkg.CUFiles, r.File(i))
+			}
 			pkg.Arch = e.Obj.Arch
 			nsym := r.NSym() + r.NHashed64def() + r.NHasheddef() + r.NNonpkgdef()
 			for i := 0; i < nsym; i++ {
@@ -103,6 +106,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}
 			readFuncInfo(&funcInfo, r.Data(index), symbol.Func)
+			symbol.Func.CUOffset = 0
 			for _, index := range funcInfo.File {
 				symbol.Func.File = append(symbol.Func.File, r.File(int(index)))
 			}
