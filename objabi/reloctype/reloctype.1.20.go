@@ -78,3 +78,7 @@ const (
 	R_WEAKADDR    = R_WEAK | R_ADDR
 	R_WEAKADDROFF = R_WEAK | R_ADDROFF
 )
+
+func RelocTypeString(relocType int) string {
+	return (objabi.RelocType)(relocType).String()
+}

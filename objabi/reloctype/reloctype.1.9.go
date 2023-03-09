@@ -49,3 +49,7 @@ const (
 	R_ADDRCUOFF          = 0x10000000 - 1
 	R_WEAKADDR           = 0x20000000
 )
+
+func RelocTypeString(relocType int) string {
+	return (objabi.RelocType)(relocType).String()
+}

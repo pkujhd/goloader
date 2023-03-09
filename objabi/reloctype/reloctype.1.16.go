@@ -60,3 +60,7 @@ const (
 	R_USETYPE            = 0x10000000 - 4
 	R_WEAKADDR           = 0x20000000
 )
+
+func RelocTypeString(relocType int) string {
+	return (objabi.RelocType)(relocType).String()
+}

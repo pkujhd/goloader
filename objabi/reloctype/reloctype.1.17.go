@@ -71,3 +71,7 @@ const (
 	R_ARM64_PCREL_LDST32 = 0x10000000 - 6
 	R_ARM64_PCREL_LDST64 = 0x10000000 - 5
 )
+
+func RelocTypeString(relocType int) string {
+	return (objabi.RelocType)(relocType).String()
+}

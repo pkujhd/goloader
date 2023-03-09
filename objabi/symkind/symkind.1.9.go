@@ -24,3 +24,7 @@ const (
 	// Thread-local data that is initally all 0s
 	STLSBSS = int(objabi.STLSBSS)
 )
+
+func SymKindString(symKind int) string {
+	return (objabi.SymKind)(symKind).String()
+}
