@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"reflect"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -150,6 +151,11 @@ func check() {
 	var _ = reflect.ValueOf(sync.Cond{})
 	var _ = reflect.DeepEqual(1, 2)
 	var _ = reflect.TypeOf(reflect.ValueOf(uncommon))
+	var _ = reflect.ArrayOf(1, reflect.TypeOf(5))
+	var _ = reflect.SliceOf(reflect.TypeOf(time.Ticker{}))
+	var _ = reflect.MapOf(reflect.TypeOf(5), reflect.TypeOf(5))
+	var _ = reflect.ArrayOf(1, reflect.TypeOf(5))
+	var _ = reflect.Append(reflect.ValueOf([]int{}))
 	// reflect.Call disables most of linker's deadcode analysis $GOROOT/src/cmd/link/internal/ld/deadcode.go
 	var _ = reflect.MakeFunc(reflect.TypeOf(func() {}), func(args []reflect.Value) (results []reflect.Value) {
 		return nil
