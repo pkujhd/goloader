@@ -1475,3 +1475,42 @@ func TestAnonymousStructType(t *testing.T) {
 		})
 	}
 }
+
+func TestGCGlobals(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		HeapStrings:           heapStrings,
+		StringContainerSize:   stringContainerSize,
+		RandomSymbolNameOrder: false,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_gc_globals/test.go"},
+		pkg:   "./testdata/test_gc_globals",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			testFunc := symbols["Find"].(func(lat, lon float64) string)
+			for i := 0; i < 100; i++ {
+				testFunc(55, 55)
+				runtime.GC()
+				runtime.GC()
+			}
+
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module.UnloadStringMap()
+			time.Sleep(time.Second)
+		})
+	}
+}
