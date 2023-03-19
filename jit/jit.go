@@ -158,6 +158,7 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 	globalMutex.Lock()
 	externalSymbols := linker.UnresolvedExternalSymbols(globalSymPtr, config.SkipTypeDeduplicationForPackages)
 	externalSymbolsWithoutSkip := linker.UnresolvedExternalSymbols(globalSymPtr, nil)
+	externalPackages := linker.UnresolvedPackageReferences(pkg.Deps)
 	globalMutex.Unlock()
 
 	addCGoSymbols(externalSymbols)
@@ -166,8 +167,9 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 	// Prevent infinite recursion
 	seen := map[string]struct{}{}
 
-	sortedDeps := make([]string, len(pkg.Deps))
+	sortedDeps := make([]string, len(pkg.Deps)+len(externalPackages))
 	copy(sortedDeps, pkg.Deps)
+	copy(sortedDeps[len(pkg.Deps):], externalPackages)
 	// Sort deps by length descending so that symbol check is most specific first
 	sort.Slice(sortedDeps, func(i, j int) bool {
 		return len(sortedDeps[i]) > len(sortedDeps[j])
@@ -202,6 +204,24 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 	return linker, nil
 }
 
+var escapes = make(map[string]string)
+
+func init() {
+	// According to cmd/internal/objabi.PathToPrefix(), char codes less than ' ', or equal to the last '.' or '%' or '"', or greater than 0x7F will be escaped. Make a list of these
+	for i := uint8(0); i < 255; i++ {
+		if i <= ' ' || i == '.' || i == '%' || i == '"' || i >= 0x7F {
+			escapes["%"+hex.EncodeToString([]byte{i})] = string(rune(i))
+		}
+	}
+}
+
+func unescapeSymName(name string) string {
+	for escaped, nonEscaped := range escapes {
+		name = strings.Replace(name, escaped, nonEscaped, -1)
+	}
+	return name
+}
+
 func getMissingDeps(sortedDeps []string, unresolvedSymbols, unresolvedSymbolsWithoutSkip map[string]*obj.Sym, seen map[string]struct{}, debug bool) map[string]struct{} {
 	var missingDeps = map[string]struct{}{}
 	unresolvedSymbolNames := make([]string, 0, len(unresolvedSymbols))
@@ -211,8 +231,9 @@ func getMissingDeps(sortedDeps []string, unresolvedSymbols, unresolvedSymbolsWit
 	sort.Strings(unresolvedSymbolNames)
 	for _, symName := range unresolvedSymbolNames {
 		for _, dep := range sortedDeps {
-			// Unescape dots in the symName path since the compiler would have escaped them
-			symName = strings.Replace(symName, "%2e", ".", -1)
+			// Unescape dots in the symName path since the compiler would have escaped them in cmd/internal/objabi.PathToPrefix()
+			symName = unescapeSymName(symName)
+			// TODO - see if there's a way to reliably infer the package path of a symbol during loading phase
 			if strings.Contains(symName, goloader.ObjSymbolSeparator+dep+".") || strings.Contains(symName, "/"+dep+".") || strings.HasPrefix(symName, dep+".") {
 				if _, forbidden := forbiddenSystemPkgs[dep]; !forbidden {
 					if _, haveSeen := seen[dep]; !haveSeen {

@@ -1,6 +1,7 @@
 package goloader
 
 import (
+	"cmd/objfile/goobj"
 	"cmd/objfile/sys"
 	"fmt"
 	"io"
@@ -13,7 +14,12 @@ import (
 )
 
 func Parse(f *os.File, pkgpath *string) ([]string, error) {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: *pkgpath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0),
+		F:                 f,
+		PkgPath:           *pkgpath,
+		UnresolvedSymRefs: make(map[goobj.SymRef]struct{}),
+		SymNamesByIdx:     make(map[uint32]string),
+	}
 	symbols := make([]string, 0)
 	if err := pkg.Symbols(); err != nil {
 		return symbols, err
@@ -132,7 +138,14 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 	if err != nil {
 		return nil, err
 	}
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: *pkgpath}
+	pkg := obj.Pkg{
+		Syms:              make(map[string]*obj.ObjSymbol, 0),
+		F:                 f,
+		PkgPath:           *pkgpath,
+		Objidx:            1,
+		UnresolvedSymRefs: make(map[goobj.SymRef]struct{}),
+		SymNamesByIdx:     make(map[uint32]string),
+	}
 	if err := readObj(&pkg, linker); err != nil {
 		return nil, err
 	}
@@ -163,6 +176,16 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 	return linker, nil
 }
 
+func resolveSymRefName(symRef goobj.SymRef, pkgs []*obj.Pkg, objByPkg map[string]uint32, objIdx uint32) (symName, pkgName string) {
+	pkg := pkgs[objIdx-1]
+	pkgName = pkg.ReferencedPkgs[symRef.PkgIdx]
+	fileIdx := objByPkg[pkgName]
+	if fileIdx == 0 {
+		return "", pkgName
+	}
+	return pkgs[fileIdx-1].SymNamesByIdx[symRef.SymIdx], pkgName
+}
+
 func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*Linker, error) {
 	linker, err := initLinker(linkerOpts)
 	if err != nil {
@@ -175,18 +198,56 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 		}
 	}()
 	var symNames []string
+	objByPkg := map[string]uint32{}
+	var pkgs = make([]*obj.Pkg, 0, len(files))
 	for i, file := range files {
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, err
 		}
 		osFiles = append(osFiles, f)
-		pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: pkgPath[i]}
+		pkg := obj.Pkg{
+			Syms:              make(map[string]*obj.ObjSymbol, 0),
+			F:                 f,
+			PkgPath:           pkgPath[i],
+			Objidx:            uint32(i + 1),
+			UnresolvedSymRefs: make(map[goobj.SymRef]struct{}),
+			SymNamesByIdx:     make(map[uint32]string),
+		}
+		objByPkg[pkgPath[i]] = pkg.Objidx
 		if err := readObj(&pkg, linker); err != nil {
 			return nil, err
 		}
+		pkgs = append(pkgs, &pkg)
 		symNames = append(symNames, pkg.SymNameOrder...)
 	}
+
+	for _, objSym := range linker.objsymbolMap {
+		if strings.HasPrefix(objSym.Type, obj.UnresolvedSymRefPrefix) {
+			// This type symbol was likely in another package and so was unresolved at the time of loading the archive,
+			// but we might have added the missing package in a later archive, so try to resolve again.
+			unresolved := objSym.Type
+			var pkgName string
+			symRef := obj.ParseUnresolvedIdxString(objSym.Type)
+			objSym.Type, pkgName = resolveSymRefName(symRef, pkgs, objByPkg, objSym.Objidx)
+			if objSym.Type == "" {
+				// Still unresolved, add a fake invalid symbol entry and reloc for this symbol to prevent the linker progressing
+				linker.symMap[pkgName+"."+unresolved] = &obj.Sym{Name: pkgName + "." + unresolved, Offset: InvalidOffset}
+				objSym.Reloc = append(objSym.Reloc, obj.Reloc{Sym: linker.symMap[pkgName+"."+unresolved]})
+				linker.pkgNamesWithUnresolved[pkgName] = struct{}{}
+			}
+		}
+		for _, reloc := range objSym.Reloc {
+			if strings.HasPrefix(reloc.Sym.Name, obj.UnresolvedSymRefPrefix) {
+				var pkgName string
+				symRef := obj.ParseUnresolvedIdxString(reloc.Sym.Name)
+				reloc.Sym.Name, pkgName = resolveSymRefName(symRef, pkgs, objByPkg, objSym.Objidx)
+				linker.pkgNamesWithUnresolved[pkgName] = struct{}{}
+				// Should we do something if this reloc remains unresolved?
+			}
+		}
+	}
+
 	if len(linker.options.SymbolNameOrder) > 0 {
 		if len(symNames) == len(linker.options.SymbolNameOrder) {
 			isOk := true

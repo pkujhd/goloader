@@ -1,6 +1,7 @@
 package obj
 
 import (
+	"cmd/objfile/goobj"
 	"os"
 )
 
@@ -10,12 +11,16 @@ type CompilationUnitFiles struct {
 }
 
 type Pkg struct {
-	Syms         map[string]*ObjSymbol
-	CUFiles      []CompilationUnitFiles
-	Arch         string
-	PkgPath      string
-	F            *os.File
-	SymNameOrder []string
+	Syms              map[string]*ObjSymbol
+	CUFiles           []CompilationUnitFiles
+	Arch              string
+	PkgPath           string
+	F                 *os.File
+	SymNameOrder      []string
+	Objidx            uint32 // index of this archive in the slice of files
+	ReferencedPkgs    []string
+	UnresolvedSymRefs map[goobj.SymRef]struct{}
+	SymNamesByIdx     map[uint32]string
 }
 
 type FuncInfo struct {
@@ -37,14 +42,15 @@ type FuncInfo struct {
 }
 
 type ObjSymbol struct {
-	Name  string
-	Kind  int    // kind of symbol
-	DupOK bool   // are duplicate definitions okay?
-	Size  int64  // size of corresponding data
-	Data  []byte // memory image of symbol
-	Type  string
-	Reloc []Reloc
-	Func  *FuncInfo // additional data for functions
+	Name   string
+	Kind   int    // kind of symbol
+	DupOK  bool   // are duplicate definitions okay?
+	Size   int64  // size of corresponding data
+	Data   []byte // memory image of symbol
+	Type   string
+	Reloc  []Reloc
+	Func   *FuncInfo // additional data for functions
+	Objidx uint32    // the index of the archive which the symbol came from when loading multiple files
 }
 
 type InlTreeNode struct {

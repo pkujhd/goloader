@@ -21,12 +21,7 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 	if isInFirstModule && (firstModuleSymAddr < uintptr(segment.dataBase) || firstModuleSymAddr > uintptr(segment.dataBase+segment.sumDataLen)) {
 		return nil
 	}
-	objsym := linker.objsymbolMap[sym.Name]
-	typeName := objsym.Type
-	if len(typeName) == 0 && objsym.Size > 0 {
-		// This is likely a global var with no type information encoded, so can't be GC'd (ignore it)
-		return nil
-	}
+	typeName := linker.objsymbolMap[sym.Name].Type
 	sval := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
 	if int(sym.Kind) == symkind.SBSS {
 		sval = sval - int64(segment.dataLen+segment.noptrdataLen)
@@ -50,7 +45,7 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 			w.Append(prog[4:], nptr)
 		}
 	} else {
-		return fmt.Errorf("type: %s not found\n", typeName)
+		return fmt.Errorf("type: '%s' for symbol '%s' not found\n", typeName, sym.Name)
 	}
 	return nil
 }

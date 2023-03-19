@@ -40,30 +40,31 @@ type segment struct {
 }
 
 type Linker struct {
-	code               []byte
-	data               []byte
-	noptrdata          []byte
-	bss                []byte
-	noptrbss           []byte
-	cuFiles            []obj.CompilationUnitFiles
-	symMap             map[string]*obj.Sym
-	objsymbolMap       map[string]*obj.ObjSymbol
-	namemap            map[string]int
-	fileNameMap        map[string]int
-	cutab              []uint32
-	filetab            []byte
-	funcnametab        []byte
-	functab            []byte
-	pctab              []byte
-	_func              []*_func
-	initFuncs          []string
-	symNameOrder       []string
-	Arch               *sys.Arch
-	options            LinkerOptions
-	heapStringMap      map[string]*string
-	stringMmap         *stringMmap
-	appliedADRPRelocs  map[*byte][]byte
-	appliedPCRelRelocs map[*byte][]byte
+	code                   []byte
+	data                   []byte
+	noptrdata              []byte
+	bss                    []byte
+	noptrbss               []byte
+	cuFiles                []obj.CompilationUnitFiles
+	symMap                 map[string]*obj.Sym
+	objsymbolMap           map[string]*obj.ObjSymbol
+	namemap                map[string]int
+	fileNameMap            map[string]int
+	cutab                  []uint32
+	filetab                []byte
+	funcnametab            []byte
+	functab                []byte
+	pctab                  []byte
+	_func                  []*_func
+	initFuncs              []string
+	symNameOrder           []string
+	Arch                   *sys.Arch
+	options                LinkerOptions
+	heapStringMap          map[string]*string
+	stringMmap             *stringMmap
+	appliedADRPRelocs      map[*byte][]byte
+	appliedPCRelRelocs     map[*byte][]byte
+	pkgNamesWithUnresolved map[string]struct{}
 }
 
 type CodeModule struct {
@@ -92,15 +93,16 @@ func initLinker(opts []LinkerOptFunc) (*Linker, error) {
 		// if f.pcsp == 0 ...
 		// and
 		// if f.nameoff == 0
-		funcnametab:        make([]byte, PtrSize),
-		pctab:              make([]byte, PtrSize),
-		symMap:             make(map[string]*obj.Sym),
-		objsymbolMap:       make(map[string]*obj.ObjSymbol),
-		namemap:            make(map[string]int),
-		fileNameMap:        make(map[string]int),
-		heapStringMap:      make(map[string]*string),
-		appliedADRPRelocs:  make(map[*byte][]byte),
-		appliedPCRelRelocs: make(map[*byte][]byte),
+		funcnametab:            make([]byte, PtrSize),
+		pctab:                  make([]byte, PtrSize),
+		symMap:                 make(map[string]*obj.Sym),
+		objsymbolMap:           make(map[string]*obj.ObjSymbol),
+		namemap:                make(map[string]int),
+		fileNameMap:            make(map[string]int),
+		heapStringMap:          make(map[string]*string),
+		appliedADRPRelocs:      make(map[*byte][]byte),
+		appliedPCRelRelocs:     make(map[*byte][]byte),
+		pkgNamesWithUnresolved: make(map[string]struct{}),
 	}
 	linker.Opts(opts...)
 	c := &linker.options
@@ -962,6 +964,19 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ig
 		}
 	}
 	return symMap
+}
+
+func (linker *Linker) UnresolvedPackageReferences(existingPkgs []string) []string {
+	var pkgList []string
+	for pkgName := range linker.pkgNamesWithUnresolved {
+		for _, existing := range existingPkgs {
+			if pkgName == existing {
+				continue
+			}
+		}
+		pkgList = append(pkgList, pkgName)
+	}
+	return pkgList
 }
 
 func (linker *Linker) UnresolvedExternalSymbolUsers(symbolMap map[string]uintptr) map[string][]string {
