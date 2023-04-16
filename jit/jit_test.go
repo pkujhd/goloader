@@ -9,6 +9,9 @@ import (
 	"github.com/eh-steve/goloader/jit"
 	"github.com/eh-steve/goloader/jit/testdata/common"
 	"github.com/eh-steve/goloader/jit/testdata/test_issue55/p"
+	"github.com/eh-steve/goloader/jit/testdata/test_type_mismatch"
+	"github.com/eh-steve/goloader/jit/testdata/test_type_mismatch/typedef"
+	"github.com/eh-steve/goloader/unload/jsonunload"
 	"net"
 	"net/http"
 	"os"
@@ -183,7 +186,6 @@ func TestJitJsonUnmarshal(t *testing.T) {
 	for _, testName := range testNames {
 		t.Run(testName, func(t *testing.T) {
 			module, symbols := buildLoadable(t, conf, testName, data)
-
 			MyFunc := symbols["MyFunc"].(func([]byte) (interface{}, error))
 			result, err := MyFunc([]byte(`{"key": "value"}`))
 			if err != nil {
@@ -192,7 +194,7 @@ func TestJitJsonUnmarshal(t *testing.T) {
 			if result.(map[string]interface{})["key"] != "value" {
 				t.Errorf("expected %s, got %v", "value", result)
 			}
-
+			jsonunload.Unload(module.DataAddr())
 			err = module.Unload()
 			if err != nil {
 				t.Fatal(err)
@@ -1072,13 +1074,13 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			ifaceCounter1 := ifaceOut1.Val2["exclusive_interface_counter"].(string)
 			byteReader1 := ifaceOut1.Val2["bytes_reader_output"].([]byte)
 			ifaceCurrent1 := ifaceOut1.Val2["current"].(int64)
-			ifaceCurrentComplex1 := ifaceOut1.Val2["complex"].(map[string]interface{})
+			ifaceCurrentComplex1 := ifaceOut1.Val2["complex"].(map[interface{}]interface{})
 
 			ifaceOut12, _ := thingIface1.Method1(common.SomeStruct{Val1: []byte{4, 5, 6}, Val2: map[string]interface{}{}})
 			ifaceCounter12 := ifaceOut12.Val2["exclusive_interface_counter"].(string)
 			byteReader12 := ifaceOut12.Val2["bytes_reader_output"].([]byte)
 			ifaceCurrent12 := ifaceOut12.Val2["current"].(int64)
-			ifaceCurrentComplex12 := ifaceOut12.Val2["complex"].(map[string]interface{})
+			ifaceCurrentComplex12 := ifaceOut12.Val2["complex"].(map[interface{}]interface{})
 			_ = thingIface1.Method2(nil)
 
 			newThingIface2, err := goloader.ConvertTypesAcrossModules(module1, module2, thingIface1, thingIface2)
@@ -1513,4 +1515,87 @@ func TestGCGlobals(t *testing.T) {
 			time.Sleep(time.Second)
 		})
 	}
+}
+
+func TestTypeMismatch(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:                         goBinary,
+		KeepTempFiles:                    false,
+		ExtraBuildFlags:                  nil,
+		BuildEnv:                         nil,
+		TmpDir:                           "",
+		DebugLog:                         false,
+		HeapStrings:                      heapStrings,
+		StringContainerSize:              stringContainerSize,
+		RandomSymbolNameOrder:            false,
+		UnsafeBlindlyUseFirstmoduleTypes: false, // If set to true, this test should fail (fault)
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_type_mismatch/test.go"},
+		pkg:   "./testdata/test_type_mismatch",
+	}
+	// If the test shows a type deduplication bug, there will be a hard fault due to out of heap memory access
+	// We still want to run the deferred file writes to restore the testdata, so we SetPanicOnFault
+	debug.SetPanicOnFault(true)
+
+	originalFileType, err := os.ReadFile("./testdata/test_type_mismatch/typedef/typedef.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newFileType, err := os.ReadFile("./testdata/test_type_mismatch/typedef/different_type.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.WriteFile("./testdata/test_type_mismatch/typedef/typedef.go", originalFileType, 0655)
+	}()
+
+	module, symbols := buildLoadable(t, conf, "BuildGoPackage", data)
+	bakedIn := test_type_mismatch.New()
+	testFunc := symbols["New"].(func() *typedef.Thing)
+	dynamic := testFunc()
+
+	if reflect.TypeOf(bakedIn) != reflect.TypeOf(dynamic) {
+		t.Errorf("expected types to be the same %p, %p", reflect.TypeOf(bakedIn), reflect.TypeOf(dynamic))
+	}
+
+	err = module.Unload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = module.UnloadStringMap()
+
+	// Replace the file with a new, incompatible type
+	err = os.WriteFile("./testdata/test_type_mismatch/typedef/typedef.go", newFileType, 0655)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	module2, symbols2 := buildLoadable(t, conf, "BuildGoPackage", data)
+
+	testFunc2, ok := symbols2["New"].(func() *typedef.Thing)
+
+	if ok {
+		t.Error("expected function type to be different")
+		dynamic2 := testFunc2() // This will probably hard fault due to the incorrect type being used in a relocation
+
+		if reflect.TypeOf(bakedIn) == reflect.TypeOf(dynamic2) {
+			t.Errorf("expected types to be different %p, %p", reflect.TypeOf(bakedIn), reflect.TypeOf(dynamic2))
+		}
+	} else {
+		testFunc3 := reflect.ValueOf(symbols2["New"])
+		result := testFunc3.Call(nil)
+
+		if reflect.TypeOf(bakedIn) == result[0].Type() {
+			t.Errorf("expected types to be different %p, %p", reflect.TypeOf(bakedIn), result[0].Type())
+		}
+	}
+
+	err = module2.Unload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = module2.UnloadStringMap()
+
 }

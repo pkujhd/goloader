@@ -2,11 +2,12 @@ package jit
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"math/rand"
 	"reflect"
+	"runtime/debug"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 )
@@ -94,6 +95,12 @@ func complex128div(n complex128, m complex128) complex128
 //go:linkname uncommon reflect.(*rtype).uncommon
 func uncommon(t *rtype) uintptr
 
+//go:linkname poll_runtime_pollWaitCanceled internal/poll.runtime_pollWaitCanceled
+func poll_runtime_pollWaitCanceled(pd unsafe.Pointer, mode int)
+
+//go:linkname poll_runtime_isPollServerDescriptor internal/poll.runtime_isPollServerDescriptor
+func poll_runtime_isPollServerDescriptor(fd uintptr) bool
+
 func testAtomic64() {
 	test_z64 = 42
 	test_x64 = 0
@@ -148,40 +155,35 @@ func check() {
 	errors.As(nil, &i)
 
 	// To bake in all of sync.Cond's methods referencing functions defined in runtime since runtime is a forbidden package
-	var _ = reflect.ValueOf(sync.Cond{})
-	var _ = reflect.DeepEqual(1, 2)
-	var _ = reflect.TypeOf(reflect.ValueOf(uncommon))
-	var _ = reflect.ArrayOf(1, reflect.TypeOf(5))
-	var _ = reflect.SliceOf(reflect.TypeOf(time.Ticker{}))
-	var _ = reflect.MapOf(reflect.TypeOf(5), reflect.TypeOf(5))
-	var _ = reflect.ArrayOf(1, reflect.TypeOf(5))
-	var _ = reflect.Append(reflect.ValueOf([]int{}))
+	_ = reflect.ValueOf(sync.Cond{})
+	_ = reflect.DeepEqual(1, 2)
+	_ = reflect.TypeOf(reflect.ValueOf(uncommon))
+	// These are all implemented inside runtime using go:linkname, so usual JIT dependency resolution doesn't work
+	// TODO - find a way to discover and build other linkname'd implementations...
+	_ = reflect.TypeOf(reflect.ValueOf(poll_runtime_pollWaitCanceled))
+	_ = reflect.TypeOf(reflect.ValueOf(poll_runtime_isPollServerDescriptor))
+	_ = reflect.TypeOf(reflect.ValueOf(syscall.Exec))
+	_ = reflect.TypeOf(reflect.ValueOf(syscall.Setuid))
+	_ = reflect.TypeOf(reflect.ValueOf(syscall.AllThreadsSyscall))
+	_ = reflect.ValueOf(debug.FreeOSMemory)
+	_ = reflect.ValueOf(debug.ReadBuildInfo)
+	_ = reflect.ValueOf(debug.SetMemoryLimit)
+	_ = reflect.ValueOf(debug.SetGCPercent)
+	_ = reflect.ValueOf(debug.SetMaxThreads)
+	_ = reflect.ValueOf(debug.SetPanicOnFault)
+	_ = reflect.ValueOf(debug.SetMaxStack)
+	_ = reflect.ArrayOf(1, reflect.TypeOf(5))
+	_ = reflect.SliceOf(reflect.TypeOf(time.Ticker{}))
+	_ = reflect.MapOf(reflect.TypeOf(5), reflect.TypeOf(5))
+	_ = reflect.ArrayOf(1, reflect.TypeOf(5))
+	_ = reflect.Append(reflect.ValueOf([]int{}))
+	x := 0
+	_ = reflect.NewAt(reflect.TypeOf(0), reflect.ValueOf(&x).UnsafePointer())
 	// reflect.Call disables most of linker's deadcode analysis $GOROOT/src/cmd/link/internal/ld/deadcode.go
-	var _ = reflect.MakeFunc(reflect.TypeOf(func() {}), func(args []reflect.Value) (results []reflect.Value) {
+	_ = reflect.MakeFunc(reflect.TypeOf(func() {}), func(args []reflect.Value) (results []reflect.Value) {
 		return nil
 	}).Call(nil)
 	_ = bytes.Compare(nil, nil)
-
-	// encoding/json's encoderCache sync.Map can cache functions for encoding builtin types, but these functions
-	// might not be baked in, and so could be unloaded. To avoid caching dynamically loaded code, we force inclusion of
-	// functions for encoding all the builtin types
-	type forcedJson struct {
-		I     []*int
-		U     []*uint
-		F32   []*float32
-		F64   []*float64
-		S     []*string
-		Iface []*interface{}
-		Stru  []*struct {
-			I int
-		}
-		Msi  map[string]int
-		c128 []complex128
-		c64  []complex64
-		u    []uint
-	}
-	f := forcedJson{}
-	_, _ = json.Marshal(&f)
 
 	_ = rand.Float64() // to prevent the internal/godebug Setting cache (a sync.Map) from storing "randautoseed" from dynamic memory
 }

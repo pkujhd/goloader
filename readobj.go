@@ -173,6 +173,9 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 	if err := linker.addSymbols(symNames); err != nil {
 		return nil, err
 	}
+	for symName := range pkg.Syms {
+		linker.collectReachableTypes(symName)
+	}
 	return linker, nil
 }
 
@@ -232,7 +235,7 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 			objSym.Type, pkgName = resolveSymRefName(symRef, pkgs, objByPkg, objSym.Objidx)
 			if objSym.Type == "" {
 				// Still unresolved, add a fake invalid symbol entry and reloc for this symbol to prevent the linker progressing
-				linker.symMap[pkgName+"."+unresolved] = &obj.Sym{Name: pkgName + "." + unresolved, Offset: InvalidOffset}
+				linker.symMap[pkgName+"."+unresolved] = &obj.Sym{Name: pkgName + "." + unresolved, Offset: InvalidOffset, Pkg: pkgName}
 				objSym.Reloc = append(objSym.Reloc, obj.Reloc{Sym: linker.symMap[pkgName+"."+unresolved]})
 				linker.pkgNamesWithUnresolved[pkgName] = struct{}{}
 			}
@@ -270,5 +273,35 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 	if err := linker.addSymbols(symNames); err != nil {
 		return nil, err
 	}
+	mainPkgSyms := pkgs[0].Syms
+	for symName := range mainPkgSyms {
+		linker.collectReachableTypes(symName)
+	}
 	return linker, nil
+}
+
+func (linker *Linker) collectReachableTypes(symName string) {
+	if _, ok := linker.reachableTypes[symName]; ok {
+		return
+	}
+	if strings.HasPrefix(symName, TypePrefix) && !strings.HasPrefix(symName, TypeDoubleDotPrefix) {
+		linker.reachableTypes[symName] = struct{}{}
+		if strings.HasPrefix(symName, TypePrefix+"*") {
+			nonPtr := TypePrefix + strings.TrimPrefix(symName, TypePrefix+"*")
+			if nonPtrSym, ok := linker.symMap[nonPtr]; ok {
+				linker.reachableTypes[nonPtr] = struct{}{}
+				for _, reloc := range nonPtrSym.Reloc {
+					if strings.HasPrefix(reloc.Sym.Name, TypePrefix) && !strings.HasPrefix(reloc.Sym.Name, TypeDoubleDotPrefix) {
+						linker.collectReachableTypes(reloc.Sym.Name)
+					}
+				}
+			}
+		}
+
+		for _, reloc := range linker.symMap[symName].Reloc {
+			if strings.HasPrefix(reloc.Sym.Name, TypePrefix) && !strings.HasPrefix(reloc.Sym.Name, TypeDoubleDotPrefix) {
+				linker.collectReachableTypes(reloc.Sym.Name)
+			}
+		}
+	}
 }

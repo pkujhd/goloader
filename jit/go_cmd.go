@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 )
 
@@ -133,6 +135,27 @@ func GoGet(goCmd, packagePath, workDir string) error {
 		return fmt.Errorf("failed to go get %s: %s", packagePath, output)
 	}
 	return nil
+}
+
+var stdLibsByGoCmd sync.Map
+
+func GoListStd(goCmd string) map[string]struct{} {
+	cacheLookup, ok := stdLibsByGoCmd.Load(goCmd)
+	if ok {
+		return cacheLookup.(map[string]struct{})
+	}
+	stdLibPkgs := map[string]struct{}{}
+	cmd := exec.Command(goCmd, "list", "std")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("goloader/jit failed to list std packages: %s\n", err)
+		return nil
+	}
+	for _, pkgName := range bytes.Split(output, []byte("\n")) {
+		stdLibPkgs[string(pkgName)] = struct{}{}
+	}
+	stdLibsByGoCmd.Store(goCmd, stdLibPkgs)
+	return stdLibPkgs
 }
 
 func GoList(goCmd, absPath, workDir string) (*Package, error) {

@@ -1,6 +1,10 @@
 package goloader
 
 import (
+	"cmd/objfile/goobj"
+	"cmd/objfile/obj"
+	"cmd/objfile/objabi"
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -105,38 +109,181 @@ func (t *_type) Elem() *_type               { return _Elem(t) }
 //
 //	import "github.com/org/somepackage/v4" + somepackage.SomeStruct
 //	 =>  github.com/org/somepackage/v4.SomeStruct
-func fullyQualifiedName(t *_type, pkgpath string) string {
-	// If pkgpath is empty, it's either:
-	//  1) a builtin type
-	//  2) an anonymous struct
-	//  3) another anonymous composite type (e.g. array or slice)
-	// For 2 and 3), we probably don't need to fully qualify the types as fully supporting cross-binary anonymous types will be awkward
-	name := t.nameOff(t.str).name()
-	if pkgpath == "" {
-		return name
+func resolveFullyQualifiedSymbolName(t *_type) string {
+	typ := AsRType(t)
+	pkgPath := objabi.PathToPrefix(typ.PkgPath())
+	name := typ.Name()
+	if pkgPath != "" && name != "" {
+		return pkgPath + "." + name
 	}
-
-	// Find the first dot, and read backwards until we find a '*' or a ']'
-	dot := strings.IndexByte(name, '.')
-
-	if dot == -1 {
-		return name
-	}
-	start := dot
-loop:
-	for ; start >= 0; start-- {
-		switch name[start] {
-		case ']', '*', ' ':
-			start++
-			break loop
+	switch t.Kind() {
+	case reflect.Ptr:
+		return "*" + resolveFullyQualifiedSymbolName(fromRType(typ.Elem()))
+	case reflect.Struct:
+		if typ.NumField() == 0 {
+			return typ.String()
 		}
+		fields := make([]string, typ.NumField())
+		for i := 0; i < typ.NumField(); i++ {
+			fieldName := typ.Field(i).Name + " "
+			if typ.Field(i).Anonymous {
+				fieldName = ""
+			}
+			fieldPkgPath := ""
+			if typ.Field(i).PkgPath != "" {
+				fieldPkgPath = objabi.PathToPrefix(typ.Field(i).PkgPath) + "."
+			}
+			fieldStructTag := ""
+			if typ.Field(i).Tag != "" {
+				fieldStructTag = fmt.Sprintf(" %q", string(typ.Field(i).Tag))
+			}
+			fields[i] = fmt.Sprintf("%s%s%s%s", fieldPkgPath, fieldName, resolveFullyQualifiedSymbolName(fromRType(typ.Field(i).Type)), fieldStructTag)
+		}
+		return fmt.Sprintf("struct { %s }", strings.Join(fields, "; "))
+	case reflect.Map:
+		return fmt.Sprintf("map[%s]%s", resolveFullyQualifiedSymbolName(fromRType(typ.Key())), resolveFullyQualifiedSymbolName(fromRType(typ.Elem())))
+	case reflect.Chan:
+		switch reflect.ChanDir(typ.ChanDir()) {
+		case reflect.BothDir:
+			return fmt.Sprintf("chan %s", resolveFullyQualifiedSymbolName(fromRType(typ.Elem())))
+		case reflect.RecvDir:
+			return fmt.Sprintf("<-chan %s", resolveFullyQualifiedSymbolName(fromRType(typ.Elem())))
+		case reflect.SendDir:
+			return fmt.Sprintf("chan<- %s", resolveFullyQualifiedSymbolName(fromRType(typ.Elem())))
+		}
+	case reflect.Slice:
+		return fmt.Sprintf("[]%s", resolveFullyQualifiedSymbolName(fromRType(typ.Elem())))
+	case reflect.Array:
+		return fmt.Sprintf("[%d]%s", typ.Len(), resolveFullyQualifiedSymbolName(fromRType(typ.Elem())))
+	case reflect.Func:
+		ins := make([]string, typ.NumIn())
+		outs := make([]string, typ.NumOut())
+		for i := 0; i < typ.NumIn(); i++ {
+			ins[i] = resolveFullyQualifiedSymbolName(fromRType(typ.In(i)))
+			if i == typ.NumIn()-1 && typ.IsVariadic() {
+				ins[i] = "..." + resolveFullyQualifiedSymbolName(fromRType(typ.In(i).Elem()))
+			}
+		}
+		for i := 0; i < typ.NumOut(); i++ {
+			outs[i] = resolveFullyQualifiedSymbolName(fromRType(typ.Out(i)))
+		}
+		funcName := "func(" + strings.Join(ins, ", ") + ")"
+		if len(outs) > 0 {
+			funcName += " "
+		}
+		if len(outs) > 1 {
+			funcName += "("
+		}
+		funcName += strings.Join(outs, ", ")
+		if len(outs) > 1 {
+			funcName += ")"
+		}
+		return funcName
+	case reflect.Interface:
+		if goobj.BuiltinIdx(TypePrefix+typ.String(), int(obj.ABI0)) != -1 {
+			// must be a builtin,
+			return typ.String()
+		}
+		if typ.NumMethod() == 0 {
+			return typ.String()
+		}
+		methods := make([]string, typ.NumMethod())
+		ifaceT := (*interfacetype)(unsafe.Pointer(t))
+
+		for i := 0; i < typ.NumMethod(); i++ {
+			methodType := _typeOff(t, ifaceT.mhdr[i].ityp)
+			methodName := _nameOff(t, ifaceT.mhdr[i].name).name()
+			methods[i] = fmt.Sprintf("%s(%s", methodName, strings.TrimPrefix(resolveFullyQualifiedSymbolName(methodType), "func("))
+		}
+		reflect.TypeOf(0)
+		return fmt.Sprintf("interface { %s }", strings.Join(methods, "; "))
+	default:
+		if goobj.BuiltinIdx(TypePrefix+typ.String(), int(obj.ABI0)) != -1 {
+			// must be a builtin,
+			return typ.String()
+		}
+		switch typ.String() {
+		case "int", "uint", "struct {}", "interface {}":
+			return typ.String()
+		}
+		panic("unexpected builtin type: " + typ.String())
 	}
-	localPkgName := name[start:dot]
-	name = strings.Replace(name, localPkgName, pkgpath, 1)
-	return name
+	return ""
+}
+
+func symbolIsVariant(name string) (string, bool) {
+	const dot = "·"
+	const noAlgPrefix = TypePrefix + "noalg."
+	if strings.HasPrefix(name, TypePrefix+"struct {") || strings.HasPrefix(name, TypePrefix+"*struct {") {
+		// Anonymous structs might embed variant types, so these will need parsing first
+		ptr := false
+		if strings.HasPrefix(name, TypePrefix+"*struct {") {
+			ptr = true
+		}
+		fieldsStr := strings.TrimPrefix(name, TypePrefix+"struct { ")
+		fieldsStr = strings.TrimPrefix(name, TypePrefix+"*struct { ")
+		fieldsStr = strings.TrimSuffix(fieldsStr, " }")
+		fields := strings.Split(fieldsStr, "; ")
+		isVariant := false
+		for j, field := range fields {
+			var typeName string
+			var typeNameIndex int
+			fieldTypeTag := strings.SplitN(field, " ", 3)
+			// could be anonymous, or tagless, or both - we want to operate on the type
+			switch len(fieldTypeTag) {
+			case 1:
+				// Anonymous, tagless - just a type
+				typeName = fieldTypeTag[0]
+			case 2:
+				// could be a name + type, or type + tag
+				if strings.HasPrefix(fieldTypeTag[1], "\"") || strings.HasPrefix(fieldTypeTag[1], "`") {
+					// type + tag
+					typeName = fieldTypeTag[0]
+				} else {
+					// name + type
+					typeName = fieldTypeTag[1]
+					typeNameIndex = 1
+				}
+			case 3:
+				// Name + type + tag
+				typeName = fieldTypeTag[1]
+				typeNameIndex = 1
+			}
+			i := len(typeName)
+			for i > 0 && typeName[i-1] >= '0' && typeName[i-1] <= '9' {
+				i--
+			}
+			if i >= len(dot) && typeName[i-len(dot):i] == dot {
+				isVariant = true
+				fieldTypeTag[typeNameIndex] = typeName[:i-len(dot)]
+				fields[j] = strings.Join(fieldTypeTag, " ")
+			}
+		}
+		if isVariant {
+			if ptr {
+				return TypePrefix + "*struct { " + strings.Join(fields, "; ") + " }", true
+			}
+			return TypePrefix + "struct { " + strings.Join(fields, "; ") + " }", true
+
+		}
+		return "", false
+	} else {
+		// need to double check for function scoped types which get a ·N suffix added, and also type.noalg.* variants
+		i := len(name)
+		for i > 0 && name[i-1] >= '0' && name[i-1] <= '9' {
+			i--
+		}
+		if i >= len(dot) && name[i-len(dot):i] == dot {
+			return name[:i-len(dot)], true
+		} else if strings.HasPrefix(name, noAlgPrefix) {
+			return TypePrefix + strings.TrimPrefix(name, noAlgPrefix), true
+		}
+		return "", false
+	}
 }
 
 func funcPkgPath(funcName string) string {
+	funcName = strings.TrimPrefix(funcName, TypeDoubleDotPrefix+"eq.")
 	// Anonymous struct methods can't have a package
 	if strings.HasPrefix(funcName, "go"+ObjSymbolSeparator+"struct {") || strings.HasPrefix(funcName, "go"+ObjSymbolSeparator+"(*struct {") {
 		return ""
@@ -145,15 +292,20 @@ func funcPkgPath(funcName string) string {
 	if lastSlash == -1 {
 		lastSlash = 0
 	}
-	// Methods on structs embedding structs from other packages look funny, e.g.:
-	// regexp.(*onePassInst).regexp/syntax.op
-	firstBracket := strings.LastIndex(funcName, ".(")
-	if firstBracket > 0 && lastSlash > firstBracket {
-		lastSlash = firstBracket
+	// Generic dictionaries
+	firstDict := strings.Index(funcName, "..dict")
+	if firstDict > 0 {
+		return funcName[:firstDict]
+	} else {
+		// Methods on structs embedding structs from other packages look funny, e.g.:
+		// regexp.(*onePassInst).regexp/syntax.op
+		firstBracket := strings.LastIndex(funcName, ".(")
+		if firstBracket > 0 && lastSlash > firstBracket {
+			lastSlash = firstBracket
+		}
 	}
-
 	dot := lastSlash
-	for ; dot < len(funcName) && funcName[dot] != '.' && funcName[dot] != '('; dot++ {
+	for ; dot < len(funcName) && funcName[dot] != '.' && funcName[dot] != '(' && funcName[dot] != '['; dot++ {
 	}
 	pkgPath := funcName[:dot]
 	return strings.TrimPrefix(strings.TrimPrefix(pkgPath, TypePrefix+".eq."), "[...]")
@@ -184,32 +336,8 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 	} else {
 		header := (*emptyInterface)(unsafe.Pointer(&inter))
 		t := header._type
-		pkgpath := t.PkgPath()
-		var element *_type
-		var elementElem *_type
-		if v.Kind() == reflect.Ptr {
-			element = *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-			if element != nil && pkgpath == EmptyString {
-				switch element.Kind() {
-				case reflect.Ptr, reflect.Array, reflect.Slice:
-					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
-				}
-				pkgpath = element.PkgPath()
-				if elementElem != nil && pkgpath == EmptyString {
-					pkgpath = elementElem.PkgPath()
-				}
-			}
-		}
-		name := fullyQualifiedName(t, pkgpath)
-		if element != nil {
-			symPtr[TypePrefix+name[1:]] = uintptr(unsafe.Pointer(element))
-			if elementElem != nil {
-				symPtr[TypePrefix+name[2:]] = uintptr(unsafe.Pointer(elementElem))
-			}
-		}
-		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(header._type))
+		registerType(t, symPtr, map[string]struct{}{})
 	}
-
 }
 
 func buildModuleTypeHash(module *moduledata, typeHash map[uint32][]*_type) {

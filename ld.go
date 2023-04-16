@@ -65,6 +65,7 @@ type Linker struct {
 	appliedADRPRelocs      map[*byte][]byte
 	appliedPCRelRelocs     map[*byte][]byte
 	pkgNamesWithUnresolved map[string]struct{}
+	reachableTypes         map[string]struct{}
 }
 
 type CodeModule struct {
@@ -103,6 +104,7 @@ func initLinker(opts []LinkerOptFunc) (*Linker, error) {
 		appliedADRPRelocs:      make(map[*byte][]byte),
 		appliedPCRelRelocs:     make(map[*byte][]byte),
 		pkgNamesWithUnresolved: make(map[string]struct{}),
+		reachableTypes:         make(map[string]struct{}),
 	}
 	linker.Opts(opts...)
 	c := &linker.options
@@ -221,7 +223,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		return symbol, nil
 	}
 	objsym := linker.objsymbolMap[name]
-	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind}
+	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind, Pkg: objsym.Pkg}
 	linker.symMap[symbol.Name] = symbol
 
 	switch symbol.Kind {
@@ -426,7 +428,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	if objsym.Type != EmptyString {
 		if _, ok := linker.symMap[objsym.Type]; !ok {
 			if _, ok := linker.objsymbolMap[objsym.Type]; !ok {
-				linker.symMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
+				linker.symMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset, Pkg: objsym.Pkg}
 			}
 		}
 	}
@@ -549,16 +551,17 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 					symbolMap[name] = uintptr(linker.symMap[name].Offset) + linker.stringMmap.addr
 				} else {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					if strings.HasPrefix(name, TypePrefix) {
+						if variant, ok := symbolIsVariant(name); ok && symPtr[variant] != 0 {
+							symbolMap[FirstModulePrefix+name] = symPtr[variant]
+						}
+					}
 				}
 			} else {
 				if strings.HasPrefix(name, MainPkgPrefix) || strings.HasPrefix(name, TypePrefix) {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-					if addr, ok := symPtr[name]; ok {
-						// Record the presence of a duplicate symbol by adding a prefix
-						// Note - this isn't enough to deduplicate types during relocation,
-						// as not all firstmodule types will be in symPtr (especially func types)
-						symbolMap[FirstModulePrefix+name] = addr
-					}
+					// Record the presence of a duplicate symbol by adding a prefix
+					symbolMap[FirstModulePrefix+name] = symPtr[name]
 				} else {
 					shouldSkipDedup := false
 					for _, pkgPath := range linker.options.SkipTypeDeduplicationForPackages {
@@ -867,6 +870,12 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 
 				// Only relocate code if the type is a duplicate
 				if t != prevT {
+					_, isVariant := symbolIsVariant(loc.Sym.Name)
+					if uintptr(unsafe.Pointer(t)) != symbolMap[FirstModulePrefix+loc.Sym.Name] && !isVariant {
+						// This shouldn't be possible and indicates a registration bug
+						panic(fmt.Sprintf("found another firstmodule type that wasn't registered by goloader: %s", loc.Sym.Name))
+					}
+
 					for _, pkgPathToSkip := range linker.options.SkipTypeDeduplicationForPackages {
 						if t.PkgPath() == pkgPathToSkip {
 							continue relocLoop
@@ -946,16 +955,32 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	return err
 }
 
-func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ignorePackages []string) map[string]*obj.Sym {
+func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ignorePackages []string, stdLibPkgs map[string]struct{}, unsafeBlindlyUseFirstModuleTypes bool) map[string]*obj.Sym {
 	symMap := make(map[string]*obj.Sym)
 	for symName, sym := range linker.symMap {
 		shouldSkipDedup := false
 		for _, pkgPath := range ignorePackages {
-			if strings.HasPrefix(symName, pkgPath) {
+			if sym.Pkg == pkgPath {
 				shouldSkipDedup = true
 			}
 		}
 		if sym.Offset == InvalidOffset || shouldSkipDedup {
+			if strings.HasPrefix(symName, TypePrefix) &&
+				!strings.HasPrefix(symName, TypeDoubleDotPrefix) {
+				// Always force the rebuild of non-std lib types in case they've changed between firstmodule and JIT code
+				// They can be checked for structural equality if the JIT code builds it, but not if we blindly use the firstmodule version of a _type
+				if typeSym, ok := symbolMap[symName]; ok {
+					t := (*_type)(unsafe.Pointer(typeSym))
+					_, isStdLibPkg := stdLibPkgs[t.PkgPath()]
+					// Don't rebuild types in the stdlib, as these shouldn't be different (assuming same toolchain version for host and JIT)
+					if t.PkgPath() != "" && !isStdLibPkg {
+						// Only rebuild types which are reachable (via relocs) from the main package, otherwise we'll end up building everything unnecessarily
+						if _, ok := linker.reachableTypes[symName]; ok && !unsafeBlindlyUseFirstModuleTypes {
+							symMap[symName] = sym
+						}
+					}
+				}
+			}
 			if _, ok := symbolMap[symName]; !ok || shouldSkipDedup {
 				if _, ok := linker.objsymbolMap[symName]; !ok || shouldSkipDedup {
 					symMap[symName] = sym

@@ -4,5 +4,8 @@
 package obj
 
 const (
-	TypeStringPrefix = "go:string."
+	TypeStringPrefix    = "go:string."
+	ObjSymbolSeparator  = ":"
+	TypeDoubleDotPrefix = "type:."
+	TypePrefix          = "type:"
 )

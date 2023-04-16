@@ -1,0 +1,7 @@
+package typedef
+
+type Thing struct {
+	A int32
+	B int32
+	C [104857600]uint64 // Big enough to be in another page outside the current heap (to cause a fault)
+}

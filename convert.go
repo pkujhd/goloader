@@ -6,6 +6,7 @@ package goloader
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"regexp"
 	"runtime"
 	"runtime/debug"
@@ -58,6 +59,11 @@ func toType(t Type) *_type {
 	return (*_type)(efaceOf(&x).data)
 }
 
+func fromRType(t reflect.Type) *_type {
+	var x interface{} = t
+	return (*_type)(efaceOf(&x).data)
+}
+
 type fakeValue struct {
 	typ  *_type
 	ptr  unsafe.Pointer
@@ -69,6 +75,13 @@ func AsType(_typ *_type) Type {
 	eface := efaceOf(&t)
 	eface.data = unsafe.Pointer(_typ)
 	return t.(Type)
+}
+
+func AsRType(_typ *_type) reflect.Type {
+	var t interface{} = reflect.TypeOf("")
+	eface := efaceOf(&t)
+	eface.data = unsafe.Pointer(_typ)
+	return t.(reflect.Type)
 }
 
 var closureFuncRegex = regexp.MustCompile(`^.*\.func[0-9]+$`)

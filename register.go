@@ -17,102 +17,71 @@ import (
 //go:linkname typelinksinit runtime.typelinksinit
 func typelinksinit()
 
-const tflagExtraStar tflag = 1 << 1
+func registerType(t *_type, symPtr map[string]uintptr, pkgSet map[string]struct{}) {
+	if t.Kind() == reflect.Invalid {
+		panic("Unexpected invalid kind during registration!")
+	}
+
+	pkgpath := t.PkgPath()
+	pkgSet[pkgpath] = struct{}{}
+	name := resolveFullyQualifiedSymbolName(t)
+
+	if _, ok := symPtr[TypePrefix+name]; ok {
+		return
+	}
+	switch t.Kind() {
+	case reflect.Ptr:
+		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+		if element != nil && element.Kind() != reflect.Invalid {
+			registerType(element, symPtr, pkgSet)
+		}
+	case reflect.Func:
+		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+		typ := AsType(t)
+		for i := 0; i < typ.NumIn(); i++ {
+			registerType(toType(typ.In(i)), symPtr, pkgSet)
+		}
+		for i := 0; i < typ.NumOut(); i++ {
+			registerType(toType(typ.Out(i)), symPtr, pkgSet)
+		}
+	case reflect.Struct:
+		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+		typ := AsType(t)
+		for i := 0; i < typ.NumField(); i++ {
+			registerType(toType(typ.Field(i).Type), symPtr, pkgSet)
+		}
+	case reflect.Chan, reflect.Array, reflect.Slice:
+		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+		registerType(element, symPtr, pkgSet)
+	case reflect.Map:
+		mt := (*mapType)(unsafe.Pointer(t))
+		registerType(mt.key, symPtr, pkgSet)
+		registerType(mt.elem, symPtr, pkgSet)
+		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+	case reflect.Bool, reflect.Int, reflect.Uint, reflect.Int64, reflect.Uint64, reflect.Int32, reflect.Uint32, reflect.Int16, reflect.Uint16, reflect.Int8, reflect.Uint8, reflect.Float64, reflect.Float32, reflect.String, reflect.UnsafePointer, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface:
+		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+	default:
+		panic(fmt.Sprintf("typelinksregister found unexpected type (kind %s): ", t.Kind()))
+	}
+}
 
 // !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
 func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
-	md := firstmoduledata
+	md := activeModules()[0]
 	for _, tl := range md.typelinks {
 		t := (*_type)(adduintptr(md.types, int(tl)))
-		if md.typemap != nil {
+		if _, ok := md.typemap[typeOff(tl)]; ok {
 			t = md.typemap[typeOff(tl)]
 		}
-
-		switch t.Kind() {
-		case reflect.Ptr:
-			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-			var elementElem *_type
-			pkgpath := t.PkgPath()
-			if element != nil && pkgpath == EmptyString {
-				switch element.Kind() {
-				case reflect.Slice, reflect.Chan, reflect.Array, reflect.Ptr:
-					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
-				}
-				pkgpath = element.PkgPath()
-				if elementElem != nil && pkgpath == EmptyString {
-					pkgpath = elementElem.PkgPath()
-				}
-			}
-			pkgSet[pkgpath] = struct{}{}
-			name := fullyQualifiedName(t, pkgpath)
-			if element != nil && element.Kind() != reflect.Invalid {
-				var numStars = 0
-				if element.tflag&tflagExtraStar != 0 {
-					numStars = 1
-				}
-				symPtr[TypePrefix+name[numStars:]] = uintptr(unsafe.Pointer(element))
-				if elementElem != nil && elementElem.Kind() != reflect.Invalid {
-					if elementElem.tflag&tflagExtraStar != 0 {
-						numStars = 2
-					}
-					symPtr[TypePrefix+name[numStars:]] = uintptr(unsafe.Pointer(elementElem))
-				}
-			}
-			symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
-		case reflect.Chan, reflect.Array, reflect.Slice, reflect.Struct, reflect.Func:
-			pkgpath := t.PkgPath()
-			name := fullyQualifiedName(t, pkgpath)
-			// These type names all start with *, but their elem will generally be a pointer and so picked up in the case aboveabove
-			var numStars = 0
-			if t.tflag&tflagExtraStar != 0 {
-				numStars = 1
-			}
-			symPtr[TypePrefix+name[numStars:]] = uintptr(unsafe.Pointer(t))
-		case reflect.Map:
-			mt := (*mapType)(adduintptr(md.types, int(tl)))
-			for _, element := range []*_type{mt.key, mt.elem} {
-				var elementElem *_type
-				pkgpath := t.PkgPath()
-				if element != nil && pkgpath == EmptyString {
-					switch element.Kind() {
-					case reflect.Ptr, reflect.Array, reflect.Slice, reflect.Chan:
-						elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
-					}
-					pkgpath = element.PkgPath()
-					if elementElem != nil && pkgpath == EmptyString {
-						pkgpath = elementElem.PkgPath()
-					}
-				}
-				pkgSet[pkgpath] = struct{}{}
-				name := fullyQualifiedName(t, pkgpath)
-				if element != nil && element.Kind() != reflect.Invalid {
-					var numStars = 0
-					if element.tflag&tflagExtraStar != 0 {
-						numStars = 1
-					}
-					symPtr[TypePrefix+name[numStars:]] = uintptr(unsafe.Pointer(element))
-					if elementElem != nil {
-						if elementElem.tflag&tflagExtraStar != 0 {
-							numStars = 2
-						}
-						symPtr[TypePrefix+name[numStars:]] = uintptr(unsafe.Pointer(elementElem))
-					}
-				}
-				var numStars = 0
-				if t.tflag&tflagExtraStar != 0 {
-					numStars = 1
-				}
-				symPtr[TypePrefix+name[numStars:]] = uintptr(unsafe.Pointer(t))
-			}
-		default:
-			panic(fmt.Sprintf("typelinksregister found unexpected type (kind %s): %s", t.Kind(), _name(t.nameOff(t.str))))
-		}
+		registerType(t, symPtr, pkgSet)
 	}
 	// register function
 	for _, f := range md.ftab {
 		if int(f.funcoff) < len(md.pclntable) {
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
-			name := getfuncname(_func, &md)
+			name := getfuncname(_func, md)
 			if name != EmptyString {
 				if _, ok := symPtr[name]; !ok {
 					pkgpath := funcPkgPath(name)

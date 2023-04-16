@@ -45,36 +45,37 @@ func newCyclicDataStructure() *cyclicDataStructure {
 }
 
 type ConvertibleWithInterface struct {
-	someString                        string
-	someInt                           int64
-	theInterfaceNil                   io.ReadSeeker
-	theInterface                      io.ReadSeeker
-	theEmptyInterfaceWithExternalType interface{}
-	theEmptyInterfaceWithCustomType   interface{}
-	theEmptyInferfaceWithComplexValue interface{}
-	chanOfExternalType                chan int
-	chanOfCustomType                  chan *exclHereImpl
-	arrayOfExternalType               [77]int
-	arrayOfCustomType                 [77]*exclHereImpl
-	arrayOfCustomInterface            [77]ExclusiveInterface
-	mapKeyedByExternalType            map[string]interface{}
-	mapKeyedByCustomType              map[*exclHereImpl]interface{}
-	mapValuesExternalType             map[interface{}]string
-	mapValuesCustomType               map[string]*exclHereImpl
-	sliceOfExternalType               []int64
-	sliceOfCustomType                 []*exclHereImpl
-	sliceOfExternalInterface          []interface{}
-	sliceOfCustomInterface            []ExclusiveInterface
-	structVal                         exclHereImpl
-	structPtrVal                      *exclHereImpl
-	scalarAlias                       scalarAlias
-	anotherInterfaceOnlyHere          ExclusiveInterface
-	cyclicDataStructure               *cyclicDataStructure
-	funcValExternal                   func(string) ([]byte, error)
-	funcValCustom                     func(int) *exclHereImpl
-	funcValMethod                     func(int) *exclHereImpl
-	funcValItabMethod                 func(int) *exclHereImpl
-	funcValClosure                    func(int) *exclHereImpl
+	someString                         string
+	someInt                            int64
+	theInterfaceNil                    io.ReadSeeker
+	theInterface                       io.ReadSeeker
+	theEmptyInterfaceWithExternalType  interface{}
+	theEmptyInterfaceWithCustomType    interface{}
+	theEmptyInferfaceWithComplexValue  interface{}
+	theEmptyInferfaceWithComplexValue2 interface{}
+	chanOfExternalType                 chan int
+	chanOfCustomType                   chan *exclHereImpl
+	arrayOfExternalType                [77]int
+	arrayOfCustomType                  [77]*exclHereImpl
+	arrayOfCustomInterface             [77]ExclusiveInterface
+	mapKeyedByExternalType             map[string]interface{}
+	mapKeyedByCustomType               map[*exclHereImpl]interface{}
+	mapValuesExternalType              map[interface{}]string
+	mapValuesCustomType                map[string]*exclHereImpl
+	sliceOfExternalType                []int64
+	sliceOfCustomType                  []*exclHereImpl
+	sliceOfExternalInterface           []interface{}
+	sliceOfCustomInterface             []ExclusiveInterface
+	structVal                          exclHereImpl
+	structPtrVal                       *exclHereImpl
+	scalarAlias                        scalarAlias
+	anotherInterfaceOnlyHere           ExclusiveInterface
+	cyclicDataStructure                *cyclicDataStructure
+	funcValExternal                    func(string) ([]byte, error)
+	funcValCustom                      func(int) *exclHereImpl
+	funcValMethod                      func(int) *exclHereImpl
+	funcValItabMethod                  func(int) *exclHereImpl
+	funcValClosure                     func(int) *exclHereImpl
 }
 
 func NewThingOriginal() common.SomeInterface {
@@ -84,12 +85,15 @@ func NewThingOriginal() common.SomeInterface {
 }
 
 func NewThingWithInterface() common.SomeInterface {
+	cb := func(_ interface{}, _ []interface{}) interface{} {
+		return nil
+	}
 	return &ConvertibleWithInterface{
 		someInt:                           int64(5),
 		theInterface:                      bytes.NewReader([]byte{1, 2, 3}),
 		theEmptyInterfaceWithExternalType: int64(5),
 		theEmptyInterfaceWithCustomType:   &exclHereImpl{},
-		theEmptyInferfaceWithComplexValue: map[string]interface{}{
+		theEmptyInferfaceWithComplexValue: map[interface{}]interface{}{
 			"a": true,
 			"b": []interface{}{
 				map[string]interface{}{
@@ -101,12 +105,14 @@ func NewThingWithInterface() common.SomeInterface {
 					"f": 3,
 				},
 			},
+			[3]interface{}{4, "whatever"}: [3]interface{}{cb, 3, "whatever3"},
 		},
-		anotherInterfaceOnlyHere: &exclHereImpl{counter: 0},
-		mapValuesExternalType:    map[interface{}]string{},
-		mapValuesCustomType:      map[string]*exclHereImpl{},
-		mapKeyedByCustomType:     map[*exclHereImpl]interface{}{},
-		mapKeyedByExternalType:   map[string]interface{}{},
+		theEmptyInferfaceWithComplexValue2: [3]interface{}{cb, 2, &exclHereImpl{counter: 0}},
+		anotherInterfaceOnlyHere:           &exclHereImpl{counter: 0},
+		mapValuesExternalType:              map[interface{}]string{},
+		mapValuesCustomType:                map[string]*exclHereImpl{},
+		mapKeyedByCustomType:               map[*exclHereImpl]interface{}{},
+		mapKeyedByExternalType:             map[string]interface{}{},
 	}
 }
 
@@ -196,6 +202,7 @@ func (c *ConvertibleWithInterface) Method1(input common.SomeStruct) (common.Some
 	}
 	input.Val2["current"] = c.someInt
 	input.Val2["complex"] = c.theEmptyInferfaceWithComplexValue
+	input.Val2["complex2"] = c.theEmptyInferfaceWithComplexValue2
 	input.Val2["exclusive_interface_counter"] = c.anotherInterfaceOnlyHere.ExclusivelyHere()
 	input.Val2["bytes_reader_output"] = bytesContent
 	return input, nil

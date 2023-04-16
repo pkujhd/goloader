@@ -51,6 +51,7 @@ type ObjSymbol struct {
 	Reloc  []Reloc
 	Func   *FuncInfo // additional data for functions
 	Objidx uint32    // the index of the archive which the symbol came from when loading multiple files
+	Pkg    string
 }
 
 type InlTreeNode struct {
@@ -73,6 +74,7 @@ type Sym struct {
 	Offset int
 	Func   *Func
 	Reloc  []Reloc
+	Pkg    string
 }
 
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Reloc struct

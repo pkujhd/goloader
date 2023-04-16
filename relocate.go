@@ -270,15 +270,25 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
 			fmAddr, duplicated := symbolMap[FirstModulePrefix+loc.Sym.Name]
+			if strings.HasPrefix(loc.Sym.Name, TypePrefix) && !duplicated {
+				if variant, ok := symbolIsVariant(loc.Sym.Name); ok {
+					fmAddr, duplicated = symbolMap[variant]
+				}
+			}
 			if duplicated {
 				isTypeWhichShouldNotBeDeduped := false
 				for _, pkgPath := range linker.options.SkipTypeDeduplicationForPackages {
-					if strings.HasPrefix(strings.TrimLeft(strings.TrimPrefix(loc.Sym.Name, TypePrefix), "*"), pkgPath) {
+					if loc.Sym.Pkg == pkgPath {
 						isTypeWhichShouldNotBeDeduped = true
 					}
 				}
 				if !isTypeWhichShouldNotBeDeduped {
-					addr = fmAddr
+					// Always use the new module types initially - we will later check for type equality and
+					// deduplicate them if they're structurally equal. If we used the firstmodule types here, there's a
+					// risk they're not structurally equal, but it would be too late
+					if !strings.HasPrefix(loc.Sym.Name, TypePrefix) {
+						addr = fmAddr
+					}
 				}
 			}
 			sym := loc.Sym

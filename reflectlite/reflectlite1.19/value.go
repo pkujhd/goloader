@@ -292,7 +292,7 @@ func (v Value) Index(i int) Value {
 		// In the latter case, we must be doing Index(0), so offset = 0,
 		// so v.ptr + offset is still the correct address.
 		val := add(v.ptr, offset, "same as &v[i], i < tt.len")
-		fl := v.flag&(flagIndir|flagAddr) | v.flag.ro() | flag(typ.Kind()) // bits same as overall array
+		fl := (flagIndir | flagAddr) | v.flag.ro() | flag(typ.Kind()) // bits same as overall array
 		return Value{typ, val, fl}
 
 	case Slice:

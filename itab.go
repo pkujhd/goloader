@@ -108,7 +108,7 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 	// manipulate the method offsets to make them not -1, and manually partially adjust the
 	// firstmodule itabs to rewrite the method addresses to point at the new module text (and remember to clean up afterwards)
 
-	if u != nil && prevU != nil && textIsWriteable {
+	if u != nil && prevU != nil && u != prevU && textIsWriteable {
 		methods := u.methods()
 		prevMethods := prevU.methods()
 		if len(methods) == len(prevMethods) {
