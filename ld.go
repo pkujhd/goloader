@@ -66,16 +66,19 @@ type Linker struct {
 	appliedPCRelRelocs     map[*byte][]byte
 	pkgNamesWithUnresolved map[string]struct{}
 	reachableTypes         map[string]struct{}
+	pkgs                   []*obj.Pkg
 }
 
 type CodeModule struct {
 	segment
+	SymbolsByPkg          map[string]map[string]interface{}
 	Syms                  map[string]uintptr
 	module                *moduledata
 	gcdata                []byte
 	gcbss                 []byte
 	patchedTypeMethodsIfn map[*_type]map[int]struct{}
 	patchedTypeMethodsTfn map[*_type]map[int]struct{}
+	deduplicatedTypes     map[string]uintptr
 	heapStrings           map[string]*string
 	stringMmap            *stringMmap
 }
@@ -179,7 +182,8 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 				}
 			}
 		}
-		if objSym.Kind == symkind.SNOPTRDATA || objSym.Kind == symkind.SRODATA {
+		switch objSym.Kind {
+		case symkind.SNOPTRDATA, symkind.SRODATA, symkind.SDATA, symkind.SBSS, symkind.SNOPTRBSS:
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
 				return err
@@ -841,6 +845,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	patchedTypeMethodsTfn := make(map[*_type]map[int]struct{})
 	segment := &codeModule.segment
 	byteorder := linker.Arch.ByteOrder
+	dedupedTypes := map[string]uintptr{}
 	for _, symbol := range linker.symMap {
 	relocLoop:
 		for _, loc := range symbol.Reloc {
@@ -875,6 +880,8 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 						// This shouldn't be possible and indicates a registration bug
 						panic(fmt.Sprintf("found another firstmodule type that wasn't registered by goloader: %s", loc.Sym.Name))
 					}
+					// Store this for later so we know which types were deduplicated
+					dedupedTypes[loc.Sym.Name] = uintptr(unsafe.Pointer(t))
 
 					for _, pkgPathToSkip := range linker.options.SkipTypeDeduplicationForPackages {
 						if t.PkgPath() == pkgPathToSkip {
@@ -946,6 +953,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	}
 	codeModule.patchedTypeMethodsIfn = patchedTypeMethodsIfn
 	codeModule.patchedTypeMethodsTfn = patchedTypeMethodsTfn
+	codeModule.deduplicatedTypes = dedupedTypes
 
 	if err != nil {
 		return err
@@ -953,6 +961,42 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	err = patchTypeMethodTextPtrs(uintptr(codeModule.codeBase), codeModule.patchedTypeMethodsIfn, codeModule.patchedTypeMethodsTfn)
 
 	return err
+}
+
+func (linker *Linker) buildExports(codeModule *CodeModule, symbolMap map[string]uintptr, globalSymPtr map[string]uintptr) {
+	codeModule.SymbolsByPkg = map[string]map[string]interface{}{}
+	for _, pkg := range linker.pkgs {
+		pkgSyms := map[string]interface{}{}
+		for name, info := range pkg.Exports {
+			typeAddr, ok := symbolMap[info.TypeName]
+			if !ok {
+				panic("could not find type symbol " + info.TypeName)
+			}
+			addr, ok := symbolMap[info.SymName]
+			if !ok {
+				panic(fmt.Sprintf("could not find symbol %s in package %s", info.SymName, pkg.PkgPath))
+			}
+			t := (*_type)(unsafe.Pointer(typeAddr))
+			if dup, ok := codeModule.deduplicatedTypes[info.TypeName]; ok {
+				t = (*_type)(unsafe.Pointer(dup))
+			}
+
+			var val interface{}
+			valp := (*[2]unsafe.Pointer)(unsafe.Pointer(&val))
+			(*valp)[0] = unsafe.Pointer(t)
+
+			if t.Kind() == reflect.Func {
+				(*valp)[1] = unsafe.Pointer(&addr)
+			} else {
+				(*valp)[1] = unsafe.Pointer(addr)
+			}
+
+			pkgSyms[name] = val
+		}
+		if len(pkgSyms) > 0 {
+			codeModule.SymbolsByPkg[pkg.PkgPath] = pkgSyms
+		}
+	}
 }
 
 func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ignorePackages []string, stdLibPkgs map[string]struct{}, unsafeBlindlyUseFirstModuleTypes bool) map[string]*obj.Sym {
@@ -1082,6 +1126,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 		if err = linker.relocate(codeModule, symbolMap); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
 				if err = linker.deduplicateTypeDescriptors(codeModule, symbolMap); err == nil {
+					linker.buildExports(codeModule, symbolMap, symPtr)
 					MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeModule.maxCodeLength)
 					if err = linker.doInitialize(codeModule, symbolMap); err == nil {
 						return codeModule, err

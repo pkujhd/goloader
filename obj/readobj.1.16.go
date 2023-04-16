@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"github.com/eh-steve/goloader/objabi/reloctype"
 	"github.com/eh-steve/goloader/objabi/symkind"
+	"go/token"
 	"io"
 	"sort"
 	"strings"
@@ -256,6 +257,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 	auxs := r.Auxs(idx)
 	for k := 0; k < len(auxs); k++ {
 		auxSymRef := auxs[k].Sym()
+		parentPkgPath := pkgPath
 		name, pkgPath, index := resolveSymRef(auxSymRef, r, refNames, pkgPath)
 		if name == "" || index == InvalidIndex {
 			pkg.UnresolvedSymRefs[auxSymRef] = struct{}{}
@@ -267,6 +269,13 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 				symbol.Type = UnresolvedIdxString(auxSymRef)
 			} else {
 				symbol.Type = name
+				symName := strings.TrimPrefix(symbol.Name, parentPkgPath+".")
+				if token.IsExported(symName) {
+					pkg.Exports[symName] = ExportSymType{
+						SymName:  symbol.Name,
+						TypeName: name,
+					}
+				}
 			}
 		case goobj.AuxFuncInfo:
 			funcInfo := goobj.FuncInfo{}

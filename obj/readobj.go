@@ -10,6 +10,11 @@ type CompilationUnitFiles struct {
 	Files       []string
 }
 
+type ExportSymType struct {
+	SymName  string
+	TypeName string
+}
+
 type Pkg struct {
 	Syms              map[string]*ObjSymbol
 	CUFiles           []CompilationUnitFiles
@@ -21,6 +26,7 @@ type Pkg struct {
 	ReferencedPkgs    []string
 	UnresolvedSymRefs map[goobj.SymRef]struct{}
 	SymNamesByIdx     map[uint32]string
+	Exports           map[string]ExportSymType
 }
 
 type FuncInfo struct {

@@ -19,6 +19,7 @@ func Parse(f *os.File, pkgpath *string) ([]string, error) {
 		PkgPath:           *pkgpath,
 		UnresolvedSymRefs: make(map[goobj.SymRef]struct{}),
 		SymNamesByIdx:     make(map[uint32]string),
+		Exports:           make(map[string]obj.ExportSymType),
 	}
 	symbols := make([]string, 0)
 	if err := pkg.Symbols(); err != nil {
@@ -145,6 +146,7 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 		Objidx:            1,
 		UnresolvedSymRefs: make(map[goobj.SymRef]struct{}),
 		SymNamesByIdx:     make(map[uint32]string),
+		Exports:           make(map[string]obj.ExportSymType),
 	}
 	if err := readObj(&pkg, linker); err != nil {
 		return nil, err
@@ -176,6 +178,7 @@ func ReadObj(f *os.File, pkgpath *string, linkerOpts ...LinkerOptFunc) (*Linker,
 	for symName := range pkg.Syms {
 		linker.collectReachableTypes(symName)
 	}
+	linker.pkgs = []*obj.Pkg{&pkg}
 	return linker, nil
 }
 
@@ -216,6 +219,7 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 			Objidx:            uint32(i + 1),
 			UnresolvedSymRefs: make(map[goobj.SymRef]struct{}),
 			SymNamesByIdx:     make(map[uint32]string),
+			Exports:           make(map[string]obj.ExportSymType),
 		}
 		objByPkg[pkgPath[i]] = pkg.Objidx
 		if err := readObj(&pkg, linker); err != nil {
@@ -277,6 +281,7 @@ func ReadObjs(files []string, pkgPath []string, linkerOpts ...LinkerOptFunc) (*L
 	for symName := range mainPkgSyms {
 		linker.collectReachableTypes(symName)
 	}
+	linker.pkgs = pkgs
 	return linker, nil
 }
 
