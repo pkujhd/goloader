@@ -26,8 +26,6 @@ import (
 )
 
 // Can edit these flags to check all tests still work with different linker options
-var heapStrings = false
-var stringContainerSize = 0 // 512 * 1024
 var randomSymbolOrder = false
 var buildEnv = []string{}
 
@@ -89,8 +87,6 @@ func TestJitSimpleFunctions(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -122,7 +118,6 @@ func TestJitSimpleFunctions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -135,8 +130,6 @@ func TestHeapStrings(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           true,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -157,7 +150,6 @@ func TestHeapStrings(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 			runtime.GC()
 			runtime.GC()
 			fmt.Println(theString)
@@ -173,8 +165,6 @@ func TestJitJsonUnmarshal(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -203,7 +193,6 @@ func TestJitJsonUnmarshal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -216,8 +205,6 @@ func TestJitComplexFunctions(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -277,7 +264,6 @@ func TestJitComplexFunctions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -290,8 +276,6 @@ func TestJitEmbeddedStruct(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -318,7 +302,6 @@ func TestJitEmbeddedStruct(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -334,8 +317,6 @@ func TestJitCGoCall(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -370,7 +351,6 @@ func TestJitCGoCall(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -383,8 +363,6 @@ func TestJitHttpGet(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -427,7 +405,6 @@ func TestJitHttpGet(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -443,8 +420,6 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -509,14 +484,6 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module1.UnloadStringMap()
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = module2.UnloadStringMap()
-			if err != nil {
-				t.Fatal(err)
-			}
 		})
 	}
 }
@@ -530,8 +497,6 @@ func TestJitPanicRecoveryStackTrace(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -563,7 +528,6 @@ func TestJitPanicRecoveryStackTrace(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -619,8 +583,6 @@ func TestJitGoroutines(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -672,7 +634,6 @@ func TestJitGoroutines(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -685,8 +646,6 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -756,15 +715,7 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module1.UnloadStringMap()
-			if err != nil {
-				t.Fatal(err)
-			}
 			err = module2.Unload()
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = module2.UnloadStringMap()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -780,8 +731,6 @@ func TestStackSplit(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -812,7 +761,6 @@ func TestStackSplit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -825,8 +773,6 @@ func TestSimpleAsmFuncs(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -866,7 +812,6 @@ func TestSimpleAsmFuncs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -898,8 +843,6 @@ func TestComplexAsmFuncs(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "./",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -924,7 +867,6 @@ func TestComplexAsmFuncs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -938,8 +880,6 @@ func TestIssue55(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "./",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -963,7 +903,6 @@ func TestIssue55(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -995,8 +934,6 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -1020,7 +957,6 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -1033,8 +969,6 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -1099,7 +1033,6 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module1.UnloadStringMap()
 
 			ifaceOut2, _ := thingIface2.Method1(common.SomeStruct{Val1: 789, Val2: map[string]interface{}{}})
 
@@ -1144,10 +1077,6 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			}
 
 			err = module2.Unload()
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = module2.UnloadStringMap()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1259,8 +1188,6 @@ func TestCloneConnection(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "./",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -1331,10 +1258,6 @@ func TestCloneConnection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module1.UnloadStringMap()
-			if err != nil {
-				t.Fatal(err)
-			}
 			dialer2 = newDialer2.(common.MessageWriter)
 			_, err = dialer2.WriteMessage("test5678")
 			if err != nil {
@@ -1343,10 +1266,6 @@ func TestCloneConnection(t *testing.T) {
 			err = dialer2.Close()
 
 			err = module2.Unload()
-			if err != nil {
-				t.Fatal(err)
-			}
-			err = module2.UnloadStringMap()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1379,8 +1298,6 @@ func TestJitSBSSMap(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: randomSymbolOrder,
 	}
 
@@ -1401,7 +1318,6 @@ func TestJitSBSSMap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 		})
 	}
 }
@@ -1414,8 +1330,6 @@ func TestJitDefer(t *testing.T) {
 		BuildEnv:              buildEnv,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: false,
 		// If the symbol "gonum.org/v1/gonum/mat.(*LU).updateCond.opendefer" is added before others pertaining to (*LU).updateCond, this test will fail with the fatal error:
 		// runtime: g 73: unexpected return pc for gonum.org/v1/gonum/mat.(*LU).updateCond.func1 called from 0xc004283700
@@ -1439,7 +1353,6 @@ func TestJitDefer(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				err = module.UnloadStringMap()
 			}
 		})
 	}
@@ -1453,8 +1366,6 @@ func TestAnonymousStructType(t *testing.T) {
 		BuildEnv:              nil,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: false,
 	}
 
@@ -1473,7 +1384,6 @@ func TestAnonymousStructType(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 			time.Sleep(time.Second)
 		})
 	}
@@ -1487,8 +1397,6 @@ func TestGCGlobals(t *testing.T) {
 		BuildEnv:              nil,
 		TmpDir:                "",
 		DebugLog:              false,
-		HeapStrings:           heapStrings,
-		StringContainerSize:   stringContainerSize,
 		RandomSymbolNameOrder: false,
 	}
 
@@ -1512,7 +1420,6 @@ func TestGCGlobals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = module.UnloadStringMap()
 			time.Sleep(time.Second)
 		})
 	}
@@ -1526,8 +1433,6 @@ func TestTypeMismatch(t *testing.T) {
 		BuildEnv:                         nil,
 		TmpDir:                           "",
 		DebugLog:                         false,
-		HeapStrings:                      heapStrings,
-		StringContainerSize:              stringContainerSize,
 		RandomSymbolNameOrder:            false,
 		UnsafeBlindlyUseFirstmoduleTypes: false, // If set to true, this test should fail (fault)
 	}
@@ -1565,7 +1470,6 @@ func TestTypeMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = module.UnloadStringMap()
 
 	// Replace the file with a new, incompatible type
 	err = os.WriteFile("./testdata/test_type_mismatch/typedef/typedef.go", newFileType, 0655)
@@ -1597,7 +1501,6 @@ func TestTypeMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = module2.UnloadStringMap()
 
 }
 
@@ -1609,8 +1512,6 @@ func TestRemotePkg(t *testing.T) {
 		BuildEnv:                         nil,
 		TmpDir:                           "",
 		DebugLog:                         false,
-		HeapStrings:                      heapStrings,
-		StringContainerSize:              stringContainerSize,
 		RandomSymbolNameOrder:            false,
 		UnsafeBlindlyUseFirstmoduleTypes: false, // If set to true, this test should fail (fault)
 	}
@@ -1626,10 +1527,6 @@ func TestRemotePkg(t *testing.T) {
 	syms := module.SymbolsByPkg[loadable.ImportPath]
 	for k, v := range syms {
 		fmt.Println(loadable.ImportPath, k, reflect.TypeOf(v))
-	}
-	err = module.UnloadStringMap()
-	if err != nil {
-		t.Fatal(err)
 	}
 	err = module.Unload()
 	if err != nil {
@@ -1654,7 +1551,6 @@ func TestRemotePkg(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Println(string(data))
-	err = module.UnloadStringMap()
 	if err != nil {
 		t.Fatal(err)
 	}

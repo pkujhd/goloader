@@ -81,25 +81,11 @@ func readObj(pkg *obj.Pkg, linker *Linker) error {
 type LinkerOptFunc func(options *LinkerOptions)
 
 type LinkerOptions struct {
-	HeapStrings                      bool
-	StringContainerSize              int
 	SymbolNameOrder                  []string
 	RandomSymbolNameOrder            bool
 	RelocationDebugWriter            io.Writer
 	NoRelocationEpilogues            bool
 	SkipTypeDeduplicationForPackages []string
-}
-
-func WithHeapStrings() func(*LinkerOptions) {
-	return func(options *LinkerOptions) {
-		options.HeapStrings = true
-	}
-}
-
-func WithStringContainer(size int) func(*LinkerOptions) {
-	return func(options *LinkerOptions) {
-		options.StringContainerSize = size
-	}
 }
 
 // WithSymbolNameOrder allows you to control the sequence (placement in memory) of symbols from an object file.

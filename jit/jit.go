@@ -105,9 +105,6 @@ type BuildConfig struct {
 	BuildEnv                         []string
 	TmpDir                           string
 	DebugLog                         bool
-	SkipCopyPatterns                 []string // Paths to exclude from module copy
-	HeapStrings                      bool     // Whether to put strings on the heap and allow GC to manage their lifecycle
-	StringContainerSize              int      // Whether to separately mmap a container for strings, to allow unmapping independently of unloading code modules
 	SymbolNameOrder                  []string // Control the layout of symbols in the linker's linear memory - useful for reproducing bugs
 	RandomSymbolNameOrder            bool     // Randomise the order of linker symbols (may identify linker bugs)
 	RelocationDebugWriter            io.Writer
@@ -441,12 +438,6 @@ func buildAndLoadDeps(config BuildConfig,
 
 func (config *BuildConfig) linkerOpts() []goloader.LinkerOptFunc {
 	var linkerOpts []goloader.LinkerOptFunc
-	if config.HeapStrings {
-		linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
-	}
-	if config.StringContainerSize > 0 {
-		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
-	}
 	if len(config.SymbolNameOrder) > 0 {
 		linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
 	}

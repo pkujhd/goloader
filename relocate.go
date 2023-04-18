@@ -23,7 +23,7 @@ const (
 	maxExtraInstructionBytesPCRELxCMPLNear  = 21
 	maxExtraInstructionBytesPCRELxCALLShort = 16
 	maxExtraInstructionBytesPCRELxCALLNear  = 19
-	maxExtraInstructionBytesPCRELxJMP       = 12
+	maxExtraInstructionBytesPCRELxJMP       = 14
 	maxExtraInstructionBytesCALL            = 14
 )
 
@@ -145,9 +145,9 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	epilogueOffset := loc.EpilogueOffset
-	if oldMcode, ok := linker.appliedPCRelRelocs[&relocByte[loc.Offset-2]]; !ok {
-		linker.appliedPCRelRelocs[&relocByte[loc.Offset-2]] = make([]byte, loc.Size+2)
-		copy(linker.appliedPCRelRelocs[&relocByte[loc.Offset-2]], relocByte[loc.Offset-2:])
+	if oldMcode, ok := linker.appliedPCRelRelocs[&relocByte[loc.Offset]]; !ok {
+		linker.appliedPCRelRelocs[&relocByte[loc.Offset]] = make([]byte, loc.Size+2)
+		copy(linker.appliedPCRelRelocs[&relocByte[loc.Offset]], relocByte[loc.Offset-2:])
 	} else {
 		copy(relocByte[loc.Offset-2:], oldMcode)
 	}

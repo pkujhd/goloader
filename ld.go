@@ -61,7 +61,6 @@ type Linker struct {
 	Arch                   *sys.Arch
 	options                LinkerOptions
 	heapStringMap          map[string]*string
-	stringMmap             *stringMmap
 	appliedADRPRelocs      map[*byte][]byte
 	appliedPCRelRelocs     map[*byte][]byte
 	pkgNamesWithUnresolved map[string]struct{}
@@ -80,7 +79,6 @@ type CodeModule struct {
 	patchedTypeMethodsTfn map[*_type]map[int]struct{}
 	deduplicatedTypes     map[string]uintptr
 	heapStrings           map[string]*string
-	stringMmap            *stringMmap
 }
 
 var (
@@ -110,19 +108,7 @@ func initLinker(opts []LinkerOptFunc) (*Linker, error) {
 		reachableTypes:         make(map[string]struct{}),
 	}
 	linker.Opts(opts...)
-	c := &linker.options
-	if c.HeapStrings && c.StringContainerSize > 0 {
-		return nil, fmt.Errorf("can only use HeapStrings or StringContainerSize, not both")
-	}
-	if c.StringContainerSize > 0 {
-		linker.stringMmap = &stringMmap{}
-		var err error
-		linker.stringMmap.bytes, err = MmapData(c.StringContainerSize)
-		linker.stringMmap.size = c.StringContainerSize
-		if err == nil {
-			linker.stringMmap.addr = uintptr(unsafe.Pointer(&linker.stringMmap.bytes[0]))
-		}
-	}
+
 	head := make([]byte, unsafe.Sizeof(pcHeader{}))
 	copy(head, obj.ModuleHeadx86)
 	linker.functab = append(linker.functab, head...)
@@ -194,7 +180,7 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if (linker.options.HeapStrings || linker.options.StringContainerSize > 0) && strings.HasPrefix(sym.Name, TypeStringPrefix) {
+			if strings.HasPrefix(sym.Name, TypeStringPrefix) {
 				// nothing todo
 			} else {
 				offset += len(linker.data)
@@ -245,7 +231,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			// the PCData, PCLine, PCFile, PCSP etc in case of pre-emption or stack unwinding while the PC is running these hacked instructions.
 			// We find the relevant PCValues for the offset of the reloc, and reuse the values for the reloc's epilogue
 
-			if linker.options.NoRelocationEpilogues && !(strings.HasPrefix(reloc.Sym.Name, TypeStringPrefix) && linker.options.HeapStrings) {
+			if linker.options.NoRelocationEpilogues && !strings.HasPrefix(reloc.Sym.Name, TypeStringPrefix) {
 				continue
 			}
 			switch reloc.Type {
@@ -320,18 +306,11 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		// because golang string assignment is pointer assignment, so store go.string constants
 		// in a separate segment and not unload when module unload.
-		if linker.options.HeapStrings && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
+		if strings.HasPrefix(symbol.Name, TypeStringPrefix) {
 			data := make([]byte, len(objsym.Data))
 			copy(data, objsym.Data)
 			stringVal := string(data)
 			linker.heapStringMap[symbol.Name] = &stringVal
-		} else if linker.options.StringContainerSize > 0 && strings.HasPrefix(symbol.Name, TypeStringPrefix) {
-			if linker.stringMmap.index+len(objsym.Data) > linker.stringMmap.size {
-				return nil, fmt.Errorf("overflow string container. Got object of length %d but size was %d", len(objsym.Data), linker.stringMmap.size)
-			}
-			symbol.Offset = linker.stringMmap.index
-			copy(linker.stringMmap.bytes[linker.stringMmap.index:], objsym.Data)
-			linker.stringMmap.index += len(objsym.Data)
 		} else {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
@@ -539,7 +518,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if _, ok := symPtr[name]; !ok {
-				if linker.options.HeapStrings && strings.HasPrefix(name, TypeStringPrefix) {
+				if strings.HasPrefix(name, TypeStringPrefix) {
 					strPtr := linker.heapStringMap[name]
 					if strPtr == nil {
 						return nil, fmt.Errorf("impossible! got a nil string for symbol %s", name)
@@ -551,8 +530,6 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 						x := (*reflect.StringHeader)(unsafe.Pointer(strPtr))
 						symbolMap[name] = x.Data
 					}
-				} else if linker.options.StringContainerSize > 0 && strings.HasPrefix(name, TypeStringPrefix) {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset) + linker.stringMmap.addr
 				} else {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 					if strings.HasPrefix(name, TypePrefix) {
@@ -589,7 +566,6 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		symbolMap[TLSNAME] = tlsG
 	}
 	codeModule.heapStrings = linker.heapStringMap
-	codeModule.stringMmap = linker.stringMmap
 	return symbolMap, err
 }
 
@@ -1077,9 +1053,6 @@ func (linker *Linker) UnresolvedExternalSymbolUsers(symbolMap map[string]uintptr
 
 func (linker *Linker) UnloadStrings() error {
 	linker.heapStringMap = nil
-	if linker.stringMmap != nil {
-		return Munmap(linker.stringMmap.bytes)
-	}
 	return nil
 }
 
@@ -1166,14 +1139,6 @@ func (cm *CodeModule) Unload() error {
 	}
 	cm.heapStrings = nil
 	return err2
-}
-
-func (cm *CodeModule) UnloadStringMap() error {
-	if cm.stringMmap != nil {
-		return Munmap(cm.stringMmap.bytes)
-	}
-	runtime.GC()
-	return nil
 }
 
 func (cm *CodeModule) TextAddr() (start, end uintptr) {
