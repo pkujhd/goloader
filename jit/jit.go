@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/eh-steve/goloader"
 	"github.com/eh-steve/goloader/obj"
@@ -114,9 +115,32 @@ type BuildConfig struct {
 	UnsafeBlindlyUseFirstmoduleTypes bool
 }
 
+func mergeBuildFlags(extraBuildFlags []string) []string {
+	// This flag requires the Go toolchain to have been patched via PatchGC()
+	var gcFlags = []string{"-exporttypes"}
+	var buildFlags []string
+	for _, bf := range extraBuildFlags {
+		// Merge together user supplied -gcflags into a single flag
+		if strings.HasPrefix(strings.TrimLeft(bf, " "), "-gcflags") {
+			flagSet := flag.NewFlagSet("", flag.ContinueOnError)
+			f := flagSet.String("gcflags", "", "")
+			err := flagSet.Parse([]string{bf})
+			if err != nil {
+				panic(err)
+			}
+			gcFlags = append(gcFlags, *f)
+		} else {
+			buildFlags = append(buildFlags, bf)
+		}
+	}
+
+	buildFlags = append(buildFlags, fmt.Sprintf(`-gcflags=%s`, strings.Join(gcFlags, " ")))
+	return buildFlags
+}
+
 func execBuild(config BuildConfig, workDir, outputFilePath string, targets []string) error {
 	var args = []string{"build"}
-	args = append(args, config.ExtraBuildFlags...)
+	args = append(args, mergeBuildFlags(config.ExtraBuildFlags)...)
 
 	args = append(args, "-o", outputFilePath)
 	args = append(args, targets...)
@@ -331,7 +355,15 @@ func buildAndLoadDeps(config BuildConfig,
 			if config.GoBinary == "" {
 				config.GoBinary = "go"
 			}
-			command := exec.Command(config.GoBinary, "build", "-o", filename, missingDep)
+
+			args := []string{"build"}
+			args = append(args, mergeBuildFlags(config.ExtraBuildFlags)...)
+			args = append(args, "-o", filename, missingDep)
+			command := exec.Command(config.GoBinary, args...)
+			if config.DebugLog {
+				command.Stderr = os.Stderr
+				command.Stderr = os.Stdout
+			}
 			command.Dir = workDir
 			bufStdout := &bytes.Buffer{}
 			bufStdErr := &bytes.Buffer{}
@@ -407,6 +439,29 @@ func buildAndLoadDeps(config BuildConfig,
 	return nil
 }
 
+func (config *BuildConfig) linkerOpts() []goloader.LinkerOptFunc {
+	var linkerOpts []goloader.LinkerOptFunc
+	if config.HeapStrings {
+		linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
+	}
+	if config.StringContainerSize > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
+	}
+	if len(config.SymbolNameOrder) > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
+	}
+	if config.RandomSymbolNameOrder {
+		linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
+	}
+	if config.RelocationDebugWriter != nil {
+		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
+	}
+	if len(config.SkipTypeDeduplicationForPackages) > 0 {
+		linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
+	}
+	return linkerOpts
+}
+
 func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string) (*LoadableUnit, error) {
 	absPath, err := filepath.Abs(pathToGoFile)
 	if err != nil {
@@ -423,6 +478,10 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 
 	if config.GoBinary == "" {
 		config.GoBinary = "go"
+	}
+	err = PatchGC(config.GoBinary, config.DebugLog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
 	pkg, err := GoList(config.GoBinary, absPath, workDir)
 	if err != nil {
@@ -474,69 +533,16 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	}
 
 	files := append([]string{absPath}, extraFiles...)
-	newFiles := make([]string, 0, len(files)+1)
 	h := sha256.New()
-	var parsedFiles []*ParsedFile
-	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read file '%s': %w", file, err)
-		}
-		h.Write(data)
-		if strings.HasSuffix(file, ".go") {
-			parsed, err := ParseFile(file)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse Go file '%s': %w", file, err)
-			}
-			parsedFiles = append(parsedFiles, parsed)
-		}
-		newPath := filepath.Join(buildDir, filepath.Base(file))
-		err = os.WriteFile(newPath, data, 0655)
-		if err != nil {
-			return nil, fmt.Errorf("failed to write file '%s': %w", newPath, err)
-		}
-		newFiles = append(newFiles, newPath)
-	}
-	reflectCode, symbolToTypeFuncName, err := generateReflectCode(parsedFiles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generated reflect code: %w", err)
-	}
-
+	h.Write([]byte(strings.Join(files, "|")))
 	outputFilePath := filepath.Join(buildDir, hex.EncodeToString(h.Sum(nil))+".a")
 
-	tmpReflectFilePath := strings.TrimSuffix(newFiles[0], ".go") + "___reflect.go"
-	err = os.WriteFile(tmpReflectFilePath, reflectCode, 0655)
-	if err != nil {
-		return nil, fmt.Errorf("could not create new reflection file at %s: %w", tmpReflectFilePath, err)
-	}
-
-	newFiles = append(newFiles, tmpReflectFilePath)
-
-	err = execBuild(config, workDir, outputFilePath, newFiles)
+	err = execBuild(config, workDir, outputFilePath, files)
 	if err != nil {
 		return nil, err
 	}
 
-	var linkerOpts []goloader.LinkerOptFunc
-	if config.HeapStrings {
-		linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
-	}
-	if config.StringContainerSize > 0 {
-		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
-	}
-	if len(config.SymbolNameOrder) > 0 {
-		linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
-	}
-	if config.RandomSymbolNameOrder {
-		linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
-	}
-	if config.RelocationDebugWriter != nil {
-		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
-	}
-	if len(config.SkipTypeDeduplicationForPackages) > 0 {
-		linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
-	}
-
+	linkerOpts := config.linkerOpts()
 	stdLibPkgs := GoListStd(config.GoBinary)
 
 	linker, err := resolveDependencies(config, workDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts, stdLibPkgs)
@@ -545,10 +551,9 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	}
 
 	return &LoadableUnit{
-		Linker:               linker,
-		ImportPath:           pkg.ImportPath,
-		ParsedFiles:          parsedFiles,
-		SymbolTypeFuncLookup: symbolToTypeFuncName,
+		Linker:     linker,
+		ImportPath: pkg.ImportPath,
+		Package:    pkg,
 	}, nil
 }
 
@@ -579,21 +584,12 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 		return nil, fmt.Errorf("could not write tmpFile '%s': %w", tmpFilePath, err)
 	}
 
-	parsed, err := ParseFile(tmpFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse Go file '%s': %w", tmpFilePath, err)
-	}
-
-	reflectCode, symbolToTypeFuncName, err := generateReflectCode([]*ParsedFile{parsed})
-	if err != nil {
-		return nil, fmt.Errorf("failed to generated reflect code: %w", err)
-	}
-
-	tmpReflectFilePath := strings.TrimSuffix(tmpFilePath, ".go") + "___reflect.go"
-	err = os.WriteFile(tmpReflectFilePath, reflectCode, 0655)
-
 	if config.GoBinary == "" {
 		config.GoBinary = "go"
+	}
+	err = PatchGC(config.GoBinary, config.DebugLog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
 	pkg, err := GoList(config.GoBinary, tmpFilePath, "")
 	if err != nil {
@@ -625,30 +621,12 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 
 	outputFilePath := filepath.Join(buildDir, hexHash+".a")
 
-	err = execBuild(config, "", outputFilePath, []string{tmpFilePath, tmpReflectFilePath})
+	err = execBuild(config, "", outputFilePath, []string{tmpFilePath})
 	if err != nil {
 		return nil, err
 	}
 
-	var linkerOpts []goloader.LinkerOptFunc
-	if config.HeapStrings {
-		linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
-	}
-	if config.StringContainerSize > 0 {
-		linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
-	}
-	if len(config.SymbolNameOrder) > 0 {
-		linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
-	}
-	if config.RandomSymbolNameOrder {
-		linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
-	}
-	if config.RelocationDebugWriter != nil {
-		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
-	}
-	if len(config.SkipTypeDeduplicationForPackages) > 0 {
-		linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
-	}
+	linkerOpts := config.linkerOpts()
 	stdLibPkgs := GoListStd(config.GoBinary)
 	linker, err := resolveDependencies(config, "", buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts, stdLibPkgs)
 	if err != nil {
@@ -656,10 +634,9 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	}
 
 	return &LoadableUnit{
-		Linker:               linker,
-		ImportPath:           pkg.ImportPath,
-		ParsedFiles:          []*ParsedFile{parsed},
-		SymbolTypeFuncLookup: symbolToTypeFuncName,
+		Linker:     linker,
+		ImportPath: pkg.ImportPath,
+		Package:    pkg,
 	}, nil
 }
 
@@ -678,6 +655,10 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 
 	if config.GoBinary == "" {
 		config.GoBinary = "go"
+	}
+	err = PatchGC(config.GoBinary, config.DebugLog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
 	// Execute list from within the package folder so that go list resolves the module correctly from that path
 	pkg, err := GoList(config.GoBinary, absPath, absPath)
@@ -707,15 +688,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		}
 	}
 	h := sha256.New()
-
-	for _, goFile := range append(pkg.GoFiles, pkg.CgoFiles...) {
-		file := filepath.Join(absPath, goFile)
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read file '%s': %w", file, err)
-		}
-		h.Write(data)
-	}
+	h.Write([]byte(absPath))
 
 	hexHash := hex.EncodeToString(h.Sum(nil))
 
@@ -737,191 +710,147 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		}
 	}
 
-	// Check if source package is writable, if so, work there, otherwise, copy the entire parent module to a tmp dir
-	tmpTestFile := filepath.Join(absPath, "test")
-	err = os.WriteFile(tmpTestFile, nil, os.ModePerm)
+	rootBuildDir1, err := os.MkdirTemp(config.TmpDir, hexHash+"_*")
 	if err != nil {
-		rootBuildDir1, err := os.MkdirTemp(config.TmpDir, hexHash+"_*")
-		if err != nil {
-			return nil, fmt.Errorf("could not create new tmp directory: %w", err)
-		}
-		rootBuildDir, err := filepath.Abs(rootBuildDir1)
-		if err != nil {
-			return nil, fmt.Errorf("could not get absolute path of root build %s: %w", rootBuildDir, err)
-		}
-		if !config.KeepTempFiles {
-			defer os.RemoveAll(rootBuildDir)
-		}
-
-		// Copy the directory structure of the module the package is in
-		err = Copy(pkg.Module.Dir, rootBuildDir, config.SkipCopyPatterns)
-		if err != nil {
-			return nil, fmt.Errorf("could not copy package module %s: %w", pkg.Module.Dir, err)
-		}
-
-		buildDir := filepath.Join(rootBuildDir, strings.TrimPrefix(pkg.Dir, pkg.Module.Dir))
-		err = os.MkdirAll(buildDir, 0755)
-		if err != nil {
-			return nil, fmt.Errorf("could not create new tmp directory %s: %w", buildDir, err)
-		}
-
-		newFiles := make([]string, 0, len(pkg.GoFiles)+len(pkg.CgoFiles)+1)
-		var parsedFiles []*ParsedFile
-		for _, goFile := range append(pkg.GoFiles, pkg.CgoFiles...) {
-			file := filepath.Join(absPath, goFile)
-			data, err := os.ReadFile(file)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read file '%s': %w", file, err)
-			}
-			if strings.HasSuffix(file, ".go") {
-				parsed, err := ParseFile(file)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse Go file '%s': %w", file, err)
-				}
-				parsedFiles = append(parsedFiles, parsed)
-			}
-			newPath := filepath.Join(buildDir, filepath.Base(file))
-			err = os.WriteFile(newPath, data, 0655)
-			if err != nil {
-				return nil, fmt.Errorf("failed to write file '%s': %w", newPath, err)
-			}
-			newFiles = append(newFiles, newPath)
-		}
-
-		outputFilePath := filepath.Join(buildDir, hexHash+".a")
-
-		reflectCode, symbolToTypeFuncName, err := generateReflectCode(parsedFiles)
-		tmpReflectFilePath := strings.TrimSuffix(newFiles[0], ".go") + "___reflect.go"
-		err = os.WriteFile(tmpReflectFilePath, reflectCode, 0655)
-		if err != nil {
-			return nil, fmt.Errorf("could not create new reflection file at %s: %w", tmpReflectFilePath, err)
-		}
-
-		newFiles = append(newFiles, tmpReflectFilePath)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to generated reflect code: %w", err)
-		}
-
-		err = execBuild(config, buildDir, outputFilePath, []string{buildDir})
-		if err != nil {
-			return nil, err
-		}
-
-		var linkerOpts []goloader.LinkerOptFunc
-		if config.HeapStrings {
-			linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
-		}
-		if config.StringContainerSize > 0 {
-			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
-		}
-		if len(config.SymbolNameOrder) > 0 {
-			linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
-		}
-		if config.RandomSymbolNameOrder {
-			linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
-		}
-		if config.RelocationDebugWriter != nil {
-			linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
-		}
-		if len(config.SkipTypeDeduplicationForPackages) > 0 {
-			linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
-		}
-		stdLibPkgs := GoListStd(config.GoBinary)
-		linker, err := resolveDependencies(config, buildDir, buildDir, outputFilePath, pkg.ImportPath, pkg, linkerOpts, stdLibPkgs)
-		if err != nil {
-			return nil, err
-		}
-
-		return &LoadableUnit{
-			Linker:               linker,
-			ImportPath:           pkg.ImportPath,
-			ParsedFiles:          parsedFiles,
-			SymbolTypeFuncLookup: symbolToTypeFuncName,
-		}, nil
-	} else {
-		_ = os.Remove(tmpTestFile)
-
-		rootBuildDir1, err := os.MkdirTemp(config.TmpDir, hexHash+"_*")
-		if err != nil {
-			return nil, fmt.Errorf("could not create new tmp directory: %w", err)
-		}
-		rootBuildDir, err := filepath.Abs(rootBuildDir1)
-		if err != nil {
-			return nil, fmt.Errorf("could not get absolute path of root build %s: %w", rootBuildDir, err)
-		}
-		if !config.KeepTempFiles {
-			defer os.RemoveAll(rootBuildDir)
-		}
-
-		var parsedFiles []*ParsedFile
-		allGoFiles := append(pkg.GoFiles, pkg.CgoFiles...)
-		for _, goFile := range allGoFiles {
-			file := filepath.Join(absPath, goFile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read file '%s': %w", file, err)
-			}
-			if strings.HasSuffix(file, ".go") {
-				parsed, err := ParseFile(file)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse Go file '%s': %w", file, err)
-				}
-				parsedFiles = append(parsedFiles, parsed)
-			}
-		}
-
-		outputFilePath := filepath.Join(rootBuildDir, hexHash+".a")
-
-		reflectCode, symbolToTypeFuncName, err := generateReflectCode(parsedFiles)
-		tmpReflectFilePath := filepath.Join(absPath, strings.TrimSuffix(allGoFiles[0], ".go")+"___reflect.go")
-		err = os.WriteFile(tmpReflectFilePath, reflectCode, 0655)
-		if !config.KeepTempFiles {
-			defer os.Remove(tmpReflectFilePath)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("could not create new reflection file at %s: %w", tmpReflectFilePath, err)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to generated reflect code: %w", err)
-		}
-
-		importPath := pkg.ImportPath
-		err = execBuild(config, absPath, outputFilePath, []string{absPath})
-		if err != nil {
-			return nil, err
-		}
-
-		var linkerOpts []goloader.LinkerOptFunc
-		if config.HeapStrings {
-			linkerOpts = append(linkerOpts, goloader.WithHeapStrings())
-		}
-		if config.StringContainerSize > 0 {
-			linkerOpts = append(linkerOpts, goloader.WithStringContainer(config.StringContainerSize))
-		}
-		if len(config.SymbolNameOrder) > 0 {
-			linkerOpts = append(linkerOpts, goloader.WithSymbolNameOrder(config.SymbolNameOrder))
-		}
-		if config.RandomSymbolNameOrder {
-			linkerOpts = append(linkerOpts, goloader.WithRandomSymbolNameOrder())
-		}
-		if config.RelocationDebugWriter != nil {
-			linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
-		}
-		if len(config.SkipTypeDeduplicationForPackages) > 0 {
-			linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))
-		}
-		stdLibPkgs := GoListStd(config.GoBinary)
-		linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, importPath, pkg, linkerOpts, stdLibPkgs)
-		if err != nil {
-			return nil, err
-		}
-
-		return &LoadableUnit{
-			Linker:               linker,
-			ImportPath:           importPath,
-			ParsedFiles:          parsedFiles,
-			SymbolTypeFuncLookup: symbolToTypeFuncName,
-		}, nil
+		return nil, fmt.Errorf("could not create new tmp directory: %w", err)
 	}
+	rootBuildDir, err := filepath.Abs(rootBuildDir1)
+	if err != nil {
+		return nil, fmt.Errorf("could not get absolute path of root build %s: %w", rootBuildDir, err)
+	}
+	if !config.KeepTempFiles {
+		defer os.RemoveAll(rootBuildDir)
+	}
+
+	outputFilePath := filepath.Join(rootBuildDir, hexHash+".a")
+
+	importPath := pkg.ImportPath
+	err = execBuild(config, absPath, outputFilePath, []string{absPath})
+	if err != nil {
+		return nil, err
+	}
+
+	linkerOpts := config.linkerOpts()
+	stdLibPkgs := GoListStd(config.GoBinary)
+	linker, err := resolveDependencies(config, absPath, rootBuildDir, outputFilePath, importPath, pkg, linkerOpts, stdLibPkgs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LoadableUnit{
+		Linker:     linker,
+		ImportPath: importPath,
+		Package:    pkg,
+	}, nil
+}
+
+func BuildGoPackageRemote(config BuildConfig, goPackage string, version string) (*LoadableUnit, error) {
+	if config.GoBinary == "" {
+		config.GoBinary = "go"
+	}
+	err := PatchGC(config.GoBinary, config.DebugLog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to patch gc: %w", err)
+	}
+	// Execute list from within the package folder so that go list resolves the module correctly from that path
+	workDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current working director: %w", err)
+	}
+
+	stdLibPkgs := GoListStd(config.GoBinary)
+	_, isStdLibPkg := stdLibPkgs[goPackage]
+
+	if version == "" {
+		version = "latest"
+	}
+	var versionSuffix string
+	if !isStdLibPkg {
+		versionSuffix = "@" + version
+	}
+
+	err = GoGet(config.GoBinary, goPackage+versionSuffix, workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	pkg, err := GoList(config.GoBinary, goPackage, workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if (pkg.Module == nil || pkg.Module.GoMod == "") && !isStdLibPkg {
+		return nil, fmt.Errorf("could not find module/go.mod file for package %s", goPackage)
+	}
+
+	if len(pkg.DepsErrors) > 0 {
+		err = GoModDownload(config.GoBinary, workDir, pkg.Module.Path)
+		if err != nil {
+			return nil, err
+		}
+		err = GoGet(config.GoBinary, goPackage, workDir)
+		if err != nil {
+			return nil, err
+		}
+		pkg, err = GoList(config.GoBinary, goPackage, "")
+		if err != nil {
+			return nil, err
+		}
+		if len(pkg.DepsErrors) > 0 {
+			return nil, fmt.Errorf("could not resolve dependency errors after go mod download + go get: %s", pkg.DepsErrors[0].Err)
+		}
+	}
+	h := sha256.New()
+	h.Write([]byte(goPackage))
+
+	hexHash := hex.EncodeToString(h.Sum(nil))
+
+	if config.TmpDir != "" {
+		absPathBuildDir, err := filepath.Abs(config.TmpDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path of tmp dir at %s: %w", config.TmpDir, err)
+		}
+		config.TmpDir = absPathBuildDir
+		_, err = os.Stat(config.TmpDir)
+		if errors.Is(err, os.ErrNotExist) {
+			err = os.MkdirAll(config.TmpDir, os.ModePerm)
+			if err != nil {
+				return nil, fmt.Errorf("could not create new temp dir at %s: %w", config.TmpDir, err)
+			}
+			if !config.KeepTempFiles {
+				defer os.RemoveAll(config.TmpDir)
+			}
+		}
+	}
+
+	rootBuildDir1, err := os.MkdirTemp(config.TmpDir, hexHash+"_*")
+	if err != nil {
+		return nil, fmt.Errorf("could not create new tmp directory: %w", err)
+	}
+	rootBuildDir, err := filepath.Abs(rootBuildDir1)
+	if err != nil {
+		return nil, fmt.Errorf("could not get absolute path of root build %s: %w", rootBuildDir, err)
+	}
+	if !config.KeepTempFiles {
+		defer os.RemoveAll(rootBuildDir)
+	}
+
+	outputFilePath := filepath.Join(rootBuildDir, hexHash+".a")
+
+	importPath := pkg.ImportPath
+	err = execBuild(config, workDir, outputFilePath, []string{goPackage})
+	if err != nil {
+		return nil, err
+	}
+	linkerOpts := config.linkerOpts()
+	linker, err := resolveDependencies(config, workDir, rootBuildDir, outputFilePath, importPath, pkg, linkerOpts, stdLibPkgs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LoadableUnit{
+		Linker:     linker,
+		ImportPath: importPath,
+		Package:    pkg,
+	}, nil
 }

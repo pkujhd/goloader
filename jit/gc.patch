@@ -1,0 +1,39 @@
+diff --git a/src/cmd/compile/internal/base/flag.go b/src/cmd/compile/internal/base/flag.go
+index a363b83984..9fb5a36c30 100644
+--- a/src/cmd/compile/internal/base/flag.go
++++ b/src/cmd/compile/internal/base/flag.go
+@@ -97,6 +97,7 @@ type CmdFlags struct {
+ 	DwarfLocationLists *bool        "help:\"add location lists to DWARF in optimized mode\""                      // &Ctxt.Flag_locationlists, set below
+ 	Dynlink            *bool        "help:\"support references to Go symbols defined in other shared libraries\"" // &Ctxt.Flag_dynlink, set below
+ 	EmbedCfg           func(string) "help:\"read go:embed configuration from `file`\""
++	ExportTypes        bool         "help:\"emit GoAuxTypes for package exports\""
+ 	GenDwarfInl        int          "help:\"generate DWARF inline info records\"" // 0=disabled, 1=funcs, 2=funcs+formals/locals
+ 	GoVersion          string       "help:\"required version of the runtime\""
+ 	ImportCfg          func(string) "help:\"read import configuration from `file`\""
+diff --git a/src/cmd/compile/internal/gc/obj.go b/src/cmd/compile/internal/gc/obj.go
+index 5008aa212a..107e0cf7f9 100644
+--- a/src/cmd/compile/internal/gc/obj.go
++++ b/src/cmd/compile/internal/gc/obj.go
+@@ -110,6 +110,22 @@ func dumpCompilerObj(bout *bio.Writer) {
+ }
+ 
+ func dumpdata() {
++	if base.Flag.ExportTypes {
++		for _, export := range typecheck.Target.Exports {
++			s := export.Linksym()
++
++			if strings.HasSuffix(s.Name, "..inittask") && s.OnList() {
++				continue
++			}
++
++			t := export.Type()
++			if t == nil || (t.IsPtr() && t.Elem() == nil) || t.IsUntyped() {
++				continue
++			}
++			s.Gotype = reflectdata.TypeLinksym(export.Type())
++		}
++	}
++
+ 	numExterns := len(typecheck.Target.Externs)
+ 	numDecls := len(typecheck.Target.Decls)
+ 	dumpglobls(typecheck.Target.Externs)

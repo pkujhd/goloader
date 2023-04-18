@@ -1,1 +1,0 @@
-Copied from go/src/cmd/compile/internal/syntax/*.go

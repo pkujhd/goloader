@@ -73,10 +73,11 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 		_, _ = f.Write(symOrderJSON)
 		_ = f.Close()
 	}
-	module, symbols, err = loadable.Load()
+	module, err = loadable.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
+	symbols = module.SymbolsByPkg[loadable.ImportPath]
 	return
 }
 
@@ -1598,4 +1599,67 @@ func TestTypeMismatch(t *testing.T) {
 	}
 	err = module2.UnloadStringMap()
 
+}
+
+func TestRemotePkg(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:                         goBinary,
+		KeepTempFiles:                    false,
+		ExtraBuildFlags:                  nil,
+		BuildEnv:                         nil,
+		TmpDir:                           "",
+		DebugLog:                         false,
+		HeapStrings:                      heapStrings,
+		StringContainerSize:              stringContainerSize,
+		RandomSymbolNameOrder:            false,
+		UnsafeBlindlyUseFirstmoduleTypes: false, // If set to true, this test should fail (fault)
+	}
+
+	loadable, err := jit.BuildGoPackageRemote(conf, "gonum.org/v1/gonum/mat", "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err := loadable.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	syms := module.SymbolsByPkg[loadable.ImportPath]
+	for k, v := range syms {
+		fmt.Println(loadable.ImportPath, k, reflect.TypeOf(v))
+	}
+	err = module.UnloadStringMap()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = module.Unload()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loadable, err = jit.BuildGoPackageRemote(conf, "encoding/json", "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	module, err = loadable.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	syms = module.SymbolsByPkg[loadable.ImportPath]
+	for k, v := range syms {
+		fmt.Println(loadable.ImportPath, k, reflect.TypeOf(v))
+	}
+	jsonMarshalIndent := syms["MarshalIndent"].(func(interface{}, string, string) ([]byte, error))
+	data, err := jsonMarshalIndent(conf, "", " ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(string(data))
+	err = module.UnloadStringMap()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = module.Unload()
+	if err != nil {
+		t.Fatal(err)
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"reflect"
+	"runtime"
 	"runtime/debug"
 	"sync"
 	"syscall"
@@ -93,7 +94,7 @@ var test_z64, test_x64 uint64
 func complex128div(n complex128, m complex128) complex128
 
 //go:linkname uncommon reflect.(*rtype).uncommon
-func uncommon(t *rtype) uintptr
+func uncommon(t uintptr) uintptr
 
 //go:linkname poll_runtime_pollWaitCanceled internal/poll.runtime_pollWaitCanceled
 func poll_runtime_pollWaitCanceled(pd unsafe.Pointer, mode int)
@@ -176,6 +177,8 @@ func check() {
 	_ = reflect.MapOf(reflect.TypeOf(5), reflect.TypeOf(5))
 	_ = reflect.ArrayOf(1, reflect.TypeOf(5))
 	_ = reflect.Append(reflect.ValueOf([]int{}))
+	var e *runtime.Error
+	_ = reflect.ValueOf(reflect.TypeOf(e)).Method(0) // For linker deadcode elimination to prevent stripping unreachable methods
 	x := 0
 	_ = reflect.NewAt(reflect.TypeOf(0), reflect.ValueOf(&x).UnsafePointer())
 	// reflect.Call disables most of linker's deadcode analysis $GOROOT/src/cmd/link/internal/ld/deadcode.go

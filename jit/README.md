@@ -7,6 +7,11 @@ It assumes the existence of a working Go toolchain on the path.
 It automatically resolves package dependencies recursively, and provides a type safe way of interacting with the built
 functions.
 
+## Go compiler patch
+To allow the loader to know the types of exported functions, this package will attempt to patch the Go compiler (gc) to emit these if not already patched.
+
+This patch can be found in `gc.patch`.
+
 ### Usage and Configuration
 
 ```go
@@ -37,6 +42,11 @@ func main() {
 		panic(err)
 	}
 	// or
+	loadable, err = jit.BuildGoPackageRemote(conf, "github.com/some/package/v4", "latest")
+	if err != nil {
+		panic(err)
+	}
+	// or
 	loadable, err = jit.BuildGoText(conf, `
 package mypackage
 
@@ -53,8 +63,8 @@ func MyFunc(input []byte) (interface{}, error) {
 		panic(err)
 	}
 
-	module, symbols, err := loadable.Load()
-
+	module, err := loadable.Load()
+    symbols := module.SymbolsByPkg[loadable.ImportPath] 
 	if err != nil {
 		panic(err)
 	}
