@@ -257,6 +257,8 @@ func TestJitComplexFunctions(t *testing.T) {
 				t.Errorf("expected %d, got %d", 6, result.Val2["item2"])
 			}
 
+			runtime.GC()
+			runtime.GC()
 			err = module.Unload()
 			if err != nil {
 				t.Fatal(err)
@@ -962,6 +964,7 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 }
 
 func TestConvertOldAndNewTypes(t *testing.T) {
+	relocs, _ := os.OpenFile("relocs.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0655)
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,
 		KeepTempFiles:         false,
@@ -970,7 +973,9 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 		TmpDir:                "",
 		DebugLog:              false,
 		RandomSymbolNameOrder: randomSymbolOrder,
+		RelocationDebugWriter: relocs,
 	}
+	defer relocs.Close()
 
 	data := testData{
 		files: []string{"./testdata/test_conversion/test.go"},
