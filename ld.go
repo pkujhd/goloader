@@ -532,6 +532,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 					}
 				} else {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					if strings.HasSuffix(sym.Name, "·f") {
+						codeModule.Syms[sym.Name] = symbolMap[name]
+					}
 					if strings.HasPrefix(name, TypePrefix) {
 						if variant, ok := symbolIsVariant(name); ok && symPtr[variant] != 0 {
 							symbolMap[FirstModulePrefix+name] = symPtr[variant]

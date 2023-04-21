@@ -288,23 +288,32 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 								funcContainer = unsafe.Pointer(closure)
 								closure.F = entry
 							} else if closureFuncRegex.MatchString(oldFName) {
-								// This is a closure which is unlikely to be safe since the variables it closes over might be in the old module's memory
-								closure := *(**struct {
-									F uintptr
-									// ... <- variables which are captured by the closure would follow, but we can't know how many they are or what their types are - the best we can do is switch the function implementation and keep the variables the same
-								})(manipulation.ptr)
-								closure.F = entry
-								funcContainer = unsafe.Pointer(closure)
-								log.Printf("EVEN BIGGER WARNING - converting anonymous function %s by name - no guarantees that signatures, or the closed over variable sizes, or types will match. This is dangerous! \n", oldFName)
+								containerSym, haveContainerSym := newModule.Syms[oldFName+"·f"]
+								if haveContainerSym {
+									funcContainer = unsafe.Pointer(containerSym)
+								} else {
+									// This is a closure which is unlikely to be safe since the variables it closes over might be in the old module's memory
+									closure := *(**struct {
+										F uintptr
+										// ... <- variables which are captured by the closure would follow, but we can't know how many they are or what their types are - the best we can do is switch the function implementation and keep the variables the same
+									})(manipulation.ptr)
+									closure.F = entry
+									funcContainer = unsafe.Pointer(closure)
+									log.Printf("EVEN BIGGER WARNING - converting anonymous function %s by name - no guarantees that signatures, or the closed over variable sizes, or types will match. This is dangerous! \n", oldFName)
+								}
 							} else {
-								// PC addresses for functions are 2 levels of indirection from a reflect value's word addr,
-								// so we allocate addresses on the heap to hold the indirections
-								// Normally the RODATA has a pkgname.FuncName·f symbol which stores this - Ideally we would use that instead of the heap
-
-								// TODO - is this definitely safe from GC?
-								funcPtr := new(uintptr)
-								*funcPtr = entry
-								funcContainer = unsafe.Pointer(funcPtr)
+								containerSym, haveContainerSym := newModule.Syms[oldFName+"·f"]
+								if haveContainerSym {
+									funcContainer = unsafe.Pointer(containerSym)
+								} else {
+									// PC addresses for functions are 2 levels of indirection from a reflect value's word addr,
+									// so we allocate addresses on the heap to hold the indirections
+									// Normally the RODATA has a pkgname.FuncName·f symbol which stores this - Ideally we would use that instead of the heap
+									// TODO - is this definitely safe from GC?
+									funcPtr := new(uintptr)
+									*funcPtr = entry
+									funcContainer = unsafe.Pointer(funcPtr)
+								}
 							}
 							funcPtrContainer := new(unsafe.Pointer)
 							*funcPtrContainer = funcContainer
