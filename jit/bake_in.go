@@ -177,6 +177,9 @@ func check() {
 	_ = reflect.MapOf(reflect.TypeOf(5), reflect.TypeOf(5))
 	_ = reflect.ArrayOf(1, reflect.TypeOf(5))
 	_ = reflect.Append(reflect.ValueOf([]int{}))
+	_ = reflect.ValueOf(&[]uint{})
+	_ = reflect.ValueOf(&[]complex64{})
+	_ = reflect.ValueOf(&[]complex128{})
 	var e *runtime.Error
 	_ = reflect.ValueOf(reflect.TypeOf(e)).Method(0) // For linker deadcode elimination to prevent stripping unreachable methods
 	x := 0
