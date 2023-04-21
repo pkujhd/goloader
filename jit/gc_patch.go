@@ -4,11 +4,13 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -41,19 +43,51 @@ const flagAnchor = `
 
 var patchCache sync.Map
 
+func goEnv(goBinary string) (map[string]string, error) {
+	goEnvCmd := exec.Command(goBinary, "env")
+	buf := bytes.Buffer{}
+	goEnvCmd.Stdout = &buf
+	err := goEnvCmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("could not run '%s env': %w", goBinary, err)
+	}
+	lines := strings.Split(buf.String(), "\n")
+	result := map[string]string{}
+	for _, line := range lines {
+		split := strings.SplitN(line, "=", 2)
+		if len(split) != 2 {
+			continue
+		}
+		key := split[0]
+		val, err := strconv.Unquote(split[1])
+		if err != nil {
+			return nil, fmt.Errorf("failed to unquote %s (%s): %w", key, val, err)
+		}
+		result[key] = val
+	}
+	return result, nil
+}
+
 // PatchGC checks whether the go compiler at a given GOROOT requires patching
 // to emit export types and if so, applies a patch and rebuilds it and tests again
 func PatchGC(goBinary string, debugLog bool) error {
 	var goRootPath string
-	if filepath.IsAbs(goBinary) {
-		goRootPath = filepath.Dir(filepath.Dir(goBinary))
-	} else {
+	var goToolDir string
+	if !filepath.IsAbs(goBinary) {
 		var err error
 		goBinary, err = exec.LookPath(goBinary)
 		if err != nil {
 			return fmt.Errorf("could not find %s in path: %w", goBinary, err)
 		}
-		goRootPath = filepath.Dir(filepath.Dir(goBinary))
+	}
+	env, err := goEnv(goBinary)
+	if err != nil {
+		return err
+	}
+	goRootPath = env["GOROOT"]
+	goToolDir = env["GOTOOLDIR"]
+	if goToolDir == "" || goRootPath == "" {
+		return fmt.Errorf("could not find GOROOT/GOTOOLDIR for %s", goBinary)
 	}
 	if _, ok := patchCache.Load(goRootPath); ok {
 		if debugLog {
@@ -61,15 +95,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 		}
 		return nil
 	}
-	goBinaryPath := filepath.Join(goRootPath, "bin", "go")
-	goBinStat, err := os.Stat(goBinaryPath)
-	if err != nil {
-		return fmt.Errorf("could not stat %s: %w", goBinaryPath, err)
-	}
-	if goBinStat.IsDir() {
-		return fmt.Errorf("go bin path '%s' is directory", goBinaryPath)
-	}
-	helpCmd := exec.Command(goBinaryPath, "tool", "compile", "-help")
+	helpCmd := exec.Command(goBinary, "tool", "compile", "-help")
 	stderrBuf := &bytes.Buffer{}
 	helpCmd.Stderr = stderrBuf
 	err = helpCmd.Run()
@@ -77,7 +103,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 	helpOutput := stderrBuf.Bytes()
 
 	if bytes.Index(helpOutput, []byte("usage:")) == -1 {
-		return fmt.Errorf("could not execute '%s tool compile -help': %w\n%s", goBinaryPath, err, helpOutput)
+		return fmt.Errorf("could not execute '%s tool compile -help': %w\n%s", goBinary, err, helpOutput)
 	}
 
 	if bytes.Index(helpOutput, []byte("-exporttypes")) != -1 {
@@ -112,6 +138,9 @@ func PatchGC(goBinary string, debugLog bool) error {
 		newFlagFile := bytes.Replace(flagFile, []byte(flagAnchor), []byte(flagAnchor+flagSnippet), 1)
 		err = os.WriteFile(flagPath, newFlagFile, flagFileStat.Mode())
 		if err != nil {
+			if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
+				return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", flagPath, err)
+			}
 			return fmt.Errorf("could not write patched '%s': %w", flagPath, err)
 		}
 		if debugLog {
@@ -130,6 +159,9 @@ func PatchGC(goBinary string, debugLog bool) error {
 		newObjFile := bytes.Replace(objFile, []byte(objAnchor), []byte(objAnchor+objSnippet), 1)
 		err = os.WriteFile(objPath, newObjFile, objFileStat.Mode())
 		if err != nil {
+			if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
+				return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", objPath, err)
+			}
 			return fmt.Errorf("could not write patched '%s': %w", objPath, err)
 		}
 		if debugLog {
@@ -150,7 +182,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 	}()
 
 	newCompilerPath := filepath.Join(tmpDir, "compile")
-	buildCmd := exec.Command(goBinaryPath, "build", "-o", newCompilerPath, "cmd/compile")
+	buildCmd := exec.Command(goBinary, "build", "-o", newCompilerPath, "cmd/compile")
 	if debugLog {
 		log.Printf("compiling %s\n", newCompilerPath)
 		buildCmd.Stderr = os.Stderr
@@ -160,22 +192,66 @@ func PatchGC(goBinary string, debugLog bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to compile cmd/compile: %w", err)
 	}
-	goCompilerPath := filepath.Join(goRootPath, "pkg", "tool", runtime.GOOS+"_"+runtime.GOARCH, "compile")
-	err = os.Rename(goCompilerPath, goCompilerPath+".bak")
+	goCompilerPath := filepath.Join(goToolDir, "compile")
+	err = move(goCompilerPath, goCompilerPath+".bak")
 	if debugLog {
 		log.Printf("backed up %s\n", goCompilerPath+".bak")
 	}
 	if err != nil {
+		if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
+			return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", goCompilerPath+".bak", err)
+		}
 		return fmt.Errorf("failed to move %s: %w", goCompilerPath, err)
 	}
 
-	err = os.Rename(newCompilerPath, goCompilerPath)
+	err = move(newCompilerPath, goCompilerPath)
 	if err != nil {
+		if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
+			return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", goCompilerPath, err)
+		}
 		return fmt.Errorf("failed to move %s: %w", newCompilerPath, err)
 	}
 	if debugLog {
 		log.Printf("replaced %s\n", goCompilerPath)
 	}
 	patchCache.Store(goRootPath, true)
+	return nil
+}
+
+func move(source, destination string) error {
+	err := os.Rename(source, destination)
+	if err != nil && strings.Contains(err.Error(), "cross-device link") {
+		return moveCrossDevice(source, destination)
+	}
+	return err
+}
+
+func moveCrossDevice(source, destination string) error {
+	src, err := os.Open(source)
+	if err != nil {
+		return fmt.Errorf("failed to open %s: %w", source, err)
+	}
+	srcStat, err := src.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat %s: %w", source, err)
+	}
+	dst, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcStat.Mode())
+	if err != nil {
+		_ = src.Close()
+		return fmt.Errorf("failed to open %s: %w", destination, err)
+	}
+	_, err = io.Copy(dst, src)
+	_ = src.Close()
+	err2 := dst.Close()
+	if err != nil {
+		return fmt.Errorf("failed to copy to %s: %w", destination, err)
+	}
+	if err2 != nil {
+		return fmt.Errorf("failed to close %s: %w", destination, err2)
+	}
+	err = os.Remove(source)
+	if err != nil {
+		return fmt.Errorf("failed to remove source %s: %w", source, err)
+	}
 	return nil
 }
