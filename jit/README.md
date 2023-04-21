@@ -29,7 +29,6 @@ func main() {
 		BuildEnv:         nil,            // Env vars to set for go build toolchain
 		TmpDir:           "",             // To control where temporary files are copied
 		DebugLog:         true,           //
-		SkipCopyPatterns: []string{},     // Glob patterns to exclude from module copy (in case module contains large files)
 	}
 
 	loadable, err := jit.BuildGoFiles(conf, "./path/to/file1.go", "/path/to/file2.go")
