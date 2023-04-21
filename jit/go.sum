@@ -13,6 +13,12 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dvyukov/go-fuzz v0.0.0-20200318091601-be3528f3a813/go.mod h1:11Gm+ccJnvAhCNLlf5+cS9KjtbaD5I5zaZpFMsTHWTw=
+github.com/eh-steve/goloader v0.0.0-20230421193411-6090aa93a7bb h1:m+evJVtNu3C6oln9IsQNmEdfL+xQTehwDdXKFcyir9k=
+github.com/eh-steve/goloader v0.0.0-20230421193411-6090aa93a7bb/go.mod h1:mhHi6uwxFPIvRKGyzjF7ayGpIQBTs2g2rfwbSI86WAE=
+github.com/eh-steve/goloader/jit/testdata v0.0.0-20230421193411-6090aa93a7bb h1:nEEIrGO17mgl34i14tvA+mLHHD+vbQ6H8ZX1tn/1OmM=
+github.com/eh-steve/goloader/jit/testdata v0.0.0-20230421193411-6090aa93a7bb/go.mod h1:12MweAVFnNHdQ0Xibn22CYBvei0s0azgndpHYVMTzmE=
+github.com/eh-steve/goloader/unload v0.0.0-20230421193411-6090aa93a7bb h1:gqXOdArcozGug/eHai07lZ7de+Cd8MZlq0ooxYpeKEE=
+github.com/eh-steve/goloader/unload v0.0.0-20230421193411-6090aa93a7bb/go.mod h1:bA/aiceMvuZh45HAA/xzWJKT4E9EXqzmuPsB9yT/D/M=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/fogleman/gg v1.3.0/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/go-fonts/dejavu v0.1.0/go.mod h1:4Wt4I4OU2Nq9asgDCteaAaWZOV24E+0/Pwo0gppep4g=
