@@ -139,7 +139,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 		err = os.WriteFile(flagPath, newFlagFile, flagFileStat.Mode())
 		if err != nil {
 			if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
-				return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", flagPath, err)
+				return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo\ngo install github.com/eh-steve/goloader/jit/patchgc@latest && sudo $GOPATH/bin/patchgc", flagPath, err)
 			}
 			return fmt.Errorf("could not write patched '%s': %w", flagPath, err)
 		}
@@ -160,7 +160,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 		err = os.WriteFile(objPath, newObjFile, objFileStat.Mode())
 		if err != nil {
 			if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
-				return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", objPath, err)
+				return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo\ngo install github.com/eh-steve/goloader/jit/patchgc@latest && sudo $GOPATH/bin/patchgc", objPath, err)
 			}
 			return fmt.Errorf("could not write patched '%s': %w", objPath, err)
 		}
@@ -199,7 +199,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
-			return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", goCompilerPath+".bak", err)
+			return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo\ngo install github.com/eh-steve/goloader/jit/patchgc@latest && sudo $GOPATH/bin/patchgc", goCompilerPath+".bak", err)
 		}
 		return fmt.Errorf("failed to move %s: %w", goCompilerPath, err)
 	}
@@ -207,7 +207,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 	err = move(newCompilerPath, goCompilerPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "not permitted") {
-			return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo", goCompilerPath, err)
+			return fmt.Errorf("could not write patched '%s': %w\nTry changing $GOROOT's owner to current user, or run patch with sudo\ngo install github.com/eh-steve/goloader/jit/patchgc@latest && sudo $GOPATH/bin/patchgc", goCompilerPath, err)
 		}
 		return fmt.Errorf("failed to move %s: %w", newCompilerPath, err)
 	}
