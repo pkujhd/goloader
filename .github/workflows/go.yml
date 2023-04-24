@@ -16,13 +16,6 @@ jobs:
       matrix:
         go-version: [ 1.18.x, 1.19.x, 1.20.x ]
         os:  [ubuntu-latest, windows-latest, macos-latest]
-        exclude:
-          - os: macos-latest
-            go-version: 1.8.x
-          - os: macos-latest
-            go-version: 1.9.x
-          - os: macos-latest
-            go-version: 1.10.x
     runs-on: ${{ matrix.os }}
 
     steps:
