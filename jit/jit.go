@@ -221,7 +221,7 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 			sort.Strings(unresolvedList)
 			return nil, fmt.Errorf("still have %d unresolved external symbols despite building and linking dependencies...: \n%s", len(requiredBy), strings.Join(unresolvedList, "\n"))
 		}
-		_ = linker.UnloadStrings()
+		linker.UnloadStrings()
 		linker = depsLinker
 	}
 	return linker, nil
@@ -410,7 +410,7 @@ func buildAndLoadDeps(config BuildConfig,
 	globalMutex.Unlock()
 
 	addCGoSymbols(nextUnresolvedSymbols)
-	_ = linker.UnloadStrings()
+	linker.UnloadStrings()
 
 	if len(nextUnresolvedSymbols) > 0 {
 		var newSortedDeps []string

@@ -869,9 +869,9 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					}
 					u := t.uncommon()
 					prevU := prevT.uncommon()
-					err := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
-					if err != nil {
-						return err
+					err2 := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
+					if err2 != nil {
+						return err2
 					}
 
 					addr = uintptr(unsafe.Pointer(t))
@@ -908,7 +908,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF:
 						offset := int(addr) - addrBase + loc.Add
 						if offset > 0x7FFFFFFF || offset < -0x80000000 {
-							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
+							err = fmt.Errorf("symName: %s %s offset: %d overflows!\n", objabi.RelocType(loc.Type), sym.Name, offset)
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_METHODOFF:
@@ -917,7 +917,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 						}
 						offset := int(addr) - addrBase + loc.Add
 						if offset > 0x7FFFFFFF || offset < -0x80000000 {
-							err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
+							err = fmt.Errorf("symName: %s %s offset: %d overflows!\n", objabi.RelocType(loc.Type), sym.Name, offset)
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_USETYPE, reloctype.R_USEIFACE, reloctype.R_USEIFACEMETHOD, reloctype.R_ADDRCUOFF, reloctype.R_KEEP:
@@ -1054,9 +1054,8 @@ func (linker *Linker) UnresolvedExternalSymbolUsers(symbolMap map[string]uintptr
 	return requiredBy
 }
 
-func (linker *Linker) UnloadStrings() error {
+func (linker *Linker) UnloadStrings() {
 	linker.heapStringMap = nil
-	return nil
 }
 
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {

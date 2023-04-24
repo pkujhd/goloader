@@ -130,7 +130,7 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
 		if loc.EpilogueSize == 0 {
-			return fmt.Errorf("relocation epilogue not available but got a >32-bit CALL reloc with offset %d: %s", offset, loc.Sym.Name)
+			return fmt.Errorf("relocation epilogue not available but got a >32-bit CALL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-2:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
 		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
 		copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
@@ -154,7 +154,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
 		if loc.EpilogueSize == 0 {
-			return fmt.Errorf("relocation epilogue not available but got a >32-bit PCREL reloc with offset %d: %s", offset, loc.Sym.Name)
+			return fmt.Errorf("relocation epilogue not available but got a >32-bit PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-2:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
 		relocToEpilogueOffset := (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
 		bytes := relocByte[loc.Offset-2:]
@@ -175,7 +175,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		} else if bytes[1] == x86amd64JMPcode {
 			opcode = bytes[1]
 		} else {
-			return fmt.Errorf("do not support x86 opcode: %x for symbol %s (offset %d)!\n", relocByte[loc.Offset-2:loc.Offset], loc.Sym.Name, offset)
+			return fmt.Errorf("do not support x86 opcode: %x for symbol %s (offset %d)!\n", relocByte[loc.Offset-2:loc.Offset+loc.Size], loc.Sym.Name, offset)
 		}
 		byteorder.PutUint32(relocByte[loc.Offset:], uint32(relocToEpilogueOffset))
 		switch opcode {
@@ -201,7 +201,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		case x86amd64LEAcode:
 			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr))
 		default:
-			return fmt.Errorf("unexpected x86 opcode %x: %x for symbol %s (offset %d)!\n", opcode, relocByte[loc.Offset-2:loc.Offset], loc.Sym.Name, offset)
+			return fmt.Errorf("unexpected x86 opcode %x: %x for symbol %s (offset %d)!\n", opcode, relocByte[loc.Offset-2:loc.Offset+loc.Size], loc.Sym.Name, offset)
 		}
 
 		switch opcode {
