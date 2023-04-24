@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: [1.8.x, 1.9.x, 1.10.x, 1.11.x, 1.12.x, 1.13.x, 1.14.x, 1.15.x, 1.16.x, 1.17.x, 1.18.x, 1.19.x]
+        go-version: [ 1.18.x, 1.19.x, 1.20.x ]
         os:  [ubuntu-latest, windows-latest, macos-latest]
         exclude:
           - os: macos-latest
@@ -22,13 +22,6 @@ jobs:
           - os: macos-latest
             go-version: 1.9.x
           - os: macos-latest
-            go-version: 1.10.x
-        include:
-          - os: macos-11
-            go-version: 1.8.x
-          - os: macos-11
-            go-version: 1.9.x
-          - os: macos-11
             go-version: 1.10.x
     runs-on: ${{ matrix.os }}
 
@@ -40,32 +33,20 @@ jobs:
         
     - name: Rename cmd/internal
       shell: sh
-      run:         
+      run:
         cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
-        
+
+    - name: Patch gc
+      shell: sh
+      run:
+        go run github.com/eh-steve/goloader/jit/patchgc@WIP---Update-github-actions-to-run-tests
+
     - name: Checkout code
       uses: actions/checkout@v3
       with:
         path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
-      
-    - name: Build
-      run:
-        go build github.com/eh-steve/goloader/examples/loader
-        
-    - name: Compile const.go
+
+    - name: Test
       shell: sh
       run:
-        go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/const/const.go
-        
-    - name: Compile base.go
-      shell: sh
-      run:
-        go tool compile $GOPATH/src/github.com/eh-steve/goloader/examples/base/base.go
-        
-    - name: Test base.o
-      run: 
-        ./loader -o base.o -run main.main
-        
-    - name: Test const.o
-      run:
-        ./loader -o const.o -run main.main
+        cd $GOPATH/src/github.com/eh-steve/goloader/jit && go test -c . && ./jit.test -test.v

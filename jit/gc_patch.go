@@ -14,6 +14,11 @@ import (
 	"sync"
 )
 
+const importSnippetReplacement = `"encoding/json"
+	"fmt"
+	"strings"
+)`
+
 const flagSnippet = `
 	ExportTypes        bool         "help:\"emit GoAuxTypes for package exports\""`
 
@@ -34,6 +39,11 @@ const objSnippet = `	if base.Flag.ExportTypes {
 	}
 
 `
+
+const importAnchor = `"encoding/json"
+	"fmt"
+)`
+
 const objAnchor = `
 func dumpdata() {
 `
@@ -60,7 +70,7 @@ func goEnv(goBinary string) (map[string]string, error) {
 		}
 		key := split[0]
 		val, err := strconv.Unquote(split[1])
-		if err != nil {
+		if err != nil && val != "" {
 			return nil, fmt.Errorf("failed to unquote %s (%s): %w", key, val, err)
 		}
 		result[key] = val
@@ -152,6 +162,9 @@ func PatchGC(goBinary string, debugLog bool) error {
 		}
 	}
 
+	if bytes.Index(objFile, []byte(importAnchor)) != -1 {
+		objFile = bytes.Replace(objFile, []byte(importAnchor), []byte(importSnippetReplacement), 1)
+	}
 	if bytes.Index(objFile, []byte(objSnippet)) == -1 {
 		if bytes.Index(objFile, []byte(objAnchor)) == -1 {
 			return fmt.Errorf("could not find anchor (dumpdata()) to patch '%s'", objPath)

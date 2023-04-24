@@ -164,10 +164,8 @@ func check() {
 	_ = reflect.TypeOf(reflect.ValueOf(poll_runtime_pollWaitCanceled))
 	_ = reflect.TypeOf(reflect.ValueOf(poll_runtime_isPollServerDescriptor))
 	_ = reflect.TypeOf(reflect.ValueOf(syscall.Exec))
-	_ = reflect.TypeOf(reflect.ValueOf(syscall.Setuid))
 	_ = reflect.ValueOf(debug.FreeOSMemory)
 	_ = reflect.ValueOf(debug.ReadBuildInfo)
-	_ = reflect.ValueOf(debug.SetMemoryLimit)
 	_ = reflect.ValueOf(debug.SetGCPercent)
 	_ = reflect.ValueOf(debug.SetMaxThreads)
 	_ = reflect.ValueOf(debug.SetPanicOnFault)
@@ -193,4 +191,5 @@ func check() {
 	_ = rand.Float64() // to prevent the internal/godebug Setting cache (a sync.Map) from storing "randautoseed" from dynamic memory
 
 	bakeInPlatform() // things which vary by OS/arch
+	bakeInVersion()
 }
