@@ -14,25 +14,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: [ 1.18.x, 1.19.x, 1.20.x ]
+        go-version: [ 1.18.X, 1.19.X, 1.20.X ]
         os:  [ubuntu-latest, windows-latest, macos-latest, [self-hosted, Linux, ARM64], [self-hosted, macOS, ARM64]]
     runs-on: ${{ matrix.os }}
 
     steps:
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go-version }}
+        check-latest: true
         
     - name: Rename cmd/internal
       shell: sh
-      run:
-        cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
+      run: |
+        eval $(go env | sed -r 's/^(set )?(\w+)=("?)(.*)\3$/\2="\4"/g') && cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
 
     - name: Patch gc
       shell: sh
       run:
-        go run github.com/eh-steve/goloader/jit/patchgc@e801079
+        go run github.com/eh-steve/goloader/jit/patchgc@164402f8f4a119945d5ee2925049d42910f5b7df
 
     - name: Checkout code
       uses: actions/checkout@v3
