@@ -3,12 +3,14 @@ package jit
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -64,14 +66,20 @@ func goEnv(goBinary string) (map[string]string, error) {
 	lines := strings.Split(buf.String(), "\n")
 	result := map[string]string{}
 	for _, line := range lines {
+		if runtime.GOOS == "windows" {
+			line = strings.TrimPrefix(line, "set ")
+		}
 		split := strings.SplitN(line, "=", 2)
 		if len(split) != 2 {
 			continue
 		}
 		key := split[0]
-		val, err := strconv.Unquote(split[1])
-		if err != nil && val != "" {
-			return nil, fmt.Errorf("failed to unquote %s (%s): %w", key, val, err)
+		val := split[1]
+		if runtime.GOOS != "windows" {
+			val, err := strconv.Unquote(split[1])
+			if err != nil && val != "" {
+				return nil, fmt.Errorf("failed to unquote %s (%s): %w", key, val, err)
+			}
 		}
 		result[key] = val
 	}
@@ -97,7 +105,8 @@ func PatchGC(goBinary string, debugLog bool) error {
 	goRootPath = env["GOROOT"]
 	goToolDir = env["GOTOOLDIR"]
 	if goToolDir == "" || goRootPath == "" {
-		return fmt.Errorf("could not find GOROOT/GOTOOLDIR for %s", goBinary)
+		envJSON, _ := json.MarshalIndent(env, "", "  ")
+		return fmt.Errorf("could not find GOROOT/GOTOOLDIR for %s: %s", goBinary, envJSON)
 	}
 	if _, ok := patchCache.Load(goRootPath); ok {
 		if debugLog {
@@ -186,6 +195,10 @@ func PatchGC(goBinary string, debugLog bool) error {
 		}
 	}
 
+	fileExtension := ""
+	if runtime.GOOS == "windows" {
+		fileExtension = ".exe"
+	}
 	tmpDir, err := os.MkdirTemp("", "gcpatch")
 	if err != nil {
 		return fmt.Errorf("could not create temp dir: %w", err)
@@ -194,7 +207,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 		_ = os.RemoveAll(tmpDir)
 	}()
 
-	newCompilerPath := filepath.Join(tmpDir, "compile")
+	newCompilerPath := filepath.Join(tmpDir, "compile"+fileExtension)
 	buildCmd := exec.Command(goBinary, "build", "-o", newCompilerPath, "cmd/compile")
 	if debugLog {
 		log.Printf("compiling %s\n", newCompilerPath)
@@ -205,7 +218,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to compile cmd/compile: %w", err)
 	}
-	goCompilerPath := filepath.Join(goToolDir, "compile")
+	goCompilerPath := filepath.Join(goToolDir, "compile"+fileExtension)
 	err = move(goCompilerPath, goCompilerPath+".bak")
 	if debugLog {
 		log.Printf("backed up %s\n", goCompilerPath+".bak")
