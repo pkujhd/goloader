@@ -76,7 +76,7 @@ func goEnv(goBinary string) (map[string]string, error) {
 		key := split[0]
 		val := split[1]
 		if runtime.GOOS != "windows" {
-			val, err := strconv.Unquote(split[1])
+			val, err = strconv.Unquote(split[1])
 			if err != nil && val != "" {
 				return nil, fmt.Errorf("failed to unquote %s (%s): %w", key, val, err)
 			}

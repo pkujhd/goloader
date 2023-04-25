@@ -32,7 +32,7 @@ jobs:
     - name: Patch gc
       shell: sh
       run:
-        go run github.com/eh-steve/goloader/jit/patchgc@6a96384
+        go run github.com/eh-steve/goloader/jit/patchgc@e801079
 
     - name: Checkout code
       uses: actions/checkout@v3
