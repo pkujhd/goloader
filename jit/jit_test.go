@@ -403,7 +403,7 @@ func TestJitHttpGet(t *testing.T) {
 				afterCall = runtime.NumGoroutine()
 				fmt.Printf("Waiting for last goroutine to stop before unloading, started with %d, now have %d\n", start, afterCall)
 			}
-			fmt.Println(result)
+			fmt.Println(len(result))
 			err = module.Unload()
 			if err != nil {
 				t.Fatal(err)
@@ -463,7 +463,7 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			fmt.Println(result2)
+			fmt.Println(len(result2))
 			afterCall := runtime.NumGoroutine()
 			for afterCall != start {
 				time.Sleep(100 * time.Millisecond)
@@ -471,7 +471,7 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 				afterCall = runtime.NumGoroutine()
 				fmt.Printf("Waiting for last goroutine to stop before unloading, started with %d, now have %d\n", start, afterCall)
 			}
-			fmt.Println(result1)
+			fmt.Println(len(result1))
 			err = module1.Unload()
 			if err != nil {
 				t.Fatal(err)
@@ -479,7 +479,7 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 			time.Sleep(300 * time.Millisecond)
 
 			result2, err = httpGet2("https://ipinfo.io/ip")
-			fmt.Println(result2)
+			fmt.Println(len(result2))
 			if err != nil {
 				t.Fatal(err)
 			}
