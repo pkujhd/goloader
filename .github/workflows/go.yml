@@ -24,7 +24,8 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
         check-latest: true
-        
+        cache-dependency-path: jit/go.sum
+
     - name: Rename cmd/internal
       shell: sh
       run: |
