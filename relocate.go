@@ -312,7 +312,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				}
 			}
 
-			if linker.options.RelocationDebugWriter != nil {
+			if linker.options.RelocationDebugWriter != nil && loc.Offset != InvalidOffset {
 				isDup := "    "
 				if duplicated {
 					isDup = "DUP "

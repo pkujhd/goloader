@@ -429,7 +429,11 @@ func buildAndLoadDeps(config BuildConfig,
 				missingList = append(missingList, k)
 			}
 			sort.Strings(missingList)
-			log.Printf("Still have %d unresolved symbols after building dependencies. Recursing further to build: [\n  %s\n]\n", len(nextUnresolvedSymbols), strings.Join(missingList, ",\n  "))
+			missingSyms := make([]string, 0, len(nextUnresolvedSymbols))
+			for symName, objSym := range nextUnresolvedSymbols {
+				missingSyms = append(missingSyms, symName+" (package: '"+objSym.Pkg+"')")
+			}
+			log.Printf("Still have %d unresolved symbols \n[\n  %s\n]\n after building dependencies. Recursing further to build: \n[\n  %s\n]\n", len(nextUnresolvedSymbols), strings.Join(missingSyms, ",\n  "), strings.Join(missingList, ",\n  "))
 		}
 		return buildAndLoadDeps(config, workDir, buildDir, newSortedDeps, nextUnresolvedSymbols, nextUnresolvedSymbols, seen, builtPackageImportPaths, buildPackageFilePaths, depth+1, linkerOpts, stdLibPkgs)
 	}

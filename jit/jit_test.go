@@ -12,6 +12,7 @@ import (
 	"github.com/eh-steve/goloader/jit/testdata/test_type_mismatch"
 	"github.com/eh-steve/goloader/jit/testdata/test_type_mismatch/typedef"
 	"github.com/eh-steve/goloader/unload/jsonunload"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -964,7 +965,11 @@ func TestPackageNameNotEqualToImportPath(t *testing.T) {
 }
 
 func TestConvertOldAndNewTypes(t *testing.T) {
-	relocs, _ := os.OpenFile("relocs.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0655)
+	var relocs io.WriteCloser
+	if false {
+		relocs, _ = os.OpenFile("relocs.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0655)
+		defer relocs.Close()
+	}
 	conf := jit.BuildConfig{
 		GoBinary:              goBinary,
 		KeepTempFiles:         false,
@@ -975,7 +980,6 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 		RandomSymbolNameOrder: randomSymbolOrder,
 		RelocationDebugWriter: relocs,
 	}
-	defer relocs.Close()
 
 	data := testData{
 		files: []string{"./testdata/test_conversion/test.go"},

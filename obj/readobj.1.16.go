@@ -106,6 +106,25 @@ func (pkg *Pkg) Symbols() error {
 	return nil
 }
 
+func typePkgPath(symName string) (pkgName string) {
+	if strings.HasPrefix(symName, TypePrefix) && !strings.HasPrefix(symName, TypeDoubleDotPrefix) {
+		typeName := strings.TrimLeft(strings.TrimPrefix(symName, TypePrefix), "*")
+		if !strings.HasPrefix(typeName, "func(") &&
+			!strings.HasPrefix(typeName, "noalg") &&
+			!strings.HasPrefix(typeName, "map[") &&
+			!strings.HasPrefix(typeName, "map.bucket[") &&
+			!strings.HasPrefix(typeName, "map.iter[") &&
+			!strings.HasPrefix(typeName, "map.hdr[") &&
+			!strings.HasPrefix(typeName, "struct {") {
+			// Likely a named type defined in a package, but for some reason PkgIdx is PkgIdxNone
+			if strings.Count(typeName, ".") > 0 {
+				pkgName = funcPkgPath(typeName)
+			}
+		}
+	}
+	return
+}
+
 // TODO - share this implementation with goloader's
 func funcPkgPath(funcName string) string {
 	funcName = strings.TrimPrefix(funcName, TypeDoubleDotPrefix+"eq.")
@@ -133,7 +152,7 @@ func funcPkgPath(funcName string) string {
 		firstSquareBracket := strings.Index(funcName, "[")
 		if firstSquareBracket > 0 && lastSlash > firstSquareBracket {
 			i := firstSquareBracket
-			for ; funcName[i] != '.'; i-- {
+			for ; funcName[i] != '.' && i > 0; i-- {
 			}
 			return funcName[:i]
 		}
@@ -162,7 +181,7 @@ func resolveSymRef(s goobj.SymRef, r *goobj.Reader, refNames *map[goobj.SymRef]s
 		i = s.SymIdx + uint32(r.NSym()+r.NHashed64def()+r.NHasheddef())
 		symName := r.Sym(i).Name(r)
 		if (strings.HasPrefix(symName, TypePrefix) && !strings.HasPrefix(symName, TypeDoubleDotPrefix+"eq.")) || strings.HasPrefix(symName, "go"+ObjSymbolSeparator+"info") || strings.HasPrefix(symName, "go"+ObjSymbolSeparator+"cuinfo") || strings.HasPrefix(symName, "go"+ObjSymbolSeparator+"interface {") {
-			pkgName = ""
+			pkgName = typePkgPath(symName)
 		} else {
 			pkgName = funcPkgPath(symName)
 		}
@@ -267,6 +286,14 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 			if name == "" {
 				// Likely this type is defined in another package not yet loaded, so mark it as unresolved and resolve it later, after all packages
 				symbol.Type = UnresolvedIdxString(auxSymRef)
+			} else if objabi.SymKind(r.Sym(index).Type()) == objabi.Sxxx {
+				// This aux symref doesn't actually exist in the current package reader, so we add a fake reloc to force the package containing the symbol to be built
+				symbol.Reloc = append(symbol.Reloc, Reloc{
+					Offset: InvalidOffset,
+					Sym:    &Sym{Name: name, Offset: InvalidOffset, Pkg: pkgPath},
+					Type:   reloctype.R_KEEP,
+				})
+				symbol.Type = name
 			} else {
 				symbol.Type = name
 				symName := strings.TrimPrefix(symbol.Name, parentPkgPath+".")
@@ -323,13 +350,14 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 	}
 
 	relocs := r.Relocs(idx)
-	for k := 0; k < len(relocs); k++ {
+	priorRelocs := len(symbol.Reloc)
+	for k := priorRelocs; k < len(relocs)+priorRelocs; k++ {
 		symbol.Reloc = append(symbol.Reloc, Reloc{})
-		symbol.Reloc[k].Add = int(relocs[k].Add())
-		symbol.Reloc[k].Offset = int(relocs[k].Off())
-		symbol.Reloc[k].Size = int(relocs[k].Siz())
-		symbol.Reloc[k].Type = int(relocs[k].Type())
-		name, pkgPath, index := resolveSymRef(relocs[k].Sym(), r, refNames, pkgPath)
+		symbol.Reloc[k].Add = int(relocs[k-priorRelocs].Add())
+		symbol.Reloc[k].Offset = int(relocs[k-priorRelocs].Off())
+		symbol.Reloc[k].Size = int(relocs[k-priorRelocs].Siz())
+		symbol.Reloc[k].Type = int(relocs[k-priorRelocs].Type())
+		name, pkgPath, index := resolveSymRef(relocs[k-priorRelocs].Sym(), r, refNames, pkgPath)
 		symbol.Reloc[k].Sym = &Sym{Name: name, Offset: InvalidOffset, Pkg: pkgPath}
 		if _, ok := pkg.Syms[name]; !ok && index != InvalidIndex {
 			pkg.addSym(r, index, refNames, pkgPath)

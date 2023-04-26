@@ -875,7 +875,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					}
 
 					addr = uintptr(unsafe.Pointer(t))
-					if linker.options.RelocationDebugWriter != nil {
+					if linker.options.RelocationDebugWriter != nil && loc.Offset != InvalidOffset {
 						var weakness string
 						if loc.Type&reloctype.R_WEAK > 0 {
 							weakness = "WEAK|"
