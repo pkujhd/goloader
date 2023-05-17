@@ -1347,6 +1347,39 @@ func TestGCGlobals(t *testing.T) {
 	}
 }
 
+func TestJson(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		RandomSymbolNameOrder: false,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_json_marshal/test.go"},
+		pkg:   "./testdata/test_json_marshal",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			testFunc := symbols["TestJSONMarshal"].(func() string)
+
+			if testFunc() != "1" {
+				t.Fatalf("expected \"1\" but got %s", testFunc())
+			}
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestTypeMismatch(t *testing.T) {
 	conf := baseConfig
 	conf.UnsafeBlindlyUseFirstmoduleTypes = false // If set to true, this test should fail (fault)
