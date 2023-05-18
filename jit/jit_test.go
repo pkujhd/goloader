@@ -12,8 +12,10 @@ import (
 	"github.com/eh-steve/goloader/jit/testdata/test_type_mismatch"
 	"github.com/eh-steve/goloader/jit/testdata/test_type_mismatch/typedef"
 	"github.com/eh-steve/goloader/unload/jsonunload"
+	"log"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"reflect"
 	"runtime"
@@ -1419,6 +1421,48 @@ func TestGCGlobals(t *testing.T) {
 				testFunc(55, 55)
 				runtime.GC()
 				runtime.GC()
+			}
+
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Second)
+		})
+	}
+}
+
+func TestPprof(t *testing.T) {
+	conf := jit.BuildConfig{
+		GoBinary:              goBinary,
+		KeepTempFiles:         false,
+		ExtraBuildFlags:       nil,
+		BuildEnv:              nil,
+		TmpDir:                "",
+		DebugLog:              false,
+		RandomSymbolNameOrder: false,
+	}
+
+	data := testData{
+		files: []string{"./testdata/test_pprof/test.go"},
+		pkg:   "./testdata/test_pprof",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			server := http.Server{
+				Addr: ":6060",
+			}
+			defer server.Close()
+			go func() {
+				log.Println(server.ListenAndServe())
+			}()
+
+			testFunc := symbols["TestPprof"].(func() int)
+			for i := 0; i < 10000; i++ {
+				testFunc()
 			}
 
 			err := module.Unload()
