@@ -130,7 +130,7 @@ func resolveFullyQualifiedSymbolName(t *_type) string {
 				fieldName = ""
 			}
 			fieldPkgPath := ""
-			if typ.Field(i).PkgPath != "" {
+			if typ.Field(i).PkgPath != "" && typ.Field(i).Type.PkgPath() == "" {
 				fieldPkgPath = objabi.PathToPrefix(typ.Field(i).PkgPath) + "."
 			}
 			fieldStructTag := ""
