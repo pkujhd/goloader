@@ -36,7 +36,7 @@ var baseConfig = jit.BuildConfig{
 	GoBinary:                         "",
 	KeepTempFiles:                    false,
 	ExtraBuildFlags:                  nil,
-	BuildEnv:                         []string{},
+	BuildEnv:                         os.Environ(),
 	TmpDir:                           "",
 	DebugLog:                         false,
 	SymbolNameOrder:                  nil,
