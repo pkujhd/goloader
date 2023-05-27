@@ -287,6 +287,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					// deduplicate them if they're structurally equal. If we used the firstmodule types here, there's a
 					// risk they're not structurally equal, but it would be too late
 					if !strings.HasPrefix(loc.Sym.Name, TypePrefix) {
+						// If not a type, and not skipping deduplication for this package, use the firstmodule version
 						addr = fmAddr
 					}
 				}
@@ -305,7 +306,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						isItabWhichShouldNotBeDeduped = true
 					}
 				}
-				if addr == 0 || isItabWhichShouldNotBeDeduped {
+				if (addr == 0 || isItabWhichShouldNotBeDeduped) && linker.isSymbolReachable(sym.Name) {
 					addr = uintptr(segment.dataBase + loc.Sym.Offset)
 					symbolMap[loc.Sym.Name] = addr
 					codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
@@ -377,6 +378,10 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					// nothing todo
 				default:
 					err = fmt.Errorf("unknown reloc type: %s sym: %s", objabi.RelocType(loc.Type).String(), sym.Name)
+				}
+			} else {
+				if linker.isSymbolReachable(sym.Name) {
+					panic(fmt.Sprintf("could not find address of symbol '%s' for relocation inside '%s'", loc.Sym.Name, sym.Name))
 				}
 			}
 			if err != nil {

@@ -172,7 +172,7 @@ func execBuild(config BuildConfig, workDir, outputFilePath string, targets []str
 
 func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFilePath, packageName string, pkg *Package, linkerOpts []goloader.LinkerOptFunc, stdLibPkgs map[string]struct{}) (*goloader.Linker, error) {
 	// Now check whether all imported packages are available in the main binary, otherwise we need to build and load them too
-	linker, err := goloader.ReadObjs([]string{outputFilePath}, []string{packageName}, linkerOpts...)
+	linker, err := goloader.ReadObjs([]string{outputFilePath}, []string{packageName}, globalSymPtr, linkerOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not read symbols from object file '%s': %w", outputFilePath, err)
@@ -207,7 +207,7 @@ func resolveDependencies(config BuildConfig, workDir, buildDir string, outputFil
 			return nil, errDeps
 		}
 
-		depsLinker, err := goloader.ReadObjs(append(depBinaries, outputFilePath), append(depImportPaths, packageName), linkerOpts...)
+		depsLinker, err := goloader.ReadObjs(depBinaries, depImportPaths, globalSymPtr, linkerOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("could not read symbols from dependency object files '%s': %w", depImportPaths, err)
 		}
@@ -400,7 +400,7 @@ func buildAndLoadDeps(config BuildConfig,
 		return fmt.Errorf("got %d during build of dependencies: %w%s", len(errs), errs[0], extra)
 	}
 
-	linker, err := goloader.ReadObjs(*buildPackageFilePaths, *builtPackageImportPaths, linkerOpts...)
+	linker, err := goloader.ReadObjs(*buildPackageFilePaths, *builtPackageImportPaths, globalSymPtr, linkerOpts...)
 	if err != nil {
 		return fmt.Errorf("linker failed to read symbols from dependency object files (%s): %w", *builtPackageImportPaths, err)
 	}

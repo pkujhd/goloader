@@ -64,7 +64,9 @@ type Linker struct {
 	appliedADRPRelocs      map[*byte][]byte
 	appliedPCRelRelocs     map[*byte][]byte
 	pkgNamesWithUnresolved map[string]struct{}
+	pkgNamesToForceRebuild map[string]struct{}
 	reachableTypes         map[string]struct{}
+	reachableSymbols       map[string]struct{}
 	pkgs                   []*obj.Pkg
 }
 
@@ -105,7 +107,9 @@ func initLinker(opts []LinkerOptFunc) (*Linker, error) {
 		appliedADRPRelocs:      make(map[*byte][]byte),
 		appliedPCRelRelocs:     make(map[*byte][]byte),
 		pkgNamesWithUnresolved: make(map[string]struct{}),
+		pkgNamesToForceRebuild: make(map[string]struct{}),
 		reachableTypes:         make(map[string]struct{}),
+		reachableSymbols:       make(map[string]struct{}),
 	}
 	linker.Opts(opts...)
 
@@ -176,7 +180,26 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 	}
 
 	for _, objSymName := range symbolNames {
+		if _, ok := linker.symMap[objSymName]; ok {
+			continue
+		}
+		if !linker.isSymbolReachable(objSymName) {
+			continue
+		}
+
 		objSym := linker.objsymbolMap[objSymName]
+		if objSym == nil {
+			// Might have been added as an ABI wrapper without the actual implementation
+			objSym = linker.objsymbolMap[objSymName+obj.ABI0Suffix]
+			if objSym != nil {
+				panic("missing a symbol " + objSymName + " but found its ABI0 wrapper")
+			} else {
+				objSym = linker.objsymbolMap[objSymName+obj.ABIInternalSuffix]
+				if objSym != nil {
+					panic("missing a symbol " + objSymName + " but found its ABIInternal wrapper")
+				}
+			}
+		}
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
 			_, err := linker.addSymbol(objSym.Name)
 			if err != nil {
@@ -511,6 +534,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 	symbolMap = make(map[string]uintptr)
 	segment := &codeModule.segment
 	for name, sym := range linker.symMap {
+		if !linker.isSymbolReachable(name) {
+			continue
+		}
 		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
@@ -874,7 +900,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					_, isVariant := symbolIsVariant(loc.Sym.Name)
 					if uintptr(unsafe.Pointer(t)) != symbolMap[FirstModulePrefix+loc.Sym.Name] && !isVariant {
 						// This shouldn't be possible and indicates a registration bug
-						panic(fmt.Sprintf("found another firstmodule type that wasn't registered by goloader: %s", loc.Sym.Name))
+						panic(fmt.Sprintf("found another firstmodule type that wasn't registered by goloader. Symbol name: %s, type name: %s. This shouldn't be possible and indicates a bug in firstmodule type registration\n", loc.Sym.Name, t.nameOff(t.str).name()))
 					}
 					// Store this for later so we know which types were deduplicated
 					dedupedTypes[loc.Sym.Name] = uintptr(unsafe.Pointer(t))
@@ -959,17 +985,40 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	return err
 }
 
-func (linker *Linker) buildExports(codeModule *CodeModule, symbolMap map[string]uintptr, globalSymPtr map[string]uintptr) {
+func (linker *Linker) buildExports(codeModule *CodeModule, symbolMap map[string]uintptr) {
 	codeModule.SymbolsByPkg = map[string]map[string]interface{}{}
 	for _, pkg := range linker.pkgs {
 		pkgSyms := map[string]interface{}{}
 		for name, info := range pkg.Exports {
+			reachable := linker.isSymbolReachable(info.SymName)
 			typeAddr, ok := symbolMap[info.TypeName]
 			if !ok {
-				panic("could not find type symbol " + info.TypeName)
+				if !reachable {
+					// Doesn't matter
+					continue
+				}
+				// Only panic if a type is missing from the main JIT package - types might not be included for //go:linkname'd symbols, and that's ok
+				if linker.pkgs[len(linker.pkgs)-1] == pkg {
+					panic("could not find type symbol " + info.TypeName + " needed for " + info.SymName)
+				} else {
+					continue
+				}
+			}
+			fmTypeAddr, ok := symbolMap[FirstModulePrefix+info.TypeName]
+			if ok && fmTypeAddr != typeAddr {
+				// Prefer firstmodule types if equal (i.e. deduplicate)
+				seen := map[_typePair]struct{}{}
+				fmTyp := (*_type)(unsafe.Pointer(fmTypeAddr))
+				newTyp := (*_type)(unsafe.Pointer(typeAddr))
+				if fmTyp.hash == newTyp.hash && typesEqual(fmTyp, newTyp, seen) {
+					typeAddr = fmTypeAddr
+				}
 			}
 			addr, ok := symbolMap[info.SymName]
 			if !ok {
+				if !reachable {
+					continue
+				}
 				panic(fmt.Sprintf("could not find symbol %s in package %s", info.SymName, pkg.PkgPath))
 			}
 			t := (*_type)(unsafe.Pointer(typeAddr))
@@ -1011,11 +1060,21 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ig
 				// They can be checked for structural equality if the JIT code builds it, but not if we blindly use the firstmodule version of a _type
 				if typeSym, ok := symbolMap[symName]; ok {
 					t := (*_type)(unsafe.Pointer(typeSym))
+					firstModuleTypeHasUnreachableMethods := false
+					if u := t.uncommon(); u != nil && linker.isTypeReachable(symName) {
+						for _, method := range u.methods() {
+							if method.tfn == -1 || method.ifn == -1 {
+								// If any methods are unreachable, we should treat this type as unresolved, since we don't know what might call these methods, so we should force a rebuild
+								firstModuleTypeHasUnreachableMethods = true
+								break
+							}
+						}
+					}
 					_, isStdLibPkg := stdLibPkgs[t.PkgPath()]
 					// Don't rebuild types in the stdlib, as these shouldn't be different (assuming same toolchain version for host and JIT)
-					if t.PkgPath() != "" && !isStdLibPkg {
+					if t.PkgPath() != "" && (!isStdLibPkg || firstModuleTypeHasUnreachableMethods) {
 						// Only rebuild types which are reachable (via relocs) from the main package, otherwise we'll end up building everything unnecessarily
-						if _, ok := linker.reachableTypes[symName]; ok && !unsafeBlindlyUseFirstModuleTypes {
+						if (linker.isTypeReachable(symName) && !unsafeBlindlyUseFirstModuleTypes) || firstModuleTypeHasUnreachableMethods {
 							symMap[symName] = sym
 						}
 					}
@@ -1023,7 +1082,9 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ig
 			}
 			if _, ok := symbolMap[symName]; !ok || shouldSkipDedup {
 				if _, ok := linker.objsymbolMap[symName]; !ok || shouldSkipDedup {
-					symMap[symName] = sym
+					if linker.isSymbolReachable(symName) {
+						symMap[symName] = sym
+					}
 				}
 			}
 		}
@@ -1033,10 +1094,20 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ig
 
 func (linker *Linker) UnresolvedPackageReferences(existingPkgs []string) []string {
 	var pkgList []string
+outer:
 	for pkgName := range linker.pkgNamesWithUnresolved {
 		for _, existing := range existingPkgs {
 			if pkgName == existing {
-				continue
+				continue outer
+			}
+		}
+		pkgList = append(pkgList, pkgName)
+	}
+outer2:
+	for pkgName := range linker.pkgNamesToForceRebuild {
+		for _, alreadyAdded := range pkgList {
+			if alreadyAdded == pkgName {
+				continue outer2
 			}
 		}
 		pkgList = append(pkgList, pkgName)
@@ -1050,20 +1121,22 @@ func (linker *Linker) UnresolvedExternalSymbolUsers(symbolMap map[string]uintptr
 		if sym.Offset == InvalidOffset {
 			if _, ok := symbolMap[symName]; !ok {
 				if _, ok := linker.objsymbolMap[symName]; !ok {
-					var requiredBySet = map[string]struct{}{}
-					for _, otherSym := range linker.symMap {
-						for _, reloc := range otherSym.Reloc {
-							if reloc.Sym.Name == symName {
-								requiredBySet[otherSym.Name] = struct{}{}
+					if linker.isSymbolReachable(symName) {
+						var requiredBySet = map[string]struct{}{}
+						for _, otherSym := range linker.symMap {
+							for _, reloc := range otherSym.Reloc {
+								if reloc.Sym.Name == symName {
+									requiredBySet[otherSym.Name] = struct{}{}
+								}
 							}
 						}
+						requiredByList := make([]string, 0, len(requiredBySet))
+						for k := range requiredBySet {
+							requiredByList = append(requiredByList, k)
+						}
+						sort.Strings(requiredByList)
+						requiredBy[sym.Name] = requiredByList
 					}
-					requiredByList := make([]string, 0, len(requiredBySet))
-					for k := range requiredBySet {
-						requiredByList = append(requiredByList, k)
-					}
-					sort.Strings(requiredByList)
-					requiredBy[sym.Name] = requiredByList
 				}
 			}
 		}
@@ -1118,7 +1191,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 		if err = linker.relocate(codeModule, symbolMap); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
 				if err = linker.deduplicateTypeDescriptors(codeModule, symbolMap); err == nil {
-					linker.buildExports(codeModule, symbolMap, symPtr)
+					linker.buildExports(codeModule, symbolMap)
 					MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeModule.maxCodeLength)
 					if err = linker.doInitialize(codeModule, symbolMap); err == nil {
 						return codeModule, err
