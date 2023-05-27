@@ -33,19 +33,6 @@ func init() {
 	if err != nil {
 		log.Printf("jit package failed to register symbols of current binary: %s\n", err)
 	}
-	check()
-}
-
-// Forbidden packages should never be rebuilt as dependencies, a lot of the runtime
-// assembly code expects there to be only 1 instance of certain runtime symbols
-var forbiddenSystemPkgs = map[string]struct{}{
-	"runtime":                 {}, // Not a good idea
-	"runtime/internal/atomic": {}, // Not a good idea
-	"runtime/internal":        {}, // Not a good idea
-	"runtime/cpu":             {}, // Not a good idea
-	"internal/cpu":            {}, // Not a good idea
-	"reflect":                 {}, // Not a good idea
-	"unsafe":                  {}, // Not a real package
 }
 
 func GlobalSymPtr() map[string]uintptr {
@@ -257,17 +244,15 @@ func getMissingDeps(sortedDeps []string, unresolvedSymbols, unresolvedSymbolsWit
 			// Unescape dots in the symName path since the compiler would have escaped them in cmd/internal/objabi.PathToPrefix()
 			symName := unescapeSymName(symNameEscaped)
 			if unresolvedSymbols[symNameEscaped].Pkg == objabi.PathToPrefix(dep) {
-				if _, forbidden := forbiddenSystemPkgs[dep]; !forbidden {
-					if _, haveSeen := seen[dep]; !haveSeen {
-						if _, ok := globalPkgSet[dep]; ok && debug {
-							if _, ok := unresolvedSymbolsWithoutSkip[symNameEscaped]; !ok {
-								log.Printf("main binary contains package '%s', but symbol deduplication was skipped so forcing rebuild %s\n", dep, symName)
-							} else {
-								log.Printf("main binary contains partial package '%s', but not symbol %s\n", dep, symName)
-							}
+				if _, haveSeen := seen[dep]; !haveSeen {
+					if _, ok := globalPkgSet[dep]; ok && debug {
+						if _, ok := unresolvedSymbolsWithoutSkip[symNameEscaped]; !ok {
+							log.Printf("main binary contains package '%s', but symbol deduplication was skipped so forcing rebuild %s\n", dep, symName)
+						} else {
+							log.Printf("main binary contains partial package '%s', but not symbol %s\n", dep, symName)
 						}
-						missingDeps[dep] = struct{}{}
 					}
+					missingDeps[dep] = struct{}{}
 				}
 			}
 		}
@@ -387,8 +372,9 @@ func buildAndLoadDeps(config BuildConfig,
 			}
 		}
 		if !existingImport {
-			*builtPackageImportPaths = append(*builtPackageImportPaths, missingDep)
-			*buildPackageFilePaths = append(*buildPackageFilePaths, filename)
+			// Prepend, so that deps get loaded first
+			*builtPackageImportPaths = append([]string{missingDep}, *builtPackageImportPaths...)
+			*buildPackageFilePaths = append([]string{filename}, *buildPackageFilePaths...)
 		}
 	}
 	wg.Wait()
@@ -407,8 +393,10 @@ func buildAndLoadDeps(config BuildConfig,
 
 	globalMutex.Lock()
 	nextUnresolvedSymbols := linker.UnresolvedExternalSymbols(globalSymPtr, nil, stdLibPkgs, config.UnsafeBlindlyUseFirstmoduleTypes)
+	nextUnresolvedPackages := linker.UnresolvedPackageReferences(sortedDeps)
 	globalMutex.Unlock()
 
+	sortedDeps = append(sortedDeps, nextUnresolvedPackages...)
 	addCGoSymbols(nextUnresolvedSymbols)
 	linker.UnloadStrings()
 
@@ -590,6 +578,7 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	if err != nil {
 		return nil, err
 	}
+	pkg.Deps = append(pkg.Deps)
 
 	if len(pkg.DepsErrors) > 0 {
 		err = GoModDownload(config.GoBinary, buildDir)

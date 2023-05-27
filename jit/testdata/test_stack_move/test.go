@@ -1,4 +1,4 @@
-package test_stack_split
+package test_stack_move
 
 import (
 	"fmt"
