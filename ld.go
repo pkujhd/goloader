@@ -220,11 +220,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.STEXT:
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
-		if linker.Arch.Family == sys.ARM64 {
-			bytearrayAlign(&linker.code, PtrSize)
-		} else {
-			bytearrayAlign(&linker.code, Uint32Size)
-		}
+		bytearrayAlign(&linker.code, PtrSize)
 		for i, reloc := range objsym.Reloc {
 			// Pessimistically pad the function text with extra bytes for any relocations which might add extra
 			// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
@@ -288,9 +284,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
 				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALL)...)
 			}
-			if linker.Arch.Family == sys.ARM64 {
-				bytearrayAlign(&linker.code, PtrSize)
-			}
+			bytearrayAlign(&linker.code, PtrSize)
 		}
 
 		symbol.Func = &obj.Func{}
@@ -300,9 +294,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.SDATA:
 		symbol.Offset = len(linker.data)
 		linker.data = append(linker.data, objsym.Data...)
-		if linker.Arch.Family == sys.ARM64 {
-			bytearrayAlign(&linker.data, PtrSize)
-		}
+		bytearrayAlign(&linker.data, PtrSize)
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		// because golang string assignment is pointer assignment, so store go.string constants
 		// in a separate segment and not unload when module unload.
@@ -314,22 +306,16 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		} else {
 			symbol.Offset = len(linker.noptrdata)
 			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
-			if linker.Arch.Family == sys.ARM64 {
-				bytearrayAlign(&linker.noptrdata, PtrSize)
-			}
+			bytearrayAlign(&linker.noptrdata, PtrSize)
 		}
 	case symkind.SBSS:
 		symbol.Offset = len(linker.bss)
 		linker.bss = append(linker.bss, objsym.Data...)
-		if linker.Arch.Family == sys.ARM64 {
-			bytearrayAlign(&linker.bss, PtrSize)
-		}
+		bytearrayAlign(&linker.bss, PtrSize)
 	case symkind.SNOPTRBSS:
 		symbol.Offset = len(linker.noptrbss)
 		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
-		if linker.Arch.Family == sys.ARM64 {
-			bytearrayAlign(&linker.noptrbss, PtrSize)
-		}
+		bytearrayAlign(&linker.noptrbss, PtrSize)
 	default:
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
@@ -375,9 +361,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					linker.noptrdata = append(linker.noptrdata, nameLen...)
 					linker.noptrdata = append(linker.noptrdata, path...)
 					linker.noptrdata = append(linker.noptrdata, ZeroByte)
-					if linker.Arch.Family == sys.ARM64 {
-						bytearrayAlign(&linker.noptrdata, PtrSize)
-					}
+					bytearrayAlign(&linker.noptrdata, PtrSize)
 				}
 			}
 			if ispreprocesssymbol(reloc.Sym.Name) {
@@ -391,9 +375,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 						reloc.Sym.Kind = symkind.SNOPTRDATA
 						reloc.Sym.Offset = len(linker.noptrdata)
 						linker.noptrdata = append(linker.noptrdata, bytes...)
-						if linker.Arch.Family == sys.ARM64 {
-							bytearrayAlign(&linker.noptrdata, PtrSize)
-						}
+						bytearrayAlign(&linker.noptrdata, PtrSize)
 					}
 				}
 			}
