@@ -29,15 +29,16 @@ func registerType(t *_type, symPtr map[string]uintptr, pkgSet map[string]struct{
 	if _, ok := symPtr[TypePrefix+name]; ok {
 		return
 	}
+
+	symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+
 	switch t.Kind() {
 	case reflect.Ptr:
 		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		if element != nil && element.Kind() != reflect.Invalid {
 			registerType(element, symPtr, pkgSet)
 		}
 	case reflect.Func:
-		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		typ := AsType(t)
 		for i := 0; i < typ.NumIn(); i++ {
 			registerType(toType(typ.In(i)), symPtr, pkgSet)
@@ -46,22 +47,19 @@ func registerType(t *_type, symPtr map[string]uintptr, pkgSet map[string]struct{
 			registerType(toType(typ.Out(i)), symPtr, pkgSet)
 		}
 	case reflect.Struct:
-		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		typ := AsType(t)
 		for i := 0; i < typ.NumField(); i++ {
 			registerType(toType(typ.Field(i).Type), symPtr, pkgSet)
 		}
 	case reflect.Chan, reflect.Array, reflect.Slice:
-		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
 		registerType(element, symPtr, pkgSet)
 	case reflect.Map:
 		mt := (*mapType)(unsafe.Pointer(t))
 		registerType(mt.key, symPtr, pkgSet)
 		registerType(mt.elem, symPtr, pkgSet)
-		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 	case reflect.Bool, reflect.Int, reflect.Uint, reflect.Int64, reflect.Uint64, reflect.Int32, reflect.Uint32, reflect.Int16, reflect.Uint16, reflect.Int8, reflect.Uint8, reflect.Float64, reflect.Float32, reflect.String, reflect.UnsafePointer, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface:
-		symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
+		// Already added above
 	default:
 		panic(fmt.Sprintf("typelinksregister found unexpected type (kind %s): ", t.Kind()))
 	}
@@ -80,6 +78,7 @@ func typelinksregister(symPtr map[string]uintptr, pkgSet map[string]struct{}) {
 	// register function
 	for _, f := range md.ftab {
 		if int(f.funcoff) < len(md.pclntable) {
+
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
 			name := getfuncname(_func, md)
 			if name != EmptyString {

@@ -341,55 +341,61 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 }
 
 func buildModuleTypeHash(module *moduledata, typeHash map[uint32][]*_type) {
-collect:
 	for _, tl := range module.typelinks {
 		var t *_type
 		t = (*_type)(adduintptr(module.types, int(tl)))
+		registerTypeHash(t, typeHash)
+	}
+}
 
-		// Add to typeHash if not seen before, and indirect pointer types to add both
-		if t.Kind() == reflect.Ptr {
-			element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-			var elementElem *_type
-			if element != nil {
-				switch element.Kind() {
-				case reflect.Slice, reflect.Chan, reflect.Array, reflect.Ptr:
-					elementElem = *(**_type)(add(unsafe.Pointer(element), unsafe.Sizeof(_type{})))
-				}
-			}
+func registerTypeHash(t *_type, typeHash map[uint32][]*_type) {
+	if t.Kind() == reflect.Invalid {
+		panic("Unexpected invalid kind during registration!")
+	}
 
-			if element != nil && element.Kind() != reflect.Invalid {
-				tlist := typeHash[element.hash]
-				shouldAdd := true
-				for _, tcur := range tlist {
-					if tcur == element {
-						shouldAdd = false
-						break
-					}
-				}
-				if shouldAdd {
-					typeHash[element.hash] = append(tlist, element)
-				}
-				if elementElem != nil && elementElem.Kind() != reflect.Invalid {
-					tlist := typeHash[elementElem.hash]
-					shouldAdd := true
-					for _, tcur := range tlist {
-						if tcur == elementElem {
-							shouldAdd = false
-							break
-						}
-					}
-					if shouldAdd {
-						typeHash[elementElem.hash] = append(tlist, elementElem)
-					}
-				}
-			}
+	tlist := typeHash[t.hash]
+	for _, tcur := range tlist {
+		if tcur == t {
+			return
 		}
-		tlist := typeHash[t.hash]
-		for _, tcur := range tlist {
-			if tcur == t {
-				continue collect
-			}
+	}
+	typeHash[t.hash] = append(tlist, t)
+
+	switch t.Kind() {
+	case reflect.Ptr:
+		// Indirect pointers
+		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+		if element != nil && element.Kind() != reflect.Invalid {
+			registerTypeHash(element, typeHash)
 		}
-		typeHash[t.hash] = append(tlist, t)
+		elem := t.Elem()
+		if elem != nil && elem.Kind() != reflect.Invalid {
+			panic(fmt.Sprintf("WTF?? %s", elem.nameOff(elem.str).name()))
+			registerTypeHash(elem, typeHash)
+		}
+	case reflect.Func:
+		typ := AsType(t)
+		for i := 0; i < typ.NumIn(); i++ {
+			registerTypeHash(toType(typ.In(i)), typeHash)
+		}
+		for i := 0; i < typ.NumOut(); i++ {
+			registerTypeHash(toType(typ.Out(i)), typeHash)
+		}
+	case reflect.Struct:
+		typ := AsType(t)
+		for i := 0; i < typ.NumField(); i++ {
+			registerTypeHash(toType(typ.Field(i).Type), typeHash)
+		}
+	case reflect.Chan, reflect.Array, reflect.Slice:
+		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
+		registerTypeHash(element, typeHash)
+	case reflect.Map:
+		mt := (*mapType)(unsafe.Pointer(t))
+		registerTypeHash(mt.key, typeHash)
+		registerTypeHash(mt.elem, typeHash)
+	case reflect.Bool, reflect.Int, reflect.Uint, reflect.Int64, reflect.Uint64, reflect.Int32, reflect.Uint32, reflect.Int16, reflect.Uint16, reflect.Int8, reflect.Uint8, reflect.Float64, reflect.Float32, reflect.String, reflect.UnsafePointer, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Interface:
+		// Already added above
+	default:
+		panic(fmt.Sprintf("registerTypeHash found unexpected type (kind %s): ", t.Kind()))
 	}
 }
