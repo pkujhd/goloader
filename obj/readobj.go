@@ -1,7 +1,6 @@
 package obj
 
 import (
-	"cmd/objfile/goobj"
 	"os"
 )
 
@@ -16,17 +15,17 @@ type ExportSymType struct {
 }
 
 type Pkg struct {
-	Syms              map[string]*ObjSymbol
-	CUFiles           []CompilationUnitFiles
-	Arch              string
-	PkgPath           string
-	F                 *os.File
-	SymNameOrder      []string
-	Objidx            uint32 // index of this archive in the slice of files
-	ReferencedPkgs    []string
-	UnresolvedSymRefs map[goobj.SymRef]struct{}
-	SymNamesByIdx     map[uint32]string
-	Exports           map[string]ExportSymType
+	Syms           map[string]*ObjSymbol
+	CUFiles        []CompilationUnitFiles
+	Arch           string
+	PkgPath        string
+	F              *os.File
+	SymNameOrder   []string
+	Objidx         uint32 // index of this archive in the slice of files
+	ReferencedPkgs []string
+	SymNamesByIdx  map[uint32]string
+	AutoLib        []string
+	Exports        map[string]ExportSymType
 }
 
 type FuncInfo struct {

@@ -5,6 +5,7 @@ package stackobject
 
 import (
 	"fmt"
+	"strings"
 	"unsafe"
 
 	"github.com/eh-steve/goloader/obj"
@@ -41,7 +42,7 @@ func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[s
 		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[dataindex.FUNCDATA_StackObjects], int(noptrdata)))
 		for i := range *objects {
 			name := EmptyString
-			stkobjName := funcname + StkobjSuffix
+			stkobjName := strings.TrimSuffix(funcname, obj.ABIInternalSuffix) + StkobjSuffix
 			if symbol := symMap[stkobjName]; symbol != nil {
 				name = symbol.Reloc[i].Sym.Name
 			}
