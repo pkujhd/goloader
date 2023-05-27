@@ -526,8 +526,8 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
 			if _, ok := symPtr[name]; ok {
-				// Mark the symbol as a duplicate
-				symbolMap[FirstModulePrefix+name] = symbolMap[name]
+				// Mark the symbol as a duplicate, and store the original entrypoint
+				symbolMap[FirstModulePrefix+name] = symPtr[name]
 			}
 		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
 			if ptr, ok := symPtr[sym.Name]; ok {
