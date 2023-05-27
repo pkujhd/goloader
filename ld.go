@@ -116,6 +116,41 @@ func initLinker(opts []LinkerOptFunc) (*Linker, error) {
 	return linker, nil
 }
 
+func (linker *Linker) Autolib() []string {
+	// Sort dependent packages into autolib order via depth first recursion
+	if len(linker.pkgs) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	var autolibsByPkg = map[string][]string{}
+	for _, pkg := range linker.pkgs {
+		autolibsByPkg[pkg.PkgPath] = pkg.AutoLib
+	}
+	// The last package is the main package, so start there
+	mainPkg := linker.pkgs[len(linker.pkgs)-1]
+	var autolibs []string
+	recurseAutolibs(autolibsByPkg, mainPkg.PkgPath, &autolibs, seen)
+
+	return autolibs
+}
+
+func recurseAutolibs(autolibsByPkg map[string][]string, targetPkg string, autolibs *[]string, seen map[string]struct{}) {
+	if _, ok := seen[targetPkg]; ok {
+		return
+	}
+	seen[targetPkg] = struct{}{}
+	for _, imported := range autolibsByPkg[targetPkg] {
+		recurseAutolibs(autolibsByPkg, imported, autolibs, seen)
+		newLibs := autolibsByPkg[imported]
+		for _, newLib := range newLibs {
+			if _, ok := seen[newLib]; !ok {
+				*autolibs = append(*autolibs, newLib)
+			}
+		}
+	}
+	*autolibs = append(*autolibs, targetPkg)
+}
+
 func (linker *Linker) Opts(linkerOpts ...LinkerOptFunc) {
 	for _, opt := range linkerOpts {
 		opt(&linker.options)
