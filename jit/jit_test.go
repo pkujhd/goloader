@@ -18,6 +18,8 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -83,6 +85,15 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 	}
 	symbols = module.SymbolsByPkg[loadable.ImportPath]
 	return
+}
+
+func goVersion(t *testing.T) int64 {
+	GoVersionParts := strings.Split(strings.TrimPrefix(runtime.Version(), "go"), ".")
+	version, err := strconv.ParseInt(GoVersionParts[1], 10, 64)
+	if err != nil {
+		t.Fatalf("failed to parse go version: %s", err)
+	}
+	return version
 }
 
 func TestJitSimpleFunctions(t *testing.T) {
@@ -1202,6 +1213,9 @@ func TestAnonymousStructType(t *testing.T) {
 }
 
 func TestK8s(t *testing.T) {
+	if goVersion(t) < 19 {
+		t.Skip("k8s requires 1.19+")
+	}
 	conf := baseConfig
 	conf.UnsafeBlindlyUseFirstmoduleTypes = true
 	data := testData{
@@ -1334,11 +1348,14 @@ func TestRemotePkgs(t *testing.T) {
 	conf.UnsafeBlindlyUseFirstmoduleTypes = true // Want to speed this up so avoid building stuff we know hasn't changed
 
 	remotePackagesToBuild := []string{
-		"k8s.io/client-go/kubernetes", // K8s is a whopper
-		"k8s.io/client-go/rest",       // also hefty
-		"gonum.org/v1/gonum/mat",      // gonum has plenty of asm
+		"gonum.org/v1/gonum/mat", // gonum has plenty of asm
 	}
 
+	if goVersion(t) >= 19 {
+		remotePackagesToBuild = append(remotePackagesToBuild,
+			"k8s.io/client-go/kubernetes", // K8s is a whopper
+			"k8s.io/client-go/rest")       // also hefty
+	}
 	for _, pkg := range remotePackagesToBuild {
 		loadable, err := jit.BuildGoPackageRemote(conf, pkg, "latest")
 		if err != nil {
