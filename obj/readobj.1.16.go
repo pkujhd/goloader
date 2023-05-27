@@ -12,6 +12,7 @@ import (
 	"compress/zlib"
 	"debug/elf"
 	"debug/macho"
+	"debug/pe"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -80,11 +81,20 @@ func (pkg *Pkg) Symbols() error {
 				_, _ = nr.Seek(0, 0)
 				machoFile, errMacho := macho.NewFile(nr)
 				if errMacho != nil {
-					return fmt.Errorf("only elf and macho relocations currently supported, failed to open as eitehr: (%s): %w", err, errMacho)
-				}
-				err = pkg.convertMachoRelocs(machoFile, e)
-				if err != nil {
-					return err
+					_, _ = nr.Seek(0, 0)
+					peFile, errPE := pe.NewFile(nr)
+					if errPE != nil {
+						return fmt.Errorf("only elf, macho and PE relocations currently supported, failed to open as either: (%s): %w", err, errPE)
+					}
+					err = pkg.convertPERelocs(peFile, e)
+					if err != nil {
+						return err
+					}
+				} else {
+					err = pkg.convertMachoRelocs(machoFile, e)
+					if err != nil {
+						return err
+					}
 				}
 			} else {
 				err = pkg.convertElfRelocs(elfFile, e)
@@ -743,6 +753,19 @@ func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
 				Func:  symbol.Func,
 				Pkg:   symbol.Pkg,
 			}
+		}
+	}
+	return nil
+}
+
+func (pkg *Pkg) convertPERelocs(f *pe.File, e archive.Entry) error {
+	// TODO - loop over sections and convert PE relocs into equivalent Go relocs
+	fmt.Println("TODO - actually add these PE relocs")
+	for _, section := range f.Sections {
+		fmt.Println("PE Section:", section.Name, section.Size)
+		for _, reloc := range section.Relocs {
+			sym := f.Symbols[reloc.SymbolTableIndex]
+			fmt.Println("PE Reloc", sym.Name, reloc.Type, reloc.VirtualAddress)
 		}
 	}
 	return nil
