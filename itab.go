@@ -80,7 +80,15 @@ imethods:
 							// See cmd/link/internal/ld/data.go:relocsym.
 							ifn = unsafe.Pointer(getFunctionPtr(unreachableMethod))
 						} else {
-							ifn = unsafe.Pointer(codeBase + uintptr(t.ifn))
+							if uintptr(unsafe.Pointer(typ)) >= firstmoduledata.types && uintptr(unsafe.Pointer(typ)) < firstmoduledata.etypes {
+								ifn = unsafe.Pointer(firstmoduledata.text + uintptr(t.ifn))
+							} else {
+								for md := &firstmoduledata; md != nil; md = md.next {
+									if uintptr(unsafe.Pointer(typ)) >= md.types && uintptr(unsafe.Pointer(typ)) < md.etypes {
+										ifn = unsafe.Pointer(md.text + uintptr(t.ifn))
+									}
+								}
+							}
 						}
 						page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[k])))
 						if _, ok := writeablePages[&page[0]]; !ok {
@@ -132,7 +140,10 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 						if err != nil {
 							return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].ifn), err)
 						}
-						methods[i].ifn = prevMethods[i].ifn
+						// The JIT type's ifn would have been offset with respect to the new type's module's text base.
+						// Since we're manipulating the firstmodule's type's methods, we need to recompute the offset with respect to the firstmodule's text base
+						methodEntry := cm.module.text + uintptr(prevMethods[i].ifn)
+						methods[i].ifn = textOff(methodEntry - firstmoduledata.text)
 						err = mprotect.MprotectMakeReadOnly(page)
 						if err != nil {
 							return fmt.Errorf("failed to make page read only while patching type %s: %w", _name(t.nameOff(t.str)), err)
@@ -150,7 +161,11 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 						if err != nil {
 							return fmt.Errorf("failed to make page writeable while patching type %s: %w", _name(t.nameOff(t.str)), err)
 						}
-						methods[i].tfn = prevMethods[i].tfn
+
+						// The JIT type's tfn would have been offset with respect to the new type's module's text base.
+						// Since we're manipulating the firstmodule's type's methods, we need to recompute the offset with respect to the firstmodule's text base
+						methodEntry := cm.module.text + uintptr(prevMethods[i].tfn)
+						methods[i].tfn = textOff(methodEntry - firstmoduledata.text)
 						err = mprotect.MprotectMakeReadOnly(page)
 						if err != nil {
 							return fmt.Errorf("failed to make page read only while patching type %s: %w", _name(t.nameOff(t.str)), err)
