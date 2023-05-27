@@ -74,8 +74,16 @@ func RegisterTypes(types ...interface{}) {
 }
 
 func RegisterCGoSymbol(symNameC string, symNameGo string) bool {
+	if runtime.GOOS == "darwin" {
+		// For some reason, error doesn't follow the usual pattern of just stripping "libc_"
+		// See runtime/sys_darwin.go
+		if symNameC == "error" {
+			symNameC = "__error"
+		}
+	}
 	addr, err := LookupDynamicSymbol(symNameC)
 	if err != nil {
+		log.Println(err)
 		return false
 	} else {
 		globalMutex.Lock()
