@@ -586,7 +586,6 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	if err != nil {
 		return nil, err
 	}
-	pkg.Deps = append(pkg.Deps)
 
 	if len(pkg.DepsErrors) > 0 {
 		err = GoModDownload(config.GoBinary, buildDir)
