@@ -182,21 +182,21 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		case x86amd64CMPLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPLcode)
 			segment.codeByte[epilogueOffset+15] = relocByte[loc.Offset+loc.Size] // The 8 bit number to compare against
-			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr))
 			epilogueOffset += len(x86amd64replaceCMPLcode)
 		case x86amd64MOVcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
 			segment.codeByte[epilogueOffset+1] = register
-			copy2Slice(segment.codeByte[epilogueOffset+2:], addr, PtrSize)
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+2:], uint64(addr))
 			epilogueOffset += len(x86amd64replaceMOVQcode)
 		case x86amd64CALLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
-			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr))
 			epilogueOffset += len(x86amd64replaceCALLcode)
 		case x86amd64JMPcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
 			epilogueOffset += len(x86amd64JMPLcode)
-			copy2Slice(segment.codeByte[epilogueOffset:], addr, PtrSize)
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset:], uint64(addr))
 			epilogueOffset += PtrSize
 		case x86amd64LEAcode:
 			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr))
