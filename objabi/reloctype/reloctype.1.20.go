@@ -62,6 +62,8 @@ const (
 	// if the symbol containing the R_KEEP relocation is in the final binary.
 	R_KEEP = (int)(objabi.R_KEEP)
 
+	R_GOTPCREL = (int)(objabi.R_GOTPCREL)
+
 	// R_ARM64_PCREL_LDST8 resolves a PC-relative addresses instruction sequence, usually an
 	// adrp followed by a LD8 or ST8 instruction.
 	R_ARM64_PCREL_LDST8 = (int)(objabi.R_ARM64_PCREL_LDST8)

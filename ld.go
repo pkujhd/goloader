@@ -337,6 +337,14 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				}
 				objsym.Reloc[i].EpilogueSize = epilogueSize
 				linker.code = append(linker.code, make([]byte, epilogueSize)...)
+			case reloctype.R_GOTPCREL:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = 8
+				linker.code = append(linker.code, make([]byte, 8)...)
+			case reloctype.R_TLS_IE:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = 8
+				linker.code = append(linker.code, make([]byte, 8)...)
 			case reloctype.R_CALL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
@@ -929,6 +937,8 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 							addr, int(addr)-addrBase, symbol.Name, sym.Name)
 					}
 					switch loc.Type {
+					case reloctype.R_GOTPCREL:
+						linker.relocateGOTPCREL(addr, loc, relocByte)
 					case reloctype.R_PCREL:
 						// The replaced t from another module will probably yield a massive negative offset, but that's ok as
 						// PC-relative addressing is allowed to be negative (even if not very cache friendly)

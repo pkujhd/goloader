@@ -287,6 +287,7 @@ func TestJitCGoCall(t *testing.T) {
 		t.Skip("CGo disabled")
 	}
 	conf := baseConfig
+	conf.RelocationDebugWriter = os.Stderr
 
 	data := testData{
 		files: []string{"./testdata/test_cgo/test.go"},
@@ -769,6 +770,38 @@ func TestIssue55(t *testing.T) {
 
 			test := symbols["Test"].(func(intf p.Intf) p.Intf)
 			test(&p.Stru{})
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// https://github.com/pkujhd/goloader/issues/78
+func TestIssue78(t *testing.T) {
+	conf := baseConfig
+	conf.RelocationDebugWriter = os.Stderr
+
+	data := testData{
+		files: []string{"./testdata/test_issue78/test.go"},
+		pkg:   "./testdata/test_issue78",
+	}
+
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			test := symbols["Test"].(func() int)
+			val := test()
+			if val != 1 {
+				t.Fatalf("expected 1, got %d", val)
+			}
 			err := module.Unload()
 			if err != nil {
 				t.Fatal(err)

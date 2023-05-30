@@ -62,6 +62,8 @@ const (
 	// if the symbol containing the R_KEEP relocation is in the final binary.
 	R_KEEP = (int)(objabi.R_KEEP)
 
+	R_GOTPCREL = (int)(objabi.R_GOTPCREL)
+
 	R_WEAK = 0x8000
 
 	R_WEAKADDR    = R_WEAK | R_ADDR

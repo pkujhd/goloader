@@ -141,6 +141,11 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 	return nil
 }
 
+func (linker *Linker) relocateGOTPCREL(addr uintptr, loc obj.Reloc, relocByte []byte) {
+	putAddress(linker.Arch.ByteOrder, relocByte[loc.EpilogueOffset:], uint64(addr+uintptr(loc.Add)))
+	linker.Arch.ByteOrder.PutUint32(relocByte[loc.Offset:], uint32(loc.EpilogueOffset-loc.Offset-loc.Size))
+}
+
 func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
@@ -154,7 +159,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
 		if loc.EpilogueSize == 0 {
-			return fmt.Errorf("relocation epilogue not available but got a >32-bit PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-2:loc.Offset+loc.Size], offset, loc.Sym.Name)
+			return fmt.Errorf("relocation epilogue not available but got a >32-bit PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-3:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
 		relocToEpilogueOffset := (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
 		bytes := relocByte[loc.Offset-2:]
@@ -182,21 +187,21 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		case x86amd64CMPLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPLcode)
 			segment.codeByte[epilogueOffset+15] = relocByte[loc.Offset+loc.Size] // The 8 bit number to compare against
-			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr))
+			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
 			epilogueOffset += len(x86amd64replaceCMPLcode)
 		case x86amd64MOVcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
 			segment.codeByte[epilogueOffset+1] = register
-			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+2:], uint64(addr))
+			copy2Slice(segment.codeByte[epilogueOffset+2:], addr, PtrSize)
 			epilogueOffset += len(x86amd64replaceMOVQcode)
 		case x86amd64CALLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
-			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr))
+			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
 			epilogueOffset += len(x86amd64replaceCALLcode)
 		case x86amd64JMPcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
 			epilogueOffset += len(x86amd64JMPLcode)
-			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset:], uint64(addr))
+			copy2Slice(segment.codeByte[epilogueOffset:], addr, PtrSize)
 			epilogueOffset += PtrSize
 		case x86amd64LEAcode:
 			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr))
@@ -366,6 +371,10 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						err = fmt.Errorf("symName: %s offset for R_METHODOFF: %d overflows!\n", sym.Name, offset)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+				case reloctype.R_GOTPCREL:
+					linker.relocateGOTPCREL(addr, loc, relocByte)
+				case reloctype.R_TLS_IE:
+					linker.relocateGOTPCREL(symbolMap[TLSNAME], loc, relocByte)
 				case reloctype.R_USETYPE:
 					// nothing todo
 				case reloctype.R_USEIFACE:

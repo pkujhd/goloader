@@ -109,7 +109,8 @@ type BuildConfig struct {
 
 func mergeBuildFlags(extraBuildFlags []string) []string {
 	// This flag requires the Go toolchain to have been patched via PatchGC()
-	var gcFlags = []string{"-exporttypes"}
+	// -dynlink to force R_PCREL relocs to use R_GOTPCREL to allow offsets larger than 32-bits
+	var gcFlags = []string{"-exporttypes", "-dynlink"}
 	var buildFlags []string
 	for _, bf := range extraBuildFlags {
 		// Merge together user supplied -gcflags into a single flag
