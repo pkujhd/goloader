@@ -784,7 +784,6 @@ func TestIssue55(t *testing.T) {
 // https://github.com/pkujhd/goloader/issues/78
 func TestIssue78(t *testing.T) {
 	conf := baseConfig
-	conf.RelocationDebugWriter = os.Stderr
 
 	data := testData{
 		files: []string{"./testdata/test_issue78/test.go"},
@@ -799,8 +798,12 @@ func TestIssue78(t *testing.T) {
 
 			test := symbols["Test"].(func() int)
 			val := test()
-			if val != 1 {
-				t.Fatalf("expected 1, got %d", val)
+			if val != 2 {
+				t.Fatalf("expected 2, got %d", val)
+			}
+			val = test()
+			if val != 3 {
+				t.Fatalf("expected 3, got %d", val)
 			}
 			err := module.Unload()
 			if err != nil {
