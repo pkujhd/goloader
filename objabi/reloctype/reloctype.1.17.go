@@ -64,6 +64,10 @@ const (
 
 	R_GOTPCREL = (int)(objabi.R_GOTPCREL)
 
+	// R_ARM64_GOTPCREL relocates an adrp, ld64 pair to compute the address of the GOT
+	// slot of the referenced symbol.
+	R_ARM64_GOTPCREL = (int)(objabi.R_ARM64_GOTPCREL)
+
 	R_WEAK = 0x8000
 
 	R_WEAKADDR    = R_WEAK | R_ADDR

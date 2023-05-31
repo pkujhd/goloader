@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	maxExtraInstructionBytesADRP            = 16
-	maxExtraInstructionBytesADRPLDST        = 20
-	maxExtraInstructionBytesCALLARM64       = 16
+	maxExtraInstructionBytesADRP            = int(unsafe.Sizeof(armLDRCode8Bytes)) + len(arm64Bcode) + PtrSize
+	maxExtraInstructionBytesADRPLDST        = int(unsafe.Sizeof(armLDRCode8Bytes)) + int(unsafe.Sizeof(armLDRCode12Bytes)) + len(arm64Bcode) + PtrSize
+	maxExtraInstructionBytesCALLARM64       = len(arm64CALLCode) + PtrSize
 	maxExtraInstructionBytesPCRELxLEAQ      = PtrSize
 	maxExtraInstructionBytesPCRELxMOVShort  = len(x86amd64replaceMOVQcode) + len(x86amd64JMPShortCode)
 	maxExtraInstructionBytesPCRELxMOVNear   = len(x86amd64replaceMOVQcode) + len(x86amd64JMPNearCode)
@@ -54,10 +54,10 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		}
 		byteorder.PutUint32(mCode, bcode) // The second ADD/LD/ST instruction in the ADRP reloc will be bypassed as we return from the jump after it
 
-		ldrCode8Bytes := uint32(0x58000040)  // LDR PC+8
-		ldrCode12Bytes := uint32(0x58000060) // LDR PC+12
-		ldrCode8Bytes |= adrp & 0x1F         // Set the register
-		ldrCode12Bytes |= adrp & 0x1F        // Set the register
+		ldrCode8Bytes := armLDRCode8Bytes   // LDR PC+8
+		ldrCode12Bytes := armLDRCode12Bytes // LDR PC+12
+		ldrCode8Bytes |= adrp & 0x1F        // Set the register
+		ldrCode12Bytes |= adrp & 0x1F       // Set the register
 
 		if loc.Type == reloctype.R_ADDRARM64 {
 			byteorder.PutUint32(segment.codeByte[epilogueOffset:], ldrCode8Bytes)

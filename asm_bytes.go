@@ -22,6 +22,11 @@ var (
 	arm64Bcode = []byte{0x00, 0x00, 0x00, 0x14} // B [PC+0x0]
 )
 
+const (
+	armLDRCode8Bytes  = uint32(0x58000040) // LDR PC+8
+	armLDRCode12Bytes = uint32(0x58000060) // LDR PC+12
+)
+
 // x86/amd64
 var (
 	x86amd64NOPcode         = byte(0x90)
