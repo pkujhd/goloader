@@ -161,7 +161,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	}
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
 
-	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+	if offset > 0x7FFFFFFF || offset < -0x80000000 || loc.EpilogueSize > 0 {
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >32-bit PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-3:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
@@ -376,7 +376,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
 					err = linker.relocateCALLARM(addr, loc, segment)
-				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
+				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64, reloctype.R_ARM64_GOTPCREL:
 					if symbol.Kind != symkind.STEXT {
 						err = fmt.Errorf("impossible! Sym: %s is not in code segment! (kind %s)\n", sym.Name, objabi.SymKind(sym.Kind))
 					}
@@ -404,6 +404,9 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				case reloctype.R_GOTPCREL:
 					linker.relocateGOTPCREL(addr, loc, relocByte)
 				case reloctype.R_TLS_IE:
+					if _, ok := symbolMap[TLSNAME]; !ok {
+						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
+					}
 					linker.relocateGOTPCREL(symbolMap[TLSNAME], loc, relocByte)
 				case reloctype.R_USETYPE:
 					// nothing todo
