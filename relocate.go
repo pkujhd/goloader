@@ -12,19 +12,20 @@ import (
 	"unsafe"
 )
 
-const (
+var (
 	maxExtraInstructionBytesADRP            = 16
 	maxExtraInstructionBytesADRPLDST        = 20
 	maxExtraInstructionBytesCALLARM64       = 16
-	maxExtraInstructionBytesPCRELxLEAQ      = 8
-	maxExtraInstructionBytesPCRELxMOVShort  = 12
-	maxExtraInstructionBytesPCRELxMOVNear   = 15
-	maxExtraInstructionBytesPCRELxCMPLShort = 18
-	maxExtraInstructionBytesPCRELxCMPLNear  = 21
-	maxExtraInstructionBytesPCRELxCALLShort = 16
-	maxExtraInstructionBytesPCRELxCALLNear  = 19
-	maxExtraInstructionBytesPCRELxJMP       = 14
-	maxExtraInstructionBytesCALL            = 14
+	maxExtraInstructionBytesPCRELxLEAQ      = PtrSize
+	maxExtraInstructionBytesPCRELxMOVShort  = len(x86amd64replaceMOVQcode) + len(x86amd64JMPShortCode)
+	maxExtraInstructionBytesPCRELxMOVNear   = len(x86amd64replaceMOVQcode) + len(x86amd64JMPNearCode)
+	maxExtraInstructionBytesPCRELxCMPLShort = len(x86amd64replaceCMPLcode) + len(x86amd64JMPShortCode)
+	maxExtraInstructionBytesPCRELxCMPLNear  = len(x86amd64replaceCMPLcode) + len(x86amd64JMPNearCode)
+	maxExtraInstructionBytesPCRELxCALLShort = len(x86amd64replaceCALLcode) + len(x86amd64JMPShortCode)
+	maxExtraInstructionBytesPCRELxCALLNear  = len(x86amd64replaceCALLcode) + len(x86amd64JMPNearCode)
+	maxExtraInstructionBytesPCRELxJMP       = len(x86amd64JMPLcode) + PtrSize
+	maxExtraInstructionBytesCALL            = len(x86amd64JMPLcode) + PtrSize
+	maxExtraInstructionBytesGOTPCREL        = PtrSize
 )
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
@@ -129,6 +130,8 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
 
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+		// "CALL" into the epilogue, then immediately JMPL into the actual func using a PCREL 8 byte
+		// address immediately after the epilogue - the RET will bring us straight back to the call site
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >32-bit CALL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-2:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
@@ -142,7 +145,7 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 }
 
 func (linker *Linker) relocateGOTPCREL(addr uintptr, loc obj.Reloc, relocByte []byte) {
-	putAddress(linker.Arch.ByteOrder, relocByte[loc.EpilogueOffset:], uint64(addr+uintptr(loc.Add)))
+	putAddress(linker.Arch.ByteOrder, relocByte[loc.EpilogueOffset:], uint64(addr))
 	linker.Arch.ByteOrder.PutUint32(relocByte[loc.Offset:], uint32(loc.EpilogueOffset-loc.Offset-loc.Size))
 }
 
@@ -157,66 +160,90 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		copy(relocByte[loc.Offset-2:], oldMcode)
 	}
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
+
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >32-bit PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-3:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
+		extraJMPDistance := 0
+		relocOffsetIdx := 0
+		cmplComparator := relocByte[loc.Offset+loc.Size]
 		relocToEpilogueOffset := (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
 		bytes := relocByte[loc.Offset-2:]
 		opcode := relocByte[loc.Offset-2]
-		register := ZeroByte
+		rexPrefix := relocByte[loc.Offset-3]
+		dstRegister := ZeroByte
 
 		if opcode == x86amd64LEAcode {
 			bytes[0] = x86amd64MOVcode
-		} else if opcode == x86amd64MOVcode && loc.Size >= Uint32Size {
-			register = ((relocByte[loc.Offset-1] >> 3) & 0x7) | 0xb8
+			relocOffsetIdx = 2
+		} else if opcode == x86amd64MOVcode {
+			dstRegister = (relocByte[loc.Offset-1] >> 3) & 0x7
+			srcRegister := relocByte[loc.Offset-1] & 0x7
+			if srcRegister != 0x5 { // 0x5 == PC (RIP) register - if it's not a PCREL address, then that's an unexpected MOV instruction using an R_PCREL reloc
+				return fmt.Errorf("unexpected src register %x (not RIP) for MOV PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-1], relocByte[loc.Offset-3:loc.Offset+loc.Size], offset, loc.Sym.Name)
+			}
 			copy(bytes, append(x86amd64JMPNearCode, x86amd64NOPcode))
-		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
-			copy(bytes, append(x86amd64JMPNearCode, x86amd64NOPcode))
+			relocOffsetIdx = 1
+		} else if opcode == x86amd64CMPLcode {
+			copy(bytes, append(x86amd64JMPNearCode, x86amd64NOPcode, x86amd64NOPcode))
+			relocOffsetIdx = 1
 		} else if (bytes[1] == x86amd64CALLcode) && binary.LittleEndian.Uint32(relocByte[loc.Offset:]) == 0 {
-			// Maybe a CGo call
+			// Probably a CGo call
 			opcode = bytes[1]
-			copy(bytes, x86amd64JMPNearCode)
+			relocOffsetIdx = 2
+			copy(bytes[1:], x86amd64JMPNearCode)
 		} else if bytes[1] == x86amd64JMPcode {
+			// Also a CGo call
 			opcode = bytes[1]
+			relocOffsetIdx = 2
 		} else {
 			return fmt.Errorf("do not support x86 opcode: %x for symbol %s (offset %d)!\n", relocByte[loc.Offset-2:loc.Offset+loc.Size], loc.Sym.Name, offset)
 		}
-		byteorder.PutUint32(relocByte[loc.Offset:], uint32(relocToEpilogueOffset))
+		extraJMPDistance = 2 - relocOffsetIdx
+		byteorder.PutUint32(bytes[relocOffsetIdx:], uint32(relocToEpilogueOffset+extraJMPDistance))
 		switch opcode {
 		case x86amd64CMPLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPLcode)
-			segment.codeByte[epilogueOffset+15] = relocByte[loc.Offset+loc.Size] // The 8 bit number to compare against
-			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
+			segment.codeByte[epilogueOffset+14] = cmplComparator // The 8 bit number to compare against
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr+uintptr(loc.Add)))
 			epilogueOffset += len(x86amd64replaceCMPLcode)
 		case x86amd64MOVcode:
-			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
-			segment.codeByte[epilogueOffset+1] = register
-			copy2Slice(segment.codeByte[epilogueOffset+2:], addr, PtrSize)
-			epilogueOffset += len(x86amd64replaceMOVQcode)
+			if dstRegister == 0x00 { // RAX
+				copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcodeRAX)
+				putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+2:], uint64(addr+uintptr(loc.Add)))
+				epilogueOffset += len(x86amd64replaceMOVQcodeRAX)
+			} else {
+				copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
+				putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr+uintptr(loc.Add)))
+				segment.codeByte[epilogueOffset+11] = rexPrefix
+				segment.codeByte[epilogueOffset+13] = dstRegister << 3
+				epilogueOffset += len(x86amd64replaceMOVQcode)
+			}
 		case x86amd64CALLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
-			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+5:], uint64(addr+uintptr(loc.Add)))
 			epilogueOffset += len(x86amd64replaceCALLcode)
 		case x86amd64JMPcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
 			epilogueOffset += len(x86amd64JMPLcode)
-			copy2Slice(segment.codeByte[epilogueOffset:], addr, PtrSize)
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset:], uint64(addr+uintptr(loc.Add)))
 			epilogueOffset += PtrSize
 		case x86amd64LEAcode:
-			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr))
+			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr+uintptr(loc.Add)))
 		default:
 			return fmt.Errorf("unexpected x86 opcode %x: %x for symbol %s (offset %d)!\n", opcode, relocByte[loc.Offset-2:loc.Offset+loc.Size], loc.Sym.Name, offset)
 		}
 
 		switch opcode {
 		case x86amd64CMPLcode, x86amd64MOVcode, x86amd64CALLcode:
-			returnOffset := (loc.Offset + loc.Size - loc.Add) - epilogueOffset
+			returnOffset := (loc.Offset + loc.Size) - epilogueOffset - 2 // 2 assumes short jump - if we need a near jump, we'll adjust
 			if returnOffset > -0x80 && returnOffset < 0 {
 				copy(segment.codeByte[epilogueOffset:], x86amd64JMPShortCode)
 				segment.codeByte[epilogueOffset+1] = uint8(returnOffset)
 				epilogueOffset += len(x86amd64JMPShortCode)
 			} else {
+				returnOffset -= 4
 				copy(segment.codeByte[epilogueOffset:], x86amd64JMPNearCode)
 				byteorder.PutUint32(segment.codeByte[epilogueOffset+1:], uint32(returnOffset))
 				epilogueOffset += len(x86amd64JMPNearCode)
@@ -272,6 +299,9 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 	byteorder := linker.Arch.ByteOrder
 
 	for _, symbol := range linker.symMap {
+		if linker.options.DumpTextBeforeAndAfterRelocs && linker.options.RelocationDebugWriter != nil && symbol.Kind == symkind.STEXT && symbol.Offset >= 0 {
+			_, _ = fmt.Fprintf(linker.options.RelocationDebugWriter, "BEFORE RELOC (%x - %x) %142s: %x\n", codeModule.codeBase+symbol.Offset, codeModule.codeBase+symbol.Offset+symbol.Size, symbol.Name, codeModule.codeByte[symbol.Offset:symbol.Offset+symbol.Size])
+		}
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
 			fmAddr, duplicated := symbolMap[FirstModulePrefix+loc.Sym.Name]
@@ -396,6 +426,9 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 			if err != nil {
 				return err
 			}
+		}
+		if linker.options.DumpTextBeforeAndAfterRelocs && linker.options.RelocationDebugWriter != nil && symbol.Kind == symkind.STEXT && symbol.Offset >= 0 {
+			_, _ = fmt.Fprintf(linker.options.RelocationDebugWriter, " AFTER RELOC (%x - %x) %142s : %x\n", codeModule.codeBase+symbol.Offset, codeModule.codeBase+symbol.Offset+symbol.Size, symbol.Name, codeModule.codeByte[symbol.Offset:symbol.Offset+symbol.Size])
 		}
 	}
 	return err

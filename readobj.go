@@ -85,6 +85,7 @@ type LinkerOptions struct {
 	SymbolNameOrder                  []string
 	RandomSymbolNameOrder            bool
 	RelocationDebugWriter            io.Writer
+	DumpTextBeforeAndAfterRelocs     bool
 	NoRelocationEpilogues            bool
 	SkipTypeDeduplicationForPackages []string
 }
@@ -112,6 +113,12 @@ func WithRelocationDebugWriter(writer io.Writer) func(*LinkerOptions) {
 func WithNoRelocationEpilogues() func(*LinkerOptions) {
 	return func(options *LinkerOptions) {
 		options.NoRelocationEpilogues = true
+	}
+}
+
+func WithDumpTextBeforeAndAfterRelocs() func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.DumpTextBeforeAndAfterRelocs = true
 	}
 }
 
@@ -275,7 +282,7 @@ outer:
 		linker.collectReachableSymbols(name)
 		linker.collectReachableTypes(name)
 	}
-	if err := linker.addSymbols(symNames); err != nil {
+	if err := linker.addSymbols(symNames, globalSymPtr); err != nil {
 		return nil, err
 	}
 	linker.pkgs = pkgs

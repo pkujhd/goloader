@@ -80,6 +80,7 @@ type Sym struct {
 	Func   *Func
 	Reloc  []Reloc
 	Pkg    string
+	Size   int
 }
 
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Reloc struct

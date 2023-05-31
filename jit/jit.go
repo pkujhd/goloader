@@ -103,13 +103,14 @@ type BuildConfig struct {
 	SymbolNameOrder                  []string // Control the layout of symbols in the linker's linear memory - useful for reproducing bugs
 	RandomSymbolNameOrder            bool     // Randomise the order of linker symbols (may identify linker bugs)
 	RelocationDebugWriter            io.Writer
+	DumpTextBeforeAfterRelocation    bool
 	SkipTypeDeduplicationForPackages []string
 	UnsafeBlindlyUseFirstmoduleTypes bool
 }
 
 func mergeBuildFlags(extraBuildFlags []string) []string {
-	// This flag requires the Go toolchain to have been patched via PatchGC()
-	// -dynlink to force R_PCREL relocs to use R_GOTPCREL to allow offsets larger than 32-bits
+	// This -exporttypes flag requires the Go toolchain to have been patched via PatchGC()
+	// Also add -dynlink to force R_PCREL relocs to use R_GOTPCREL to allow offsets larger than 32-bits for inter-package relocs
 	var gcFlags = []string{"-exporttypes", "-dynlink"}
 	var buildFlags []string
 	for _, bf := range extraBuildFlags {
@@ -447,6 +448,9 @@ func (config *BuildConfig) linkerOpts() []goloader.LinkerOptFunc {
 	}
 	if config.RelocationDebugWriter != nil {
 		linkerOpts = append(linkerOpts, goloader.WithRelocationDebugWriter(config.RelocationDebugWriter))
+	}
+	if config.DumpTextBeforeAfterRelocation {
+		linkerOpts = append(linkerOpts, goloader.WithDumpTextBeforeAndAfterRelocs())
 	}
 	if len(config.SkipTypeDeduplicationForPackages) > 0 {
 		linkerOpts = append(linkerOpts, goloader.WithSkipTypeDeduplicationForPackages(config.SkipTypeDeduplicationForPackages))

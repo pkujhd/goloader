@@ -287,7 +287,6 @@ func TestJitCGoCall(t *testing.T) {
 		t.Skip("CGo disabled")
 	}
 	conf := baseConfig
-	conf.RelocationDebugWriter = os.Stderr
 
 	data := testData{
 		files: []string{"./testdata/test_cgo/test.go"},
@@ -796,15 +795,23 @@ func TestIssue78(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			module, symbols := buildLoadable(t, conf, testName, data)
 
-			test := symbols["Test"].(func() int)
-			val := test()
-			if val != 2 {
-				t.Fatalf("expected 2, got %d", val)
+			test := symbols["Test"].(func() (int, int))
+			val1, val2 := test()
+			if val1 != 2 {
+				t.Fatalf("expected 2, got %d", val1)
 			}
-			val = test()
-			if val != 3 {
-				t.Fatalf("expected 3, got %d", val)
+			if val2 != 2 {
+				t.Fatalf("expected 2, got %d", val2)
 			}
+			val1, val2 = test()
+			if val1 != 3 {
+				t.Fatalf("expected 3, got %d", val1)
+			}
+			if val2 != 3 {
+				t.Fatalf("expected 3, got %d", val2)
+			}
+			test2 := symbols["Test2"].(func() int)
+			fmt.Printf("Reported: 0x%x\n", test2())
 			err := module.Unload()
 			if err != nil {
 				t.Fatal(err)

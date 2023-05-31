@@ -161,7 +161,7 @@ func (linker *Linker) Opts(linkerOpts ...LinkerOptFunc) {
 	}
 }
 
-func (linker *Linker) addSymbols(symbolNames []string) error {
+func (linker *Linker) addSymbols(symbolNames []string, globalSymPtr map[string]uintptr) error {
 	// static_tmp is 0, golang compile not allocate memory.
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
 
@@ -201,7 +201,7 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 			}
 		}
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
-			_, err := linker.addSymbol(objSym.Name)
+			_, err := linker.addSymbol(objSym.Name, globalSymPtr)
 			if err != nil {
 				return err
 			}
@@ -220,7 +220,7 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 			}
 			if isAsmWrapper {
 				// This wrapper's symbol has a suffix of .abiinternal to distinguish it from the abi0 ASM func
-				_, err := linker.addSymbol(objSym.Name)
+				_, err := linker.addSymbol(objSym.Name, globalSymPtr)
 				if err != nil {
 					return err
 				}
@@ -228,7 +228,7 @@ func (linker *Linker) addSymbols(symbolNames []string) error {
 		}
 		switch objSym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA, symkind.SDATA, symkind.SBSS, symkind.SNOPTRBSS:
-			_, err := linker.addSymbol(objSym.Name)
+			_, err := linker.addSymbol(objSym.Name, globalSymPtr)
 			if err != nil {
 				return err
 			}
@@ -266,7 +266,7 @@ func (linker *Linker) SymbolOrder() []string {
 	return linker.symNameOrder
 }
 
-func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
+func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (symbol *obj.Sym, err error) {
 	if symbol, ok := linker.symMap[name]; ok {
 		return symbol, nil
 	}
@@ -305,46 +305,48 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			case reloctype.R_PCREL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				instructionBytes := objsym.Data[reloc.Offset-2 : reloc.Offset+reloc.Size]
-				shortJmp := (objsym.Reloc[i].EpilogueOffset - (reloc.Offset + reloc.Size)) < 128
 				opcode := instructionBytes[0]
 				var epilogueSize int
 				switch opcode {
 				case x86amd64LEAcode:
 					epilogueSize = maxExtraInstructionBytesPCRELxLEAQ
 				case x86amd64MOVcode:
+					epilogueSize = maxExtraInstructionBytesPCRELxMOVNear
+				case x86amd64CMPLcode:
+					epilogueSize = maxExtraInstructionBytesPCRELxCMPLNear
+				default:
+					switch instructionBytes[1] {
+					case x86amd64CALLcode:
+						epilogueSize = maxExtraInstructionBytesPCRELxCALLNear
+					case x86amd64JMPcode:
+						epilogueSize = maxExtraInstructionBytesPCRELxJMP
+					}
+				}
+				returnOffset := (reloc.Offset + reloc.Size) - (objsym.Reloc[i].EpilogueOffset + epilogueSize) - 2 // 2 assumes short jump
+				shortJmp := returnOffset < 0 && returnOffset > -0x80
+				switch opcode {
+				case x86amd64MOVcode:
 					if shortJmp {
 						epilogueSize = maxExtraInstructionBytesPCRELxMOVShort
-					} else {
-						epilogueSize = maxExtraInstructionBytesPCRELxMOVNear
 					}
 				case x86amd64CMPLcode:
 					if shortJmp {
 						epilogueSize = maxExtraInstructionBytesPCRELxCMPLShort
-					} else {
-						epilogueSize = maxExtraInstructionBytesPCRELxCMPLNear
 					}
 				default:
 					switch instructionBytes[1] {
 					case x86amd64CALLcode:
 						if shortJmp {
 							epilogueSize = maxExtraInstructionBytesPCRELxCALLShort
-						} else {
-							epilogueSize = maxExtraInstructionBytesPCRELxCALLNear
 						}
-					case x86amd64JMPcode:
-						epilogueSize = maxExtraInstructionBytesPCRELxJMP
 					}
 				}
 				objsym.Reloc[i].EpilogueSize = epilogueSize
 				linker.code = append(linker.code, make([]byte, epilogueSize)...)
-			case reloctype.R_GOTPCREL:
+			case reloctype.R_GOTPCREL, reloctype.R_TLS_IE:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
-				objsym.Reloc[i].EpilogueSize = 8
-				linker.code = append(linker.code, make([]byte, 8)...)
-			case reloctype.R_TLS_IE:
-				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
-				objsym.Reloc[i].EpilogueSize = 8
-				linker.code = append(linker.code, make([]byte, 8)...)
+				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesGOTPCREL
+				linker.code = append(linker.code, make([]byte, objsym.Reloc[i].EpilogueSize)...)
 			case reloctype.R_CALL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
@@ -386,12 +388,13 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
 
+	symbol.Size = len(linker.code) - symbol.Offset
 	for _, loc := range objsym.Reloc {
 		reloc := loc
 		reloc.Offset = reloc.Offset + symbol.Offset
 		reloc.EpilogueOffset = reloc.EpilogueOffset + symbol.Offset
 		if _, ok := linker.objsymbolMap[reloc.Sym.Name]; ok {
-			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name)
+			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name, globalSymPtr)
 			if err != nil {
 				return nil, err
 			}
@@ -405,7 +408,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				}
 			}
 		} else {
-			if reloc.Type == reloctype.R_TLS_LE {
+			if reloc.Type == reloctype.R_TLS_LE || reloc.Type == reloctype.R_TLS_IE {
 				reloc.Sym.Name = TLSNAME
 				reloc.Sym.Offset = loc.Offset
 			}
@@ -514,7 +517,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	for _, name := range symbol.Func.FuncData {
 		if _, ok := linker.symMap[name]; !ok {
 			if _, ok := linker.objsymbolMap[name]; ok {
-				if _, err = linker.addSymbol(name); err != nil {
+				if _, err = linker.addSymbol(name, nil); err != nil {
 					return err
 				}
 			} else if len(name) == 0 {
@@ -566,6 +569,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
+				symbolMap[FirstModulePrefix+name] = ptr
 			}
 		} else {
 			if _, ok := symPtr[name]; !ok {
@@ -877,6 +881,9 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	byteorder := linker.Arch.ByteOrder
 	dedupedTypes := map[string]uintptr{}
 	for _, symbol := range linker.symMap {
+		if linker.options.DumpTextBeforeAndAfterRelocs && linker.options.RelocationDebugWriter != nil && symbol.Kind == symkind.STEXT && symbol.Offset >= 0 {
+			_, _ = fmt.Fprintf(linker.options.RelocationDebugWriter, "BEFORE DEDUPE (%x - %x) %142s: %x\n", codeModule.codeBase+symbol.Offset, codeModule.codeBase+symbol.Offset+symbol.Size, symbol.Name, codeModule.codeByte[symbol.Offset:symbol.Offset+symbol.Size])
+		}
 	relocLoop:
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
@@ -940,13 +947,10 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					case reloctype.R_GOTPCREL:
 						linker.relocateGOTPCREL(addr, loc, relocByte)
 					case reloctype.R_PCREL:
-						// The replaced t from another module will probably yield a massive negative offset, but that's ok as
-						// PC-relative addressing is allowed to be negative (even if not very cache friendly)
-						offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
-						if offset > 0x7FFFFFFF || offset < -0x80000000 {
-							err = fmt.Errorf("symName: %s offset: %d overflows!\n", sym.Name, offset)
+						err2 := linker.relocatePCREL(addr, loc, &codeModule.segment, relocByte, addrBase)
+						if err2 != nil {
+							err = err2
 						}
-						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 					case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALL:
 						panic("This should not be possible")
 					case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
@@ -981,6 +985,9 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					}
 				}
 			}
+		}
+		if linker.options.DumpTextBeforeAndAfterRelocs && linker.options.RelocationDebugWriter != nil && symbol.Kind == symkind.STEXT && symbol.Offset >= 0 {
+			_, _ = fmt.Fprintf(linker.options.RelocationDebugWriter, " AFTER DEDUPE (%x - %x) %142s: %x\n", codeModule.codeBase+symbol.Offset, codeModule.codeBase+symbol.Offset+symbol.Size, symbol.Name, codeModule.codeByte[symbol.Offset:symbol.Offset+symbol.Size])
 		}
 	}
 	codeModule.patchedTypeMethodsIfn = patchedTypeMethodsIfn
