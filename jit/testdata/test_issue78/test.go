@@ -3,6 +3,7 @@ package test_issue78
 import (
 	"context"
 	"fmt"
+	"github.com/eh-steve/goloader/jit/testdata/common"
 	"unsafe"
 )
 
@@ -31,4 +32,12 @@ func Test2() int {
 		return int((*eface)(unsafe.Pointer(&ctx)).data)
 	}
 	return 99
+}
+
+func Test3() (a int) {
+	a = common.Val + 1
+	a = common.Val - 1
+	common.Inc()
+	fmt.Println(common.Val)
+	return common.Val
 }

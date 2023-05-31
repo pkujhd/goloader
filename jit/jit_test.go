@@ -812,6 +812,11 @@ func TestIssue78(t *testing.T) {
 			}
 			test2 := symbols["Test2"].(func() int)
 			fmt.Printf("Reported: 0x%x\n", test2())
+			test3 := symbols["Test3"].(func() int)
+			val3 := test3()
+			if val3 != common.Val {
+				t.Fatalf("expected %d, got %d", common.Val, val3)
+			}
 			err := module.Unload()
 			if err != nil {
 				t.Fatal(err)

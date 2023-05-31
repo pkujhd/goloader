@@ -5,6 +5,16 @@ import (
 	"sync"
 )
 
+var Val = 99
+
+func Inc() {
+	Val += 1
+}
+
+func Dec() {
+	Val += 1
+}
+
 type SomeStruct struct {
 	Val1  interface{}
 	Val2  map[string]interface{}
