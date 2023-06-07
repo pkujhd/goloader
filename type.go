@@ -111,7 +111,8 @@ func (t *_type) Elem() *_type               { return _Elem(t) }
 //	 =>  github.com/org/somepackage/v4.SomeStruct
 func resolveFullyQualifiedSymbolName(t *_type) string {
 	typ := AsRType(t)
-	pkgPath := objabi.PathToPrefix(typ.PkgPath())
+	// go.shape is a special builtin package whose name shouldn't be escaped
+	pkgPath := unescapeGoShapePkg(objabi.PathToPrefix(typ.PkgPath()))
 	name := typ.Name()
 	if pkgPath != "" && name != "" {
 		return pkgPath + "." + name
@@ -131,7 +132,7 @@ func resolveFullyQualifiedSymbolName(t *_type) string {
 			}
 			fieldPkgPath := ""
 			if typ.Field(i).PkgPath != "" && typ.Field(i).Type.PkgPath() == "" {
-				fieldPkgPath = objabi.PathToPrefix(typ.Field(i).PkgPath) + "."
+				fieldPkgPath = unescapeGoShapePkg(objabi.PathToPrefix(typ.Field(i).PkgPath)) + "."
 			}
 			fieldStructTag := ""
 			if typ.Field(i).Tag != "" {
@@ -209,6 +210,13 @@ func resolveFullyQualifiedSymbolName(t *_type) string {
 		panic("unexpected builtin type: " + typ.String())
 	}
 	return ""
+}
+
+func unescapeGoShapePkg(pkgPath string) string {
+	if pkgPath == "go%2eshape" {
+		return "go.shape"
+	}
+	return pkgPath
 }
 
 func symbolIsVariant(name string) (string, bool) {
