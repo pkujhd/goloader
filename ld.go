@@ -322,7 +322,7 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 						epilogueSize = maxExtraInstructionBytesPCRELxJMP
 					}
 				}
-				returnOffset := (reloc.Offset + reloc.Size) - (objsym.Reloc[i].EpilogueOffset + epilogueSize) - 2 // 2 assumes short jump
+				returnOffset := (reloc.Offset + reloc.Size) - (objsym.Reloc[i].EpilogueOffset + epilogueSize) - len(x86amd64JMPShortCode) //  assumes short jump, adjusts if not
 				shortJmp := returnOffset < 0 && returnOffset > -0x80
 				switch opcode {
 				case x86amd64MOVcode:

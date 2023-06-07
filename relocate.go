@@ -247,13 +247,13 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 
 		switch opcode {
 		case x86amd64CMPLcode, x86amd64MOVcode, x86amd64CALLcode:
-			returnOffset := (loc.Offset + loc.Size) - epilogueOffset - 2 // 2 assumes short jump - if we need a near jump, we'll adjust
+			returnOffset := (loc.Offset + loc.Size) - epilogueOffset - len(x86amd64JMPShortCode) // assumes short jump - if we need a near jump, we'll adjust
 			if returnOffset > -0x80 && returnOffset < 0 {
 				copy(segment.codeByte[epilogueOffset:], x86amd64JMPShortCode)
 				segment.codeByte[epilogueOffset+1] = uint8(returnOffset)
 				epilogueOffset += len(x86amd64JMPShortCode)
 			} else {
-				returnOffset -= 4
+				returnOffset -= len(x86amd64JMPNearCode) - len(x86amd64JMPShortCode)
 				copy(segment.codeByte[epilogueOffset:], x86amd64JMPNearCode)
 				byteorder.PutUint32(segment.codeByte[epilogueOffset+1:], uint32(returnOffset))
 				epilogueOffset += len(x86amd64JMPNearCode)
