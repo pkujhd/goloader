@@ -26,6 +26,7 @@ var (
 	maxExtraInstructionBytesPCRELxJMP       = len(x86amd64JMPLcode) + PtrSize
 	maxExtraInstructionBytesCALL            = len(x86amd64JMPLcode) + PtrSize
 	maxExtraInstructionBytesGOTPCREL        = PtrSize
+	maxExtraInstructionBytesARM64GOTPCREL   = PtrSize + 4 // need to be able to pad to align to multiple of 8
 )
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
@@ -39,6 +40,15 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 	}
 	epilogueOffset := loc.EpilogueOffset
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
+
+	if loc.Type == reloctype.R_ARM64_GOTPCREL || loc.Type == reloctype.R_ARM64_TLS_IE {
+		epilogueToRelocDistance := epilogueOffset - loc.Offset
+		if epilogueToRelocDistance < 0 || epilogueToRelocDistance > 1<<32 {
+			return fmt.Errorf("unexpected R_ARM64_GOTPCREL relocation with negative or >32-bit offset %d: %s", epilogueToRelocDistance, loc.Sym.Name)
+		}
+		signedOffset = int64(alignof((segment.codeBase+epilogueOffset)-((segment.codeBase+loc.Offset)&^0xFFF), PtrSize))
+		putAddress(byteorder, mCode[epilogueToRelocDistance:], uint64(symAddr+uintptr(loc.Add)))
+	}
 	// R_ADDRARM64 relocs include 2x 32 bit instructions, one ADRP, and one ADD/LDR/STR - both contain the destination register in the lowest 5 bits
 	if signedOffset > 1<<32 || signedOffset < -1<<32 {
 		if loc.EpilogueSize == 0 {
@@ -111,7 +121,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 				err = fmt.Errorf("offset for 32-bit load/store has unaligned value %d", signedOffset&0xFFF)
 			}
 			addOrLdOrSt |= (uint32(signedOffset&0xFFF) >> 2) << 10
-		case reloctype.R_ARM64_PCREL_LDST64:
+		case reloctype.R_ARM64_PCREL_LDST64, reloctype.R_ARM64_GOTPCREL, reloctype.R_ARM64_TLS_IE:
 			if signedOffset&0x7 != 0 {
 				err = fmt.Errorf("offset for 64-bit load/store has unaligned value %d", signedOffset&0xFFF)
 			}
@@ -365,6 +375,17 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 
 			if addr != InvalidHandleValue {
 				switch loc.Type {
+				case reloctype.R_ARM64_TLS_LE:
+					if _, ok := symbolMap[TLSNAME]; !ok {
+						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
+					}
+					v := symbolMap[TLSNAME] + 2*PtrSize
+					if v < 0 || v >= 32678 {
+						err = fmt.Errorf("got a R_ARM64_TLS_LE relocation inside %s (%s) with TLS offset out of range: %d", symbol.Name, loc.Sym.Name, v)
+					}
+					val := byteorder.Uint32(relocByte[loc.Offset:])
+					val |= uint32(v) << 5
+					byteorder.PutUint32(relocByte[loc.Offset:], val)
 				case reloctype.R_TLS_LE:
 					if _, ok := symbolMap[TLSNAME]; !ok {
 						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
@@ -408,6 +429,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 					}
 					linker.relocateGOTPCREL(symbolMap[TLSNAME], loc, relocByte)
+				case reloctype.R_ARM64_TLS_IE:
+					if _, ok := symbolMap[TLSNAME]; !ok {
+						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
+					}
+					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 				case reloctype.R_USETYPE:
 					// nothing todo
 				case reloctype.R_USEIFACE:

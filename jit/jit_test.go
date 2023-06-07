@@ -44,6 +44,7 @@ var baseConfig = jit.BuildConfig{
 	RelocationDebugWriter:            nil,
 	SkipTypeDeduplicationForPackages: nil,
 	UnsafeBlindlyUseFirstmoduleTypes: false,
+	Dynlink:                          os.Getenv("JIT_GC_DYNLINK") == "1",
 }
 
 func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data testData) (module *goloader.CodeModule, symbols map[string]interface{}) {

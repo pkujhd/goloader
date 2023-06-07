@@ -347,6 +347,10 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesGOTPCREL
 				linker.code = append(linker.code, make([]byte, objsym.Reloc[i].EpilogueSize)...)
+			case reloctype.R_ARM64_GOTPCREL, reloctype.R_ARM64_TLS_IE:
+				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesARM64GOTPCREL
+				linker.code = append(linker.code, make([]byte, objsym.Reloc[i].EpilogueSize)...)
 			case reloctype.R_CALL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
@@ -384,6 +388,8 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 		symbol.Offset = len(linker.noptrbss)
 		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
 		bytearrayAlign(&linker.noptrbss, PtrSize)
+	case symkind.STLSBSS:
+		// Nothing to do, since runtime.tls_g should be resolved from the host binary
 	default:
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
@@ -953,7 +959,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 						}
 					case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALL:
 						panic("This should not be possible")
-					case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
+					case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64, reloctype.R_ARM64_GOTPCREL:
 						err2 := linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 						if err2 != nil {
 							err = err2

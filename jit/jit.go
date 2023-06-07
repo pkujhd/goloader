@@ -106,12 +106,16 @@ type BuildConfig struct {
 	DumpTextBeforeAfterRelocation    bool
 	SkipTypeDeduplicationForPackages []string
 	UnsafeBlindlyUseFirstmoduleTypes bool
+	Dynlink                          bool
 }
 
-func mergeBuildFlags(extraBuildFlags []string) []string {
+func mergeBuildFlags(extraBuildFlags []string, dynlink bool) []string {
 	// This -exporttypes flag requires the Go toolchain to have been patched via PatchGC()
-	// Also add -dynlink to force R_PCREL relocs to use R_GOTPCREL to allow offsets larger than 32-bits for inter-package relocs
-	var gcFlags = []string{"-exporttypes", "-dynlink"}
+	var gcFlags = []string{"-exporttypes"}
+	if dynlink {
+		// Also add -dynlink to force R_PCREL relocs to use R_GOTPCREL to allow offsets larger than 32-bits for inter-package relocs
+		gcFlags = append(gcFlags, "-dynlink")
+	}
 	var buildFlags []string
 	for _, bf := range extraBuildFlags {
 		// Merge together user supplied -gcflags into a single flag
@@ -134,7 +138,7 @@ func mergeBuildFlags(extraBuildFlags []string) []string {
 
 func execBuild(config BuildConfig, workDir, outputFilePath string, targets []string) error {
 	var args = []string{"build"}
-	args = append(args, mergeBuildFlags(config.ExtraBuildFlags)...)
+	args = append(args, mergeBuildFlags(config.ExtraBuildFlags, config.Dynlink)...)
 
 	args = append(args, "-o", outputFilePath)
 	args = append(args, targets...)
@@ -349,7 +353,7 @@ func buildAndLoadDeps(config BuildConfig,
 			}
 
 			args := []string{"build"}
-			args = append(args, mergeBuildFlags(config.ExtraBuildFlags)...)
+			args = append(args, mergeBuildFlags(config.ExtraBuildFlags, config.Dynlink)...)
 			args = append(args, "-o", filename, missingDep)
 			command := exec.Command(config.GoBinary, args...)
 			if config.DebugLog {
