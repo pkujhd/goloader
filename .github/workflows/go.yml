@@ -18,9 +18,6 @@ jobs:
         os:  [ubuntu-latest, windows-latest, macos-latest, [self-hosted, Linux, ARM64], [self-hosted, macOS, ARM64]]
         cgo-enabled: ["CGO_ENABLED=0", "CGO_ENABLED=1"]
         dynlink: ["JIT_GC_DYNLINK=1", "JIT_GC_DYNLINK=0"]
-        exclude:
-          - os: [self-hosted, macOS, ARM64]
-            cgo-enabled: "CGO_ENABLED=0"
     runs-on: ${{ matrix.os }}
 
     steps:

@@ -1,7 +1,7 @@
 //go:build darwin && arm64
 // +build darwin,arm64
 
-package darwin_arm64
+package darwin_arm64_cgo
 
 /*
 #cgo darwin LDFLAGS: -lpthread
