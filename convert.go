@@ -5,6 +5,7 @@ package goloader
 
 import (
 	"fmt"
+	"github.com/eh-steve/goloader/mprotect"
 	"log"
 	"reflect"
 	"regexp"
@@ -289,7 +290,7 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 								closure.F = entry
 							} else if closureFuncRegex.MatchString(oldFName) {
 								containerSym, haveContainerSym := newModule.Syms[oldFName+"·f"]
-								if haveContainerSym {
+								if haveContainerSym && goVersion() > 18 {
 									funcContainer = unsafe.Pointer(containerSym)
 								} else {
 									// This is a closure which is unlikely to be safe since the variables it closes over might be in the old module's memory
@@ -297,6 +298,12 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 										F uintptr
 										// ... <- variables which are captured by the closure would follow, but we can't know how many they are or what their types are - the best we can do is switch the function implementation and keep the variables the same
 									})(manipulation.ptr)
+									if runtime.GOARCH == "arm64" && runtime.GOOS == "darwin" {
+										err := mprotect.MprotectMakeWritable(mprotect.GetPage(uintptr(unsafe.Pointer(closure))))
+										if err != nil {
+											panic(fmt.Sprintf("failed to make page of closure writable: %s", err))
+										}
+									}
 									closure.F = entry
 									funcContainer = unsafe.Pointer(closure)
 									log.Printf("EVEN BIGGER WARNING - converting anonymous function %s by name - no guarantees that signatures, or the closed over variable sizes, or types will match. This is dangerous! \n", oldFName)

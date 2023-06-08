@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"unsafe"
 
 	"github.com/eh-steve/goloader/mmap"
@@ -191,4 +192,13 @@ func expandGoroot(s string) string {
 		return filepath.ToSlash(filepath.Join(runtime.GOROOT(), s[n:]))
 	}
 	return s
+}
+
+func goVersion() int64 {
+	GoVersionParts := strings.Split(strings.TrimPrefix(runtime.Version(), "go"), ".")
+	version, err := strconv.ParseInt(GoVersionParts[1], 10, 64)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse go version: %s", err))
+	}
+	return version
 }
