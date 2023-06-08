@@ -26,7 +26,7 @@ var (
 	maxExtraInstructionBytesPCRELxJMP       = len(x86amd64JMPLcode) + PtrSize
 	maxExtraInstructionBytesCALL            = len(x86amd64JMPLcode) + PtrSize
 	maxExtraInstructionBytesGOTPCREL        = PtrSize
-	maxExtraInstructionBytesARM64GOTPCREL   = PtrSize + 4 // need to be able to pad to align to multiple of 8
+	maxExtraInstructionBytesARM64GOTPCREL   = PtrSize
 )
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
@@ -39,7 +39,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		copy(mCode, oldMcode)
 	}
 	epilogueOffset := loc.EpilogueOffset
-	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
+	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], createARM64Nops(loc.EpilogueSize))
 
 	if loc.Type == reloctype.R_ARM64_GOTPCREL || loc.Type == reloctype.R_ARM64_TLS_IE {
 		epilogueToRelocDistance := epilogueOffset - loc.Offset
@@ -137,7 +137,7 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	epilogueOffset := loc.EpilogueOffset
-	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
+	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], createX86Nops(loc.EpilogueSize))
 
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
 		// "CALL" into the epilogue, then immediately JMPL into the actual func using a PCREL 8 byte
@@ -169,7 +169,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	} else {
 		copy(relocByte[loc.Offset-2:], oldMcode)
 	}
-	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
+	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], createX86Nops(loc.EpilogueSize))
 
 	if offset > 0x7FFFFFFF || offset < -0x80000000 || loc.EpilogueSize > 0 {
 		if loc.EpilogueSize == 0 {
@@ -188,7 +188,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 			bytes[0] = x86amd64MOVcode
 			relocOffsetIdx = 2
 		} else if opcode == x86amd64MOVcode {
-			dstRegister = (relocByte[loc.Offset-1] >> 3) & 0x7
+			dstRegister = ((relocByte[loc.Offset-1] >> 3) & 0x7) | ((rexPrefix & 0x4) << 1) // rex prefix encodes high bit of dst register in bit 3
 			srcRegister := relocByte[loc.Offset-1] & 0x7
 			if srcRegister != 0x5 { // 0x5 == PC (RIP) register - if it's not a PCREL address, then that's an unexpected MOV instruction using an R_PCREL reloc
 				return fmt.Errorf("unexpected src register %x (not RIP) for MOV PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-1], relocByte[loc.Offset-3:loc.Offset+loc.Size], offset, loc.Sym.Name)
@@ -226,8 +226,8 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 			} else {
 				copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
 				putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr+uintptr(loc.Add)))
-				segment.codeByte[epilogueOffset+11] = rexPrefix
-				segment.codeByte[epilogueOffset+13] = dstRegister << 3
+				segment.codeByte[epilogueOffset+11] |= (dstRegister & 0x8) >> 1
+				segment.codeByte[epilogueOffset+13] = (dstRegister & 0x7) << 3
 				epilogueOffset += len(x86amd64replaceMOVQcode)
 			}
 		case x86amd64CALLcode:

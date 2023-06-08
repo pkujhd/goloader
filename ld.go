@@ -278,7 +278,7 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 	case symkind.STEXT:
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
-		bytearrayAlign(&linker.code, PtrSize)
+		bytearrayAlignNops(linker.Arch, &linker.code, PtrSize)
 		for i, reloc := range objsym.Reloc {
 			// Pessimistically pad the function text with extra bytes for any relocations which might add extra
 			// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
@@ -292,16 +292,16 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 			case reloctype.R_ADDRARM64:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesADRP
-				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesADRP)...)
+				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesADRP)...)
 			case reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesADRPLDST
-				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesADRPLDST)...)
+				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesADRPLDST)...)
 			case reloctype.R_CALLARM64:
 				objsym.Reloc[i].EpilogueOffset = alignof(len(linker.code)-symbol.Offset, PtrSize)
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALLARM64
 				alignment := alignof(len(linker.code)-symbol.Offset, PtrSize) - (len(linker.code) - symbol.Offset)
-				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALLARM64+alignment)...)
+				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesCALLARM64+alignment)...)
 			case reloctype.R_PCREL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				instructionBytes := objsym.Data[reloc.Offset-2 : reloc.Offset+reloc.Size]
@@ -342,21 +342,23 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 					}
 				}
 				objsym.Reloc[i].EpilogueSize = epilogueSize
-				linker.code = append(linker.code, make([]byte, epilogueSize)...)
+				linker.code = append(linker.code, createArchNops(linker.Arch, epilogueSize)...)
 			case reloctype.R_GOTPCREL, reloctype.R_TLS_IE:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesGOTPCREL
-				linker.code = append(linker.code, make([]byte, objsym.Reloc[i].EpilogueSize)...)
+				linker.code = append(linker.code, createArchNops(linker.Arch, objsym.Reloc[i].EpilogueSize)...)
 			case reloctype.R_ARM64_GOTPCREL, reloctype.R_ARM64_TLS_IE:
-				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
+				objsym.Reloc[i].EpilogueOffset = alignof(len(linker.code)-symbol.Offset, PtrSize)
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesARM64GOTPCREL
-				linker.code = append(linker.code, make([]byte, objsym.Reloc[i].EpilogueSize)...)
+				// need to be able to pad to align to multiple of 8
+				alignment := alignof(len(linker.code)-symbol.Offset, PtrSize) - (len(linker.code) - symbol.Offset)
+				linker.code = append(linker.code, createArchNops(linker.Arch, objsym.Reloc[i].EpilogueSize+alignment)...)
 			case reloctype.R_CALL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
-				linker.code = append(linker.code, make([]byte, maxExtraInstructionBytesCALL)...)
+				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesCALL)...)
 			}
-			bytearrayAlign(&linker.code, PtrSize)
+			bytearrayAlignNops(linker.Arch, &linker.code, PtrSize)
 		}
 
 		symbol.Func = &obj.Func{}

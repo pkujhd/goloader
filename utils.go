@@ -39,6 +39,40 @@ func bytearrayAlign(b *[]byte, align int) {
 	}
 }
 
+func createArchNops(arch *sys.Arch, size int) []byte {
+	if arch.Name == "arm64" {
+		return createARM64Nops(size)
+	}
+	return createX86Nops(size)
+}
+
+func createX86Nops(size int) []byte {
+	nops := make([]byte, size)
+	for i := range nops {
+		nops[i] = x86amd64NOPcode
+	}
+	return nops
+}
+
+func createARM64Nops(size int) []byte {
+	if size%4 != 0 {
+		panic(fmt.Sprintf("can't make nop instruction if padding is not multiple of 4, got %d", size))
+	}
+
+	nops := make([]byte, size)
+	for i := 0; i < size/4; i += 4 {
+		copy(nops[i:], arm64NopCode)
+	}
+	return nops
+}
+
+func bytearrayAlignNops(arch *sys.Arch, b *[]byte, align int) {
+	length := len(*b)
+	if length%align != 0 {
+		*b = append(*b, createArchNops(arch, align-length%align)...)
+	}
+}
+
 func putAddressAddOffset(byteOrder binary.ByteOrder, b []byte, offset *int, addr uint64) {
 	if PtrSize == Uint32Size {
 		byteOrder.PutUint32(b[*offset:], uint32(addr))
