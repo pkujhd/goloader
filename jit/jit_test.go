@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"runtime/debug"
@@ -64,7 +65,22 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 		if err != nil {
 			t.Fatal(err)
 		}
+		// cd into testdata dir to avoid polluting the jit package's go.mod, and cd back once finished
+		pwd, err := os.Getwd()
+		absFile, err := filepath.Abs(data.files[0])
+		if err != nil {
+			panic(err)
+		}
+		testdataDir := filepath.Dir(filepath.Dir(absFile))
+		err = os.Chdir(testdataDir)
+		if err != nil {
+			panic(err)
+		}
 		loadable, err = jit.BuildGoText(conf, string(goText))
+		err = os.Chdir(pwd)
+		if err != nil {
+			panic(err)
+		}
 	}
 	if err != nil {
 		t.Fatal(err)
