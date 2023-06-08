@@ -336,6 +336,7 @@ func buildAndLoadDeps(config BuildConfig,
 	}
 	sort.Strings(missingDepsSorted)
 
+	concurrencyLimit := make(chan struct{}, runtime.GOMAXPROCS(0))
 	for _, missingDep := range missingDepsSorted {
 		if _, ok := seen[missingDep]; ok {
 			continue
@@ -345,6 +346,7 @@ func buildAndLoadDeps(config BuildConfig,
 
 		filename := filepath.Join(buildDir, hex.EncodeToString(h.Sum(nil))+"___pkg___.a")
 
+		concurrencyLimit <- struct{}{}
 		go func(filename, missingDep string) {
 			if config.DebugLog {
 				log.Printf("Building dependency '%s' (%s)\n", missingDep, filename)
@@ -379,6 +381,7 @@ func buildAndLoadDeps(config BuildConfig,
 				errsMutex.Unlock()
 			}
 			wg.Done()
+			<-concurrencyLimit
 		}(filename, missingDep)
 		existingImport := false
 		for _, existing := range *builtPackageImportPaths {
