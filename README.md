@@ -152,17 +152,18 @@ with `delve`.
 ## OS/Arch Compatibility
 
 JIT compiler tested/passing on:
-| **OS/Arch**        | amd64/+CGo | arm64/+CGo | amd64/-CGo | arm64/-CGo |
+
+| **OS/Arch**        | amd64/+CGo         | arm64/+CGo         | amd64/-CGo         | arm64/-CGo         |
 |--------------------|--------------------|--------------------|--------------------|--------------------|
-| Linux/go-1.20.3 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Darwin/go-1.20.3 | :heavy_check_mark: | :heavy_check_mark: | partial | :x:                |
-| Windows/go-1.20.3 | :x:                | :interrobang:      | :question:                | :interrobang:   
-| Linux/go-1.19.4 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Darwin/go-1.19.4 | :heavy_check_mark: | :heavy_check_mark: | partial | :x:                |
-| Windows/go-1.19.4 | :x:                | :interrobang:      | :heavy_check_mark:                | :interrobang:      |
-| Linux/go-1.18.8 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Darwin/go-1.18.8 | :heavy_check_mark: | :heavy_check_mark: | partial | :x:                |
-| Windows/go-1.18.8 | :x:                | :interrobang:      | :heavy_check_mark:                | :interrobang:      |
+| Linux/go-1.20.3    | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Darwin/go-1.20.3   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Windows/go-1.20.3  | :heavy_check_mark: | :interrobang:      | :heavy_check_mark: | :interrobang:      |
+| Linux/go-1.19.4    | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Darwin/go-1.19.4   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Windows/go-1.19.4  | :heavy_check_mark: | :interrobang:      | :heavy_check_mark: | :interrobang:      |
+| Linux/go-1.18.8    | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Darwin/go-1.18.8   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| Windows/go-1.18.8  | :heavy_check_mark: | :interrobang:      | :heavy_check_mark: | :interrobang:      |
 
 ## Warning
 
