@@ -216,7 +216,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		case x86amd64CMPLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPLcode)
 			segment.codeByte[epilogueOffset+14] = cmplComparator // The 8 bit number to compare against
-			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr+uintptr(loc.Add)))
+			putAddress(linker.Arch.ByteOrder, segment.codeByte[epilogueOffset+3:], uint64(addr+uintptr(loc.Add+extraJMPDistance)))
 			epilogueOffset += len(x86amd64replaceCMPLcode)
 		case x86amd64MOVcode:
 			if dstRegister == 0x00 { // RAX
