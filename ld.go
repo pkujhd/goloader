@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"sort"
@@ -110,6 +111,9 @@ func initLinker(opts []LinkerOptFunc) (*Linker, error) {
 		pkgNamesToForceRebuild: make(map[string]struct{}),
 		reachableTypes:         make(map[string]struct{}),
 		reachableSymbols:       make(map[string]struct{}),
+	}
+	if os.Getenv("GOLOADER_FORCE_TEST_RELOCATION_EPILOGUES") == "1" {
+		opts = append(opts, WithForceTestRelocationEpilogues())
 	}
 	linker.Opts(opts...)
 

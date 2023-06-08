@@ -88,6 +88,7 @@ type LinkerOptions struct {
 	DumpTextBeforeAndAfterRelocs     bool
 	NoRelocationEpilogues            bool
 	SkipTypeDeduplicationForPackages []string
+	ForceTestRelocationEpilogues     bool
 }
 
 // WithSymbolNameOrder allows you to control the sequence (placement in memory) of symbols from an object file.
@@ -125,6 +126,12 @@ func WithDumpTextBeforeAndAfterRelocs() func(*LinkerOptions) {
 func WithSkipTypeDeduplicationForPackages(packages []string) func(*LinkerOptions) {
 	return func(options *LinkerOptions) {
 		options.SkipTypeDeduplicationForPackages = packages
+	}
+}
+
+func WithForceTestRelocationEpilogues() func(*LinkerOptions) {
+	return func(options *LinkerOptions) {
+		options.ForceTestRelocationEpilogues = true
 	}
 }
 

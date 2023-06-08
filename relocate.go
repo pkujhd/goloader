@@ -50,7 +50,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 		putAddress(byteorder, mCode[epilogueToRelocDistance:], uint64(symAddr+uintptr(loc.Add)))
 	}
 	// R_ADDRARM64 relocs include 2x 32 bit instructions, one ADRP, and one ADD/LDR/STR - both contain the destination register in the lowest 5 bits
-	if signedOffset > 1<<32 || signedOffset < -1<<32 {
+	if signedOffset > 1<<32 || signedOffset < -1<<32 || (linker.options.ForceTestRelocationEpilogues && loc.EpilogueSize > 0 && !(loc.Type == reloctype.R_ARM64_GOTPCREL || loc.Type == reloctype.R_ARM64_TLS_IE)) {
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >32-bit ADRP reloc with offset %d: %s", signedOffset, loc.Sym.Name)
 		}
@@ -139,7 +139,7 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 	epilogueOffset := loc.EpilogueOffset
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], createX86Nops(loc.EpilogueSize))
 
-	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+	if offset > 0x7FFFFFFF || offset < -0x80000000 || (linker.options.ForceTestRelocationEpilogues && loc.EpilogueSize > 0) {
 		// "CALL" into the epilogue, then immediately JMPL into the actual func using a PCREL 8 byte
 		// address immediately after the epilogue - the RET will bring us straight back to the call site
 		if loc.EpilogueSize == 0 {
@@ -171,7 +171,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 	}
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], createX86Nops(loc.EpilogueSize))
 
-	if offset > 0x7FFFFFFF || offset < -0x80000000 || loc.EpilogueSize > 0 {
+	if offset > 0x7FFFFFFF || offset < -0x80000000 || (linker.options.ForceTestRelocationEpilogues && loc.EpilogueSize > 0) {
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >32-bit PCREL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-3:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
@@ -274,7 +274,7 @@ func (linker *Linker) relocateCALLARM(addr uintptr, loc obj.Reloc, segment *segm
 	epilogueOffset := loc.EpilogueOffset
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], make([]byte, loc.EpilogueSize))
 	offset := (int(addr) + add - (segment.codeBase + loc.Offset)) / 4
-	if offset > 0x7FFFFF || offset < -0x800000 {
+	if offset > 0x7FFFFF || offset < -0x800000 || (linker.options.ForceTestRelocationEpilogues && loc.EpilogueSize > 0) {
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >24-bit CALLARM reloc with offset %d: %s", offset, loc.Sym.Name)
 		}
