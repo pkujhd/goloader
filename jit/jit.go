@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/eh-steve/goloader"
+	"github.com/eh-steve/goloader/libc"
 	"github.com/eh-steve/goloader/obj"
 	"io"
 	"log"
@@ -81,7 +82,7 @@ func RegisterCGoSymbol(symNameC string, symNameGo string) bool {
 			symNameC = "__error"
 		}
 	}
-	addr, err := LookupDynamicSymbol(symNameC)
+	addr, err := libc.LookupDynamicSymbol(symNameC)
 	if err != nil {
 		log.Println(err)
 		return false
@@ -277,7 +278,7 @@ func getMissingDeps(sortedDeps []string, unresolvedSymbols, unresolvedSymbolsWit
 func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 	if runtime.GOOS == "darwin" {
 		for k := range externalUnresolvedSymbols {
-			if strings.IndexByte(k, '.') == -1 {
+			if strings.IndexByte(k, '.') == -1 && !strings.HasPrefix(k, goloader.TypePrefix) {
 				if strings.HasPrefix(k, "libc_") {
 					// For dynlib symbols in $GOROOT/src/syscall/syscall_darwin.go
 					RegisterCGoSymbol(strings.TrimPrefix(k, "libc_"), k)

@@ -1,7 +1,7 @@
 //go:build cgo && !windows
 // +build cgo,!windows
 
-package jit
+package libc_cgo
 
 /*
 #cgo linux LDFLAGS: -ldl
