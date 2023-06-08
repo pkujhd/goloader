@@ -181,7 +181,8 @@ func ReadObjs(files []string, pkgPath []string, globalSymPtr map[string]uintptr,
 		symNames = append(symNames, pkg.SymNameOrder...)
 	}
 
-	for _, objSym := range linker.objsymbolMap {
+	for _, symName := range symNames {
+		objSym := linker.objsymbolMap[symName]
 		if strings.HasPrefix(objSym.Type, obj.UnresolvedSymRefPrefix) {
 			// This type symbol was likely in another package and so was unresolved at the time of loading the archive,
 			// but we might have added the missing package in a later archive, so try to resolve again.
