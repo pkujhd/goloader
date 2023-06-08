@@ -288,9 +288,10 @@ func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 					// For dynlib symbols in $GOROOT/src/crypto/x509/internal/macos/corefoundation.go
 					RegisterCGoSymbol(strings.TrimPrefix(k, "x509_"), k)
 				} else {
-					RegisterCGoSymbol(k, k)
 					if k[0] == '_' {
 						RegisterCGoSymbol(k[1:], k)
+					} else {
+						RegisterCGoSymbol(k, k)
 					}
 				}
 			}
@@ -299,7 +300,7 @@ func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 	} else {
 		for k := range externalUnresolvedSymbols {
 			// CGo symbols don't have a package name
-			if strings.IndexByte(k, '.') == -1 {
+			if strings.IndexByte(k, '.') == -1 && !strings.HasPrefix(k, goloader.TypePrefix) {
 				RegisterCGoSymbol(k, k)
 			}
 		}
