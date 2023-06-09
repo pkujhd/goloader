@@ -76,13 +76,15 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 		if err != nil {
 			panic(err)
 		}
+		defer func() {
+			err = os.Chdir(pwd)
+			if err != nil {
+				panic(err)
+			}
+		}()
 		loadable, err = jit.BuildGoText(conf, string(goText))
 		if err != nil {
 			t.Fatal(err)
-		}
-		err = os.Chdir(pwd)
-		if err != nil {
-			panic(err)
 		}
 	}
 	if err != nil {
@@ -305,6 +307,9 @@ func TestJitEmbeddedStruct(t *testing.T) {
 func TestJitCGoCall(t *testing.T) {
 	if os.Getenv("CGO_ENABLED") == "0" {
 		t.Skip("CGo disabled")
+	}
+	if runtime.GOOS == "windows" && goVersion(t) < 19 {
+		t.Skip("PE relocs not yet supported on go 1.18")
 	}
 	conf := baseConfig
 

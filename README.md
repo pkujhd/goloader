@@ -163,7 +163,7 @@ JIT compiler tested/passing on:
 | Windows/go-1.19.4  | :heavy_check_mark: | :interrobang:      | :heavy_check_mark: | :interrobang:      |
 | Linux/go-1.18.8    | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 | Darwin/go-1.18.8   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
-| Windows/go-1.18.8  | :heavy_check_mark: | :interrobang:      | :heavy_check_mark: | :interrobang:      |
+| Windows/go-1.18.8  | :x:                | :interrobang:      | :heavy_check_mark: | :interrobang:      |
 
 ## Warning
 
