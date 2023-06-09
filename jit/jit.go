@@ -298,6 +298,9 @@ func addCGoSymbols(externalUnresolvedSymbols map[string]*obj.Sym) {
 			}
 			// TODO - if more symbols use the //go:cgo_import_dynamic linker pragma, then they would also need to be registered here
 		}
+	} else if runtime.GOOS == "windows" {
+		// Windows doesn't have a libdl f
+		return
 	} else {
 		for k := range externalUnresolvedSymbols {
 			// CGo symbols don't have a package name
