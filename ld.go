@@ -69,6 +69,7 @@ type Linker struct {
 	reachableTypes         map[string]struct{}
 	reachableSymbols       map[string]struct{}
 	pkgs                   []*obj.Pkg
+	pkgsByName             map[string]*obj.Pkg
 }
 
 type CodeModule struct {
@@ -1116,6 +1117,14 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ig
 					}
 				}
 			}
+		}
+	}
+
+	for _, sym := range symMap {
+		_, alreadyBuiltPkg := linker.pkgsByName[sym.Pkg]
+		if alreadyBuiltPkg {
+			// If we already built and loaded the package which this symbol came from, it's probably linknamed and implemented in runtime
+			sym.Pkg = "runtime"
 		}
 	}
 	return symMap

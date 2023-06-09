@@ -294,6 +294,12 @@ outer:
 		return nil, err
 	}
 	linker.pkgs = pkgs
+
+	linker.pkgsByName = map[string]*obj.Pkg{}
+	for _, pkg := range pkgs {
+		linker.pkgsByName[pkg.PkgPath] = pkg
+	}
+
 	return linker, nil
 }
 

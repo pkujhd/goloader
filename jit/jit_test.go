@@ -77,6 +77,9 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 			panic(err)
 		}
 		loadable, err = jit.BuildGoText(conf, string(goText))
+		if err != nil {
+			t.Fatal(err)
+		}
 		err = os.Chdir(pwd)
 		if err != nil {
 			panic(err)
