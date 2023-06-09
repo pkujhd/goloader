@@ -12,7 +12,11 @@ import (
 	"github.com/eh-steve/goloader/jit/testdata/test_type_mismatch/typedef"
 	"github.com/eh-steve/goloader/unload/jsonunload"
 	"io"
+	"log"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -1347,16 +1352,60 @@ func TestGCGlobals(t *testing.T) {
 	}
 }
 
-func TestJson(t *testing.T) {
-	conf := jit.BuildConfig{
-		GoBinary:              goBinary,
-		KeepTempFiles:         false,
-		ExtraBuildFlags:       nil,
-		BuildEnv:              nil,
-		TmpDir:                "",
-		DebugLog:              false,
-		RandomSymbolNameOrder: false,
+func TestPprofIssue75(t *testing.T) {
+	conf := baseConfig
+
+	data := testData{
+		files: []string{"./testdata/test_pprof/test.go"},
+		pkg:   "./testdata/test_pprof",
 	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			server := http.Server{
+				Addr: ":6060",
+			}
+			defer server.Close()
+			go func() {
+				log.Println(server.ListenAndServe())
+			}()
+
+			keepRequesting := atomic.Value{}
+			keepRequesting.Store(true)
+			requestCount := 0
+			go func() {
+				r, err := http.NewRequest("GET", "http://localhost:6060/debug/pprof/heap?debug=1", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for keepRequesting.Load() == true {
+					respRec := httptest.NewRecorder()
+					http.DefaultServeMux.ServeHTTP(respRec, r)
+					if respRec.Code != 200 {
+						t.Errorf("Got a non-200 response: %d %s", respRec.Code, respRec.Body.String())
+					}
+					requestCount++
+				}
+			}()
+			testFunc := symbols["TestPprofIssue75"].(func() int)
+			for i := 0; i < 1000; i++ {
+				testFunc()
+			}
+			keepRequesting.Store(false)
+			fmt.Println(requestCount)
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Millisecond * 100)
+		})
+	}
+}
+
+func TestJson(t *testing.T) {
+	conf := baseConfig
 
 	data := testData{
 		files: []string{"./testdata/test_json_marshal/test.go"},
