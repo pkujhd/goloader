@@ -209,14 +209,18 @@ func PatchGC(goBinary string, debugLog bool) error {
 
 	newCompilerPath := filepath.Join(tmpDir, "compile"+fileExtension)
 	buildCmd := exec.Command(goBinary, "build", "-o", newCompilerPath, "cmd/compile")
+	buildOutput := &bytes.Buffer{}
 	if debugLog {
 		log.Printf("compiling %s\n", newCompilerPath)
-		buildCmd.Stderr = os.Stderr
-		buildCmd.Stdout = os.Stdout
+		buildCmd.Stderr = io.MultiWriter(os.Stderr, buildOutput)
+		buildCmd.Stdout = io.MultiWriter(os.Stdout, buildOutput)
+	} else {
+		buildCmd.Stderr = buildOutput
+		buildCmd.Stdout = buildOutput
 	}
 	err = buildCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to compile cmd/compile: %w", err)
+		return fmt.Errorf("failed to compile cmd/compile: %w:\n%s", err, buildOutput.String())
 	}
 	goCompilerPath := filepath.Join(goToolDir, "compile"+fileExtension)
 	err = move(goCompilerPath, goCompilerPath+".bak")

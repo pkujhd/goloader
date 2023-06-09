@@ -1284,6 +1284,10 @@ func TestK8s(t *testing.T) {
 	if goVersion(t) < 19 {
 		t.Skip("k8s requires 1.19+")
 	}
+	if runtime.GOOS == "windows" {
+		t.Skip("k8s requires golang/x/sys/windows to init which causes error: Failed to load kernel32.dll: The system cannot find the path specified (possibly a problem in golang.org/x/sys?)")
+	}
+
 	conf := baseConfig
 	conf.UnsafeBlindlyUseFirstmoduleTypes = true
 	data := testData{
@@ -1419,7 +1423,7 @@ func TestRemotePkgs(t *testing.T) {
 		"gonum.org/v1/gonum/mat", // gonum has plenty of asm
 	}
 
-	if goVersion(t) >= 19 {
+	if goVersion(t) >= 19 && runtime.GOOS != "windows" {
 		remotePackagesToBuild = append(remotePackagesToBuild,
 			"k8s.io/client-go/kubernetes", // K8s is a whopper
 			"k8s.io/client-go/rest")       // also hefty

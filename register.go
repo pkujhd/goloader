@@ -162,7 +162,7 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 			if arm64Found {
 				typeFound = append(typeFound, "runtime.tls_g")
 			}
-			if runtime.GOOS == "darwin" {
+			if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 				log.Printf("Got a TLS symbol %s emitted in the main binary (value 0x%x or 0x%x), but not sure what to do with it\n", typeFound, tlsG, tls_G)
 				return nil
 			}
