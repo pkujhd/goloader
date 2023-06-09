@@ -1327,6 +1327,9 @@ func TestK8s(t *testing.T) {
 func TestGCGlobals(t *testing.T) {
 	conf := baseConfig
 
+	if runtime.GOOS == "windows" && goVersion(t) < 19 {
+		t.Skip("this test is broken on go1.18 windows")
+	}
 	data := testData{
 		files: []string{"./testdata/test_gc_globals/test.go"},
 		pkg:   "./testdata/test_gc_globals",
