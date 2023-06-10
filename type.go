@@ -131,7 +131,7 @@ func resolveFullyQualifiedSymbolName(t *_type) string {
 				fieldName = ""
 			}
 			fieldPkgPath := ""
-			if typ.Field(i).PkgPath != "" && typ.Field(i).Type.PkgPath() == "" {
+			if typ.Field(i).PkgPath != "" && !typ.Field(i).Anonymous {
 				fieldPkgPath = unescapeGoShapePkg(objabi.PathToPrefix(typ.Field(i).PkgPath)) + "."
 			}
 			fieldStructTag := ""
