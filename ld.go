@@ -1124,7 +1124,15 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ig
 		_, alreadyBuiltPkg := linker.pkgsByName[sym.Pkg]
 		if alreadyBuiltPkg {
 			// If we already built and loaded the package which this symbol came from, it's probably linknamed and implemented in runtime
-			sym.Pkg = "runtime"
+			if sym.Pkg != "runtime" {
+				sym.Pkg = "runtime"
+			} else {
+				// If we already built runtime and still can't find this sym, it may be a runtime/internal/* type
+				// TODO - this doesn't seem robust
+				if strings.HasPrefix(sym.Name, TypePrefix+"runtime/internal") {
+					sym.Pkg = strings.Split(strings.TrimPrefix(sym.Name, TypePrefix), ".")[0]
+				}
+			}
 		}
 	}
 	return symMap
