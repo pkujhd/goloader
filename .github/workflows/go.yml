@@ -1,4 +1,4 @@
-name: goloader Testing
+name: goloader
 
 on:
   push:

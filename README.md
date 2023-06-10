@@ -1,6 +1,6 @@
 # Goloader/JIT Compiler for Go
 
-![Build Status](https://github.com/eh-steve/goloader/workflows/goloader%20Testing/badge.svg)
+[![Build Status](https://github.com/eh-steve/goloader/actions/workflows/go.yml/badge.svg)](https://github.com/eh-steve/goloader/actions/workflows/go.yml)
 
 The `goloader/jit` package can compile and load Go code from text, file, folder or remote package (including code with
 package imports).
