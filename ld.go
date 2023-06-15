@@ -322,7 +322,7 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				default:
 					switch instructionBytes[1] {
 					case x86amd64CALLcode:
-						epilogueSize = maxExtraInstructionBytesPCRELxCALLNear
+						epilogueSize = maxExtraInstructionBytesPCRELxCALL
 					case x86amd64JMPcode:
 						epilogueSize = maxExtraInstructionBytesPCRELxJMP
 					}
@@ -337,13 +337,6 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				case x86amd64CMPLcode:
 					if shortJmp {
 						epilogueSize = maxExtraInstructionBytesPCRELxCMPLShort
-					}
-				default:
-					switch instructionBytes[1] {
-					case x86amd64CALLcode:
-						if shortJmp {
-							epilogueSize = maxExtraInstructionBytesPCRELxCALLShort
-						}
 					}
 				}
 				objsym.Reloc[i].EpilogueSize = epilogueSize
