@@ -16,8 +16,8 @@ const (
 	maxExtraCodeSize_ADDRARM64        = 20
 	maxExtraCodeSize_CALLARM64        = 16
 	maxExtraCodeSize_ARM64_PCREL_LDST = 24
-	maxExtraCodeSize_PCRELxMOV        = 15
-	maxExtraCodeSize_PCRELxCMPL       = 21
+	maxExtraCodeSize_PCRELxMOV        = 18
+	maxExtraCodeSize_PCRELxCMPL       = 24
 	maxExtraCodeSize_PCRELxCALL       = 19
 	maxExtraCodeSize_PCRELxJMP        = 14
 	maxExtraCodeSize_CALL             = 14
@@ -192,13 +192,14 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		switch opcode {
 		case x86amd64CMPLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPLcode)
-			segment.codeByte[epilogueOffset+0x0E] = relocByte[loc.Offset+loc.Size]
-			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
+			segment.codeByte[epilogueOffset+0x11] = relocByte[loc.Offset+loc.Size]
+			putAddress(byteorder, segment.codeByte[epilogueOffset+3:], uint64(addr))
 			epilogueOffset += len(x86amd64replaceCMPLcode)
 		case x86amd64MOVcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
 			segment.codeByte[epilogueOffset+1] |= register
-			copy2Slice(segment.codeByte[epilogueOffset+2:], addr, PtrSize)
+			segment.codeByte[epilogueOffset+0xC] |= register | (register << 3)
+			putAddress(byteorder, segment.codeByte[epilogueOffset+2:], uint64(addr))
 			epilogueOffset += len(x86amd64replaceMOVQcode)
 		case x86amd64CALLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
