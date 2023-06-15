@@ -34,16 +34,6 @@ var (
 	x86amd64JMPLcode        = []byte{0xff, 0x25, 0x00, 0x00, 0x00, 0x00} // JMPL *ADDRESS
 	x86amd64JMPNearCode     = []byte{0xE9, 0x00, 0x00, 0x00, 0x00}       // JMP (PCREL offset)+4
 	x86amd64JMPShortCode    = []byte{0xEB, 0x00}                         // JMP (PCREL offset)+1
-	x86amd64replaceCALLcode = []byte{
-		// R15 is callee save, so can do what we want with it, but we shouldn't clobber RAX, so push/pop before we CALL
-		0x41, 0x57, // PUSH R15
-		0x50,                                                       // PUSH RAX
-		0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // MOVABS RAX, imm64 (64 bit)  (Can't MOVABS into R15 directly)
-		0x49, 0x89, 0xc7, // MOV RAX, R15
-		0x58,             // POP RAX
-		0x41, 0xff, 0xd7, // CALL R15
-		0x41, 0x5f, // POP R15
-	}
 	x86amd64replaceCMPLcode = []byte{
 		0x50,                                                       // PUSH RAX
 		0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // MOVABS RAX, imm64 (64 bit)
