@@ -69,4 +69,10 @@ type Reloc struct {
 	Size   int
 	Type   int
 	Add    int
+	Epilogue
+}
+
+type Epilogue struct {
+	Offset int
+	Size   int
 }

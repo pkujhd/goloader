@@ -148,6 +148,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	case symkind.STEXT:
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
+		expandFunc(linker, objsym, symbol)
 		bytearrayAlign(&linker.code, PtrSize)
 		symbol.Func = &obj.Func{}
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
@@ -183,7 +184,10 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 
 	for _, loc := range objsym.Reloc {
 		reloc := loc
-		reloc.Offset = reloc.Offset + symbol.Offset
+		reloc.Offset += symbol.Offset
+		if reloc.Epilogue.Offset != 0 {
+			reloc.Epilogue.Offset += symbol.Offset
+		}
 		if _, ok := linker.objsymbolMap[reloc.Sym.Name]; ok {
 			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name)
 			if err != nil {
@@ -269,6 +273,16 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	}
 
 	adaptePCFile(linker, symbol)
+	for _, reloc := range symbol.Reloc {
+		if reloc.Epilogue.Size > 0 {
+			patchPCValues(linker, &symbol.Func.PCSP, reloc)
+			patchPCValues(linker, &symbol.Func.PCFile, reloc)
+			patchPCValues(linker, &symbol.Func.PCLine, reloc)
+			for i := range symbol.Func.PCData {
+				patchPCValues(linker, &symbol.Func.PCData[i], reloc)
+			}
+		}
+	}
 	pcspOff := len(linker.pclntable)
 	linker.pclntable = append(linker.pclntable, symbol.Func.PCSP...)
 
