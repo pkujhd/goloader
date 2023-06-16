@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	maxExtraCodeSize_ADDRARM64        = 20
+	maxExtraCodeSize_ADDRARM64        = 24
 	maxExtraCodeSize_CALLARM64        = 16
 	maxExtraCodeSize_ARM64_PCREL_LDST = 24
 	maxExtraCodeSize_PCRELxMOV        = 18
-	maxExtraCodeSize_PCRELxCMPL       = 24
-	maxExtraCodeSize_PCRELxCALL       = 19
+	maxExtraCodeSize_PCRELxCMPL       = 21
+	maxExtraCodeSize_PCRELxCALL       = 14
 	maxExtraCodeSize_PCRELxJMP        = 14
 	maxExtraCodeSize_CALL             = 14
 )
@@ -59,7 +59,7 @@ func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 				}
 			}
 			if epilogue.Size > 0 {
-				linker.code = append(linker.code, make([]byte, epilogue.Size)...)
+				linker.code = append(linker.code, createArchNops(linker.Arch, epilogue.Size)...)
 			}
 		}
 	}
@@ -182,7 +182,6 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 			copy(bytes, append(x86amd64NOPcode, x86amd64JMPNcode...))
 		} else if (bytes[1] == x86amd64CALLcode) && byteorder.Uint32(relocByte[loc.Offset:]) == 0 {
 			opcode = bytes[1]
-			copy(bytes, append(x86amd64NOPcode, x86amd64JMPNcode...))
 		} else if bytes[1] == x86amd64JMPcode {
 			opcode = bytes[1]
 		} else {
@@ -193,25 +192,25 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		case x86amd64CMPLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPLcode)
 			segment.codeByte[epilogueOffset+0x11] = relocByte[loc.Offset+loc.Size]
-			putAddress(byteorder, segment.codeByte[epilogueOffset+3:], uint64(addr))
+			putAddress(byteorder, segment.codeByte[epilogueOffset+3:], uint64(addr)+uint64(loc.Add))
 			epilogueOffset += len(x86amd64replaceCMPLcode)
 		case x86amd64MOVcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
 			segment.codeByte[epilogueOffset+1] |= register
 			segment.codeByte[epilogueOffset+0xC] |= register | (register << 3)
-			putAddress(byteorder, segment.codeByte[epilogueOffset+2:], uint64(addr))
+			putAddress(byteorder, segment.codeByte[epilogueOffset+2:], uint64(addr)+uint64(loc.Add))
 			epilogueOffset += len(x86amd64replaceMOVQcode)
 		case x86amd64CALLcode:
-			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
-			copy2Slice(segment.codeByte[epilogueOffset+3:], addr, PtrSize)
-			epilogueOffset += len(x86amd64replaceCALLcode)
+			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
+			epilogueOffset += len(x86amd64JMPLcode)
+			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
 		case x86amd64JMPcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
 			epilogueOffset += len(x86amd64JMPLcode)
 			copy2Slice(segment.codeByte[epilogueOffset:], addr, PtrSize)
 			epilogueOffset += PtrSize
 		case x86amd64LEAcode:
-			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr))
+			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr)+uint64(loc.Add))
 		default:
 			return fmt.Errorf("unexpected x86 opcode %x: %x for symbol %s (offset %d)!\n", opcode, relocByte[loc.Offset-2:loc.Offset], loc.Sym.Name, offset)
 		}

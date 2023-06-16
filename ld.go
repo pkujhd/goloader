@@ -149,7 +149,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
 		expandFunc(linker, objsym, symbol)
-		bytearrayAlign(&linker.code, PtrSize)
+		bytearrayAlignNops(linker.Arch, &linker.code, PtrSize)
 		symbol.Func = &obj.Func{}
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err

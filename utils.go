@@ -37,6 +37,43 @@ func bytearrayAlign(b *[]byte, align int) {
 	}
 }
 
+func bytearrayAlignNops(arch *sys.Arch, b *[]byte, align int) {
+	length := len(*b)
+	if length%align != 0 {
+		*b = append(*b, make([]byte, align-length%align)...)
+	}
+}
+
+func createArchNops(arch *sys.Arch, size int) []byte {
+	switch arch.Name {
+	case sys.ArchARM.Name, sys.ArchARM64.Name:
+		return createArm64Nops(size)
+	case sys.Arch386.Name, sys.ArchAMD64.Name:
+		return createX86Amd64Nops(size)
+	default:
+		panic(fmt.Errorf("not support arch:%s", arch.Name))
+	}
+}
+
+func createX86Amd64Nops(size int) []byte {
+	nops := make([]byte, size)
+	for i := 0; i < size; i++ {
+		copy(nops[i:], x86amd64NOPcode)
+	}
+	return nops
+}
+
+func createArm64Nops(size int) []byte {
+	if size%4 != 0 {
+		panic(fmt.Sprintf("can't make nop instruction if padding is not multiple of 4, got %d", size))
+	}
+	nops := make([]byte, size)
+	for i := 0; i < size/sys.ArchARM.MinLC; i += 4 {
+		copy(nops[i:], arm64Nopcode)
+	}
+	return nops
+}
+
 func putAddressAddOffset(byteOrder binary.ByteOrder, b []byte, offset *int, addr uint64) {
 	if PtrSize == Uint32Size {
 		byteOrder.PutUint32(b[*offset:], uint32(addr))
@@ -77,9 +114,10 @@ func append2Slice(dst *[]byte, src uintptr, size int) {
 	*dst = append(*dst, *(*[]byte)(unsafe.Pointer(&s))...)
 }
 
+// see runtime.internal.atomic.Loadp
+//
 //go:nosplit
 //go:noinline
-//see runtime.internal.atomic.Loadp
 func loadp(ptr unsafe.Pointer) unsafe.Pointer {
 	return *(*unsafe.Pointer)(ptr)
 }
@@ -116,7 +154,7 @@ func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
 	mmap.MakeThreadJITCodeExecutable(ptr, len)
 }
 
-//see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
+// see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
 func ispreprocesssymbol(name string) bool {
 	if len(name) > 5 {
 		switch name[:5] {
