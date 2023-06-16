@@ -216,7 +216,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		}
 
 		switch opcode {
-		case x86amd64CMPLcode, x86amd64MOVcode, x86amd64CALLcode:
+		case x86amd64CMPLcode, x86amd64MOVcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPNcode)
 			epilogueOffset += len(x86amd64JMPNcode)
 			returnOffset := (loc.Offset + loc.Size - loc.Add) - epilogueOffset
