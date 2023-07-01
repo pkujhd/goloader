@@ -351,17 +351,12 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = ptr
 			}
 		} else {
-			if _, ok := symPtr[name]; !ok {
-				if strings.HasPrefix(name, TypeStringPrefix) {
-					symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
-				} else {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-				}
+			if strings.HasPrefix(name, TypeStringPrefix) {
+				symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
+			} else if _, ok := linker.symMap[name]; ok {
+				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 			} else {
 				symbolMap[name] = symPtr[name]
-				if strings.HasPrefix(name, MainPkgPrefix) {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-				}
 			}
 		}
 	}
@@ -453,17 +448,17 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 			!strings.HasPrefix(name, TypeDoubleDotPrefix) &&
 			addr >= module.types && addr < module.etypes {
 			module.typelinks = append(module.typelinks, int32(addr-module.types))
-			module.typemap[typeOff(addr-module.types)] = addr
 		}
 	}
 	initmodule(codeModule.module, linker)
 
 	modulesLock.Lock()
-	addModule(codeModule)
+	addModule(codeModule.module)
 	modulesLock.Unlock()
-	additabs(codeModule.module)
 	moduledataverify1(codeModule.module)
 	modulesinit()
+	typelinksinit()
+	additabs(codeModule.module)
 
 	return err
 }
@@ -471,7 +466,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	codeModule = &CodeModule{
 		Syms:   make(map[string]uintptr),
-		module: &moduledata{typemap: make(map[typeOff]uintptr)},
+		module: &moduledata{typemap: nil},
 	}
 	codeModule.codeLen = len(linker.code)
 	codeModule.dataLen = len(linker.data)

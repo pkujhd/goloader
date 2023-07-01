@@ -69,6 +69,12 @@ func _methods(t *uncommonType) []method
 //go:linkname _Kind reflect.(*rtype).Kind
 func _Kind(t *_type) reflect.Kind
 
+//go:linkname resolveNameOff runtime.resolveNameOff
+func resolveNameOff(ptrInModule unsafe.Pointer, off nameOff) name
+
+//go:linkname typelinksinit runtime.typelinksinit
+func typelinksinit()
+
 func (t *_type) uncommon() *uncommonType    { return _uncommon(t) }
 func (t *_type) nameOff(off nameOff) name   { return _nameOff(t, off) }
 func (t *_type) typeOff(off typeOff) *_type { return _typeOff(t, off) }
@@ -107,11 +113,9 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 	inter := v.Interface()
 	if v.Kind() == reflect.Func && getFunctionPtr(inter) != 0 {
 		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = getFunctionPtr(inter)
-	} else {
-		header := (*emptyInterface)(unsafe.Pointer(&inter))
-		pkgpath := (*_type)(header.typ).PkgPath()
-		name := strings.Replace(v.Type().String(), pkgname(pkgpath), pkgpath, 1)
-		symPtr[TypePrefix+name] = uintptr(header.typ)
 	}
-
+	header := (*emptyInterface)(unsafe.Pointer(&inter))
+	pkgpath := (*_type)(header.typ).PkgPath()
+	name := strings.Replace(v.Type().String(), pkgname(pkgpath), pkgpath, 1)
+	symPtr[TypePrefix+name] = uintptr(header.typ)
 }
