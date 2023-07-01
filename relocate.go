@@ -320,6 +320,10 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 							err = fmt.Errorf("symName:%s offset:%d is overflow!\n", sym.Name, offset)
 						}
 						byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+					case reloctype.R_GOTPCREL, reloctype.R_ARM64_GOTPCREL:
+						offset := uint32(segment.dataBase + segment.dataOff - addrBase - loc.Offset - loc.Size)
+						byteorder.PutUint32(relocByte[loc.Offset:], offset)
+						putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr))
 					case reloctype.R_USETYPE:
 						//nothing todo
 					case reloctype.R_USEIFACE:

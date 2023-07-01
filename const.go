@@ -34,8 +34,8 @@ const (
 
 // string match prefix/suffix
 const (
-	FileSymPrefix              = "gofile.."
-	MainPkgPrefix              = "main."
-	OsStdout                   = "os.Stdout"
-	DefaultStringContainerSize = 1024 * 1024 * 16
+	FileSymPrefix  = "gofile.."
+	MainPkgPrefix  = "main."
+	OsStdout       = "os.Stdout"
+	GOTPCRELSuffix = "·f"
 )

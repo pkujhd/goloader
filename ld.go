@@ -334,6 +334,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
+			} else if addr, ok := symPtr[strings.TrimSuffix(name, GOTPCRELSuffix)]; ok && strings.HasSuffix(name, GOTPCRELSuffix) {
+				symbolMap[name] = uintptr(segment.dataBase) + uintptr(segment.dataOff)
+				putAddressAddOffset(linker.Arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
 			} else {
 				symbolMap[name] = InvalidHandleValue
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
