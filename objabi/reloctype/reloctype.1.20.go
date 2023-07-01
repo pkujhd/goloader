@@ -58,6 +58,10 @@ const (
 	// symbol's DWARF compile unit.
 	R_ADDRCUOFF = (int)(objabi.R_ADDRCUOFF)
 
+	R_GOTPCREL = (int)(objabi.R_GOTPCREL)
+
+	R_ARM64_GOTPCREL = (int)(objabi.R_ARM64_GOTPCREL)
+
 	// R_ARM64_PCREL_LDST8 resolves a PC-relative addresses instruction sequence, usually an
 	// adrp followed by a LD8 or ST8 instruction.
 	R_ARM64_PCREL_LDST8 = (int)(objabi.R_ARM64_PCREL_LDST8)

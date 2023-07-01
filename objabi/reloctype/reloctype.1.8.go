@@ -35,6 +35,10 @@ const (
 	// *rtype, and may be set to zero by the linker if it determines the method
 	// text is unreachable by the linked program.
 	R_METHODOFF = (int)(obj.R_METHODOFF)
+
+	R_GOTPCREL = (int)(obj.R_GOTPCREL)
+
+	R_ARM64_GOTPCREL = (int)(obj.R_ARM64_GOTPCREL)
 )
 
 const (

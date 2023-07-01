@@ -54,6 +54,10 @@ const (
 	// text is unreachable by the linked program.
 	R_METHODOFF = (int)(objabi.R_METHODOFF)
 
+	R_GOTPCREL = (int)(objabi.R_GOTPCREL)
+
+	R_ARM64_GOTPCREL = (int)(objabi.R_ARM64_GOTPCREL)
+
 	// R_ADDRCUOFF resolves to a pointer-sized offset from the start of the
 	// symbol's DWARF compile unit.
 	R_ADDRCUOFF = (int)(objabi.R_ADDRCUOFF)
