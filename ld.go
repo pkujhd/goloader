@@ -353,10 +353,16 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		} else {
 			if strings.HasPrefix(name, TypeStringPrefix) {
 				symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
-			} else if _, ok := linker.symMap[name]; ok {
-				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-			} else {
+			} else if strings.HasPrefix(name, TypePrefix) {
+				if _, ok := linker.symMap[name]; ok {
+					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+				} else {
+					symbolMap[name] = symPtr[name]
+				}
+			} else if _, ok := symPtr[name]; ok {
 				symbolMap[name] = symPtr[name]
+			} else {
+				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 			}
 		}
 	}
