@@ -8,8 +8,8 @@ import (
 	"unsafe"
 )
 
-//!IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
-func typelinksinit(symPtr map[string]uintptr) {
+// !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
+func typelinksRegister(symPtr map[string]uintptr) {
 	md := firstmoduledata
 	for _, tl := range md.typelinks {
 		t := (*_type)(adduintptr(md.types, int(tl)))
@@ -66,7 +66,7 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 	}
 	defer f.Close()
 
-	typelinksinit(symPtr)
+	typelinksRegister(symPtr)
 	syms, err := f.Symbols()
 	for _, sym := range syms {
 		if sym.Name == OsStdout {
