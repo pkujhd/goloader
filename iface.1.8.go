@@ -39,20 +39,7 @@ func additab(m *itab, locked, canfail bool)
 func additabs(module *moduledata) {
 	lock(ifaceLock)
 	for _, itab := range module.itablinks {
-		//golang1.8-1.9 not relocate itab.fun, in additab function, itab.fun is setted. but additab check type match,
-		//interface _type is in first moduledata, but type in loaded moduledata, set module.typemap[typeOff](trick)
-		//golang1.10+ relcate itab.fun, That's not necessary!
 		if itab.inhash == 0 {
-			methods := itab._type.uncommon().methods()
-			for k := 0; k < len(methods); k++ {
-				for m := 0; m < len(itab.inter.mhdr); m++ {
-					if itab.inter.typ.nameOff(itab.inter.mhdr[m].name).name() ==
-						itab._type.nameOff(methods[k].name).name() {
-						itype := uintptr(unsafe.Pointer(itab.inter.typ.typeOff(itab.inter.mhdr[m].ityp)))
-						module.typemap[methods[k].mtyp] = itype
-					}
-				}
-			}
 			additab(itab, true, false)
 		}
 	}
