@@ -33,11 +33,9 @@ func registerType(t *_type, symPtr map[string]uintptr, pkgSet map[string]struct{
 	symPtr[TypePrefix+name] = uintptr(unsafe.Pointer(t))
 
 	switch t.Kind() {
-	case reflect.Ptr:
-		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-		if element != nil && element.Kind() != reflect.Invalid {
-			registerType(element, symPtr, pkgSet)
-		}
+	case reflect.Ptr, reflect.Chan, reflect.Array, reflect.Slice:
+		element := t.Elem()
+		registerType(element, symPtr, pkgSet)
 	case reflect.Func:
 		typ := AsType(t)
 		for i := 0; i < typ.NumIn(); i++ {
@@ -51,9 +49,6 @@ func registerType(t *_type, symPtr map[string]uintptr, pkgSet map[string]struct{
 		for i := 0; i < typ.NumField(); i++ {
 			registerType(toType(typ.Field(i).Type), symPtr, pkgSet)
 		}
-	case reflect.Chan, reflect.Array, reflect.Slice:
-		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-		registerType(element, symPtr, pkgSet)
 	case reflect.Map:
 		mt := (*mapType)(unsafe.Pointer(t))
 		registerType(mt.key, symPtr, pkgSet)

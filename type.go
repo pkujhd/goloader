@@ -93,7 +93,7 @@ func _methods(t *uncommonType) []method
 func _Kind(t *_type) reflect.Kind
 
 //go:linkname _Elem reflect.(*rtype).Elem
-func _Elem(t *_type) *_type
+func _Elem(t *_type) reflect.Type
 
 func (t *_type) uncommon() *uncommonType    { return _uncommon(t) }
 func (t *_type) nameOff(off nameOff) name   { return _nameOff(t, off) }
@@ -103,7 +103,7 @@ func (n name) pkgPath() string              { return _pkgPath(n) }
 func (n name) isExported() bool             { return _isExported(n) }
 func (t *uncommonType) methods() []method   { return _methods(t) }
 func (t *_type) Kind() reflect.Kind         { return _Kind(t) }
-func (t *_type) Elem() *_type               { return _Elem(t) }
+func (t *_type) Elem() *_type               { return fromRType(_Elem(t)) }
 
 // This replaces local package names with import paths, including where the package name doesn't match the last part of the import path e.g.
 //
@@ -370,17 +370,10 @@ func registerTypeHash(t *_type, typeHash map[uint32][]*_type) {
 	typeHash[t.hash] = append(tlist, t)
 
 	switch t.Kind() {
-	case reflect.Ptr:
-		// Indirect pointers
-		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-		if element != nil && element.Kind() != reflect.Invalid {
-			registerTypeHash(element, typeHash)
-		}
-		elem := t.Elem()
-		if elem != nil && elem.Kind() != reflect.Invalid {
-			panic(fmt.Sprintf("WTF?? %s", elem.nameOff(elem.str).name()))
-			registerTypeHash(elem, typeHash)
-		}
+	case reflect.Ptr, reflect.Chan, reflect.Array, reflect.Slice:
+		// Indirect pointers + elems
+		element := t.Elem()
+		registerTypeHash(element, typeHash)
 	case reflect.Func:
 		typ := AsType(t)
 		for i := 0; i < typ.NumIn(); i++ {
@@ -394,9 +387,6 @@ func registerTypeHash(t *_type, typeHash map[uint32][]*_type) {
 		for i := 0; i < typ.NumField(); i++ {
 			registerTypeHash(toType(typ.Field(i).Type), typeHash)
 		}
-	case reflect.Chan, reflect.Array, reflect.Slice:
-		element := *(**_type)(add(unsafe.Pointer(t), unsafe.Sizeof(_type{})))
-		registerTypeHash(element, typeHash)
 	case reflect.Map:
 		mt := (*mapType)(unsafe.Pointer(t))
 		registerTypeHash(mt.key, typeHash)
