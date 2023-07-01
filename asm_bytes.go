@@ -11,13 +11,10 @@ const (
 // arm/arm64
 var (
 	armReplaceCallCode = []byte{0x04, 0xF0, 0x1F, 0xE5} //LDR PC, [PC, #-4]
-	// X16 and X17 are the IP0 and IP1 intra-procedure-call corruptible registers -
-	// since Go only uses them for the stack prologue and epilogue calculations,
-	// and we should already be clear of that by the time we hit a R_CALLARM64,
-	// so we should be able to safely use them for far jumps
+	// register X27 reserved for liblink. see:^src/cmd/objfile/obj/arm64/a.out.go
 	arm64ReplaceCALLCode = []byte{
-		0x51, 0x00, 0x00, 0x58, // LDR X17 [PC+8] - read 64 bit address from PC+8 into X17
-		0x20, 0x02, 0x1f, 0xd6, // BR  X17 - jump to address in X17
+		0x5B, 0x00, 0x00, 0x58, // LDR X27 [PC+8] - read 64 bit address from PC+8 into X27
+		0x60, 0x03, 0x1F, 0xD6, // BR  X27 - jump to address in X27
 	}
 	arm64Bcode   = []byte{0x00, 0x00, 0x00, 0x14} // B [PC+0x0]
 	arm64LDRcode = []byte{0x00, 0x00, 0x40, 0xF9} // LDR XX [XX]
