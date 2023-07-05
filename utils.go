@@ -196,7 +196,8 @@ func expandGoroot(s string) string {
 
 func goVersion() int64 {
 	GoVersionParts := strings.Split(strings.TrimPrefix(runtime.Version(), "go"), ".")
-	version, err := strconv.ParseInt(GoVersionParts[1], 10, 64)
+	stripRC := strings.Split(GoVersionParts[1], "rc")[0] // Treat release candidates as if they are that version
+	version, err := strconv.ParseInt(stripRC, 10, 64)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse go version: %s", err))
 	}

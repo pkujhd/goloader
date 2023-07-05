@@ -1,3 +1,3 @@
 module github.com/eh-steve/goloader
 
-go 1.9
+go 1.18

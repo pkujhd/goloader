@@ -59,6 +59,7 @@ func goEnv(goBinary string) (map[string]string, error) {
 	goEnvCmd := exec.Command(goBinary, "env")
 	buf := bytes.Buffer{}
 	goEnvCmd.Stdout = &buf
+	goEnvCmd.Env = os.Environ()
 	err := goEnvCmd.Run()
 	if err != nil {
 		return nil, fmt.Errorf("could not run '%s env': %w", goBinary, err)
@@ -79,6 +80,12 @@ func goEnv(goBinary string) (map[string]string, error) {
 			val, err = strconv.Unquote(split[1])
 			if err != nil && val != "" {
 				return nil, fmt.Errorf("failed to unquote %s (%s): %w", key, val, err)
+			} else if err != nil {
+				// single quoted
+				const singleQuote = "'"
+				if len(split[1]) >= 2 && split[1][0] == singleQuote[0] && split[1][len(split[1])-1] == singleQuote[0] {
+					val = split[1][1 : len(split[1])-1]
+				}
 			}
 		}
 		result[key] = val

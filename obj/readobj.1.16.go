@@ -1,5 +1,5 @@
-//go:build go1.16 && !go1.21
-// +build go1.16,!go1.21
+//go:build go1.16 && !go1.22
+// +build go1.16,!go1.22
 
 package obj
 
@@ -248,7 +248,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 			if obj.ABI(symbol.Func.ABI) == obj.ABI0 {
 				// reflect.callReflect/reflect.makeFuncStub are special ABI wrappers, not like typical ABI0/ABIInternal wrappers
 				if obj.ABI(original.Func.ABI) == obj.ABIInternal && symbol.Name != "reflect.callReflect" && symbol.Name != "reflect.makeFuncStub" {
-					if original.Func.FuncID == uint8(objabi.FuncID_wrapper) {
+					if original.Func.FuncID == uint8(FuncIDWrapper) {
 						original.Name += ABIInternalSuffix
 						original.Pkg = symbol.Pkg
 						if _, ok := pkg.Syms[original.Name]; !ok {
@@ -265,7 +265,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, idx uint32, refNames *map[goobj.SymRef]s
 				}
 			} else if obj.ABI(symbol.Func.ABI) == obj.ABIInternal {
 				if obj.ABI(original.Func.ABI) == obj.ABI0 {
-					if original.Func.FuncID == uint8(objabi.FuncID_wrapper) {
+					if original.Func.FuncID == uint8(FuncIDWrapper) {
 						original.Name += ABI0Suffix
 						original.Pkg = symbol.Pkg
 						if _, ok := pkg.Syms[original.Name]; !ok {
@@ -486,12 +486,22 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 	var objSymbols []*ObjSymbol
 	var objSymAddr []uint64
 	for _, s := range elfSyms {
+		sectionData := text
+		if s.Section < elf.SHN_LORESERVE && !(s.Section < 0 || int(s.Section) >= len(f.Sections)) {
+			sect := f.Sections[s.Section]
+			if sect.Type != elf.SHT_NOBITS {
+				sectionData, err = sect.Data()
+				if err != nil {
+					return fmt.Errorf("failed to read section data from elf section %s %s (size %d): %w", e.Name, sect.Name, sect.Size, err)
+				}
+			}
+		}
 		var sym *ObjSymbol
 		var addr uint64
-		if s.Name != "" && s.Size != 0 {
+		if s.Name != "" {
 			addr = s.Value
 			data := make([]byte, s.Size)
-			copy(data, text[addr+textOffset:])
+			copy(data, sectionData[addr+textOffset:])
 			sym = &ObjSymbol{Name: s.Name, Data: data, Size: int64(s.Size), Func: &FuncInfo{}, Pkg: pkg.PkgPath}
 		}
 		objSymbols = append(objSymbols, sym)
@@ -564,7 +574,11 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 				continue
 			}
 
-			if sym.Section == elf.SHN_UNDEF || sym.Section < elf.SHN_LORESERVE {
+			if sym.Section == elf.SHN_UNDEF || sym.Section < elf.SHN_LORESERVE || sym.Section == elf.SHN_COMMON {
+				if sym.Name == "" || target.Kind != symkind.STEXT {
+					// Don't create PCREL relocs for data for now... but might need to fix this at some point
+					continue
+				}
 				switch f.Machine {
 				case elf.EM_AARCH64:
 					t := elf.R_AARCH64(rela.Info & 0xffff)
@@ -593,6 +607,14 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 							Type:   reloctype.R_PCREL,
 							Add:    0, // Even though elf addend is -4, a Go PCREL reloc doesn't need this.
 						})
+					case elf.R_X86_64_REX_GOTPCRELX:
+						target.Reloc = append(target.Reloc, Reloc{
+							Offset: int(rela.Off - targetAddr),
+							Sym:    &Sym{Name: sym.Name, Offset: InvalidOffset},
+							Size:   4,
+							Type:   reloctype.R_GOTPCREL,
+							Add:    int(rela.Addend),
+						})
 					default:
 						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s for symbol %s reloc to %s", t.GoString(), target.Name, sym.Name)
 					}
@@ -604,7 +626,7 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 	}
 
 	for _, symbol := range objSymbols {
-		if symbol != nil && symbol.Name != "" && symbol.Size > 0 && symbol.Kind == symkind.STEXT {
+		if symbol != nil && symbol.Name != "" && symbol.Kind != symkind.Sxxx {
 			if _, ok := pkg.Syms[symbol.Name]; !ok {
 				pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
 			}

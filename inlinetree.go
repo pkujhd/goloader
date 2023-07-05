@@ -1,7 +1,6 @@
 package goloader
 
 import (
-	"cmd/objfile/objabi"
 	"unsafe"
 
 	"github.com/eh-steve/goloader/obj"
@@ -37,7 +36,7 @@ func (linker *Linker) addInlineTree(_f *_func, symbol *obj.ObjSymbol) (err error
 		for k, inl := range Func.InlTree {
 			// No special functions can be inlined in current versions of Go - we'll panic if they are
 			// If we can't find the inlined funcID, we assume it's FuncID_normal.
-			var funcID = uint8(objabi.FuncID_normal)
+			var funcID = uint8(obj.FuncIDNormal)
 			if inlSym, ok := linker.objsymbolMap[inl.Func]; ok {
 				funcID = inlSym.Func.FuncID
 				if funcID != 0 {

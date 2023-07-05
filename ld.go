@@ -215,7 +215,7 @@ func (linker *Linker) addSymbols(symbolNames []string, globalSymPtr map[string]u
 			// (the abi0 version of itself, without the .abiinternal suffix)
 			isAsmWrapper := false
 
-			if objSym.Func != nil && objSym.Func.FuncID == uint8(objabi.FuncID_wrapper) {
+			if objSym.Func != nil && objSym.Func.FuncID == uint8(obj.FuncIDWrapper) {
 				for _, reloc := range objSym.Reloc {
 					if reloc.Sym.Name+obj.ABIInternalSuffix == objSym.Name {
 						// Relocation pointing at itself (the ABI0 ASM version)
@@ -302,7 +302,7 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesADRPLDST
 				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesADRPLDST)...)
-			case reloctype.R_CALLARM64:
+			case reloctype.R_CALLARM64, reloctype.R_CALLARM64 | reloctype.R_WEAK:
 				objsym.Reloc[i].EpilogueOffset = alignof(len(linker.code)-symbol.Offset, PtrSize)
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALLARM64
 				alignment := alignof(len(linker.code)-symbol.Offset, PtrSize) - (len(linker.code) - symbol.Offset)
@@ -351,7 +351,7 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				// need to be able to pad to align to multiple of 8
 				alignment := alignof(len(linker.code)-symbol.Offset, PtrSize) - (len(linker.code) - symbol.Offset)
 				linker.code = append(linker.code, createArchNops(linker.Arch, objsym.Reloc[i].EpilogueSize+alignment)...)
-			case reloctype.R_CALL:
+			case reloctype.R_CALL, reloctype.R_CALL | reloctype.R_WEAK:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
 				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
 				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesCALL)...)

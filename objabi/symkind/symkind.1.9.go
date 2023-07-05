@@ -1,5 +1,5 @@
-//go:build go1.9 && !go1.21
-// +build go1.9,!go1.21
+//go:build go1.9 && !go1.22
+// +build go1.9,!go1.22
 
 package symkind
 

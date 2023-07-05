@@ -116,7 +116,8 @@ func buildLoadable(t *testing.T, conf jit.BuildConfig, testName string, data tes
 
 func goVersion(t *testing.T) int64 {
 	GoVersionParts := strings.Split(strings.TrimPrefix(runtime.Version(), "go"), ".")
-	version, err := strconv.ParseInt(GoVersionParts[1], 10, 64)
+	stripRC := strings.Split(GoVersionParts[1], "rc")[0] // Treat release candidates as if they are that version
+	version, err := strconv.ParseInt(stripRC, 10, 64)
 	if err != nil {
 		t.Fatalf("failed to parse go version: %s", err)
 	}
@@ -372,7 +373,7 @@ func TestJitHttpGet(t *testing.T) {
 				t.Fatal(err)
 			}
 			afterCall := runtime.NumGoroutine()
-			for afterCall != start {
+			for afterCall > start {
 				time.Sleep(100 * time.Millisecond)
 				runtime.GC()
 				afterCall = runtime.NumGoroutine()
@@ -630,7 +631,7 @@ func TestLoadUnloadMultipleModules(t *testing.T) {
 			err = thing.Stop()
 			afterStop := runtime.NumGoroutine()
 			sleepCount := 0
-			for afterStop != before {
+			for afterStop > before {
 				time.Sleep(100 * time.Millisecond)
 				runtime.GC()
 				afterStop = runtime.NumGoroutine()

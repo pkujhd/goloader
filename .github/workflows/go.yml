@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: [ 1.18.X, 1.19.X, 1.20.X ]
+        go-version: [ 1.18.X, 1.19.X, 1.20.X , 1.21.0-rc.3 ]
         os:  [ubuntu-latest, windows-latest, macos-latest, [self-hosted, Linux, ARM64], [self-hosted, macOS, ARM64]]
         cgo-enabled: ["CGO_ENABLED=0", "CGO_ENABLED=1"]
         dynlink: ["JIT_GC_DYNLINK=1", "JIT_GC_DYNLINK=0"]
@@ -31,7 +31,7 @@ jobs:
     - name: Rename cmd/internal
       shell: sh
       run: |
-        eval $(go env | sed -r 's/^(set )?(\w+)=("?)(.*)\3$/\2="\4"/g') && cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
+        eval $(go env | sed -r 's/^(set )?(\w+)=("|'"'"'?)(.*)\3$/\2="\4"/g') && cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
 
     - name: Patch gc
       shell: sh

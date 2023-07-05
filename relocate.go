@@ -389,15 +389,20 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
-				case reloctype.R_CALL:
+				case reloctype.R_CALL, reloctype.R_CALL | reloctype.R_WEAK:
 					err = linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
 				case reloctype.R_PCREL:
+					if symbol.Kind != symkind.STEXT {
+						err = fmt.Errorf("impossible! Sym: %s (target %s) is not in code segment! (kind %s)\n", symbol.Name, sym.Name, objabi.SymKind(sym.Kind))
+						break
+					}
 					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
-				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
+				case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALLARM64 | reloctype.R_WEAK:
 					err = linker.relocateCALLARM(addr, loc, segment)
 				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64, reloctype.R_ARM64_GOTPCREL:
 					if symbol.Kind != symkind.STEXT {
 						err = fmt.Errorf("impossible! Sym: %s is not in code segment! (kind %s)\n", sym.Name, objabi.SymKind(sym.Kind))
+						break
 					}
 					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 				case reloctype.R_ADDR, reloctype.R_WEAKADDR:
@@ -441,6 +446,8 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap map[string]uint
 				case reloctype.R_ADDRCUOFF:
 					// nothing todo
 				case reloctype.R_KEEP:
+					// nothing todo
+				case reloctype.R_INITORDER:
 					// nothing todo
 				default:
 					err = fmt.Errorf("unknown reloc type: %s sym: %s", objabi.RelocType(loc.Type).String(), sym.Name)
