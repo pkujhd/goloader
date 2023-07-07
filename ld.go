@@ -74,15 +74,16 @@ type Linker struct {
 
 type CodeModule struct {
 	segment
-	SymbolsByPkg          map[string]map[string]interface{}
-	Syms                  map[string]uintptr
-	module                *moduledata
-	gcdata                []byte
-	gcbss                 []byte
-	patchedTypeMethodsIfn map[*_type]map[int]struct{}
-	patchedTypeMethodsTfn map[*_type]map[int]struct{}
-	deduplicatedTypes     map[string]uintptr
-	heapStrings           map[string]*string
+	SymbolsByPkg           map[string]map[string]interface{}
+	Syms                   map[string]uintptr
+	module                 *moduledata
+	gcdata                 []byte
+	gcbss                  []byte
+	patchedTypeMethodsIfn  map[*_type]map[int]struct{}
+	patchedTypeMethodsTfn  map[*_type]map[int]struct{}
+	patchedTypeMethodsMtyp map[*_type]map[int]typeOff
+	deduplicatedTypes      map[string]uintptr
+	heapStrings            map[string]*string
 }
 
 var (
@@ -887,6 +888,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 
 	patchedTypeMethodsIfn := make(map[*_type]map[int]struct{})
 	patchedTypeMethodsTfn := make(map[*_type]map[int]struct{})
+	patchedTypeMethodsMtyp := make(map[*_type]map[int]typeOff)
 	segment := &codeModule.segment
 	byteorder := linker.Arch.ByteOrder
 	dedupedTypes := map[string]uintptr{}
@@ -937,7 +939,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 					}
 					u := t.uncommon()
 					prevU := prevT.uncommon()
-					err2 := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn)
+					err2 := codeModule.patchTypeMethodOffsets(t, u, prevU, patchedTypeMethodsIfn, patchedTypeMethodsTfn, patchedTypeMethodsMtyp)
 					if err2 != nil {
 						return err2
 					}
@@ -1002,6 +1004,7 @@ func (linker *Linker) deduplicateTypeDescriptors(codeModule *CodeModule, symbolM
 	}
 	codeModule.patchedTypeMethodsIfn = patchedTypeMethodsIfn
 	codeModule.patchedTypeMethodsTfn = patchedTypeMethodsTfn
+	codeModule.patchedTypeMethodsMtyp = patchedTypeMethodsMtyp
 	codeModule.deduplicatedTypes = dedupedTypes
 
 	if err != nil {

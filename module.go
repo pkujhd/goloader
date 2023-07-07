@@ -7,6 +7,9 @@ import (
 //go:linkname firstmoduledata runtime.firstmoduledata
 var firstmoduledata moduledata
 
+//go:linkname pinnedTypemaps runtime.pinnedTypemaps
+var pinnedTypemaps []map[typeOff]*_type
+
 // findfunctab is an array of these structures.
 // Each bucket represents 4096 bytes of the text segment.
 // Each subbucket represents 256 bytes of the text segment.

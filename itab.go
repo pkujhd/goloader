@@ -17,21 +17,22 @@ import (
 // methods for a given firstmodule's *_type/interface pair (all modules should have their types deduplicated in the same way).
 // Since goloader doesn't do any deadcode elimination, a loaded *_type will always include all available methods
 
-func getOtherPatchedMethodsForType(t *_type, currentModule *CodeModule) (otherModule *CodeModule, ifn map[int]struct{}, tfn map[int]struct{}) {
+func getOtherPatchedMethodsForType(t *_type, currentModule *CodeModule) (otherModule *CodeModule, ifn map[int]struct{}, tfn map[int]struct{}, mtyp map[int]typeOff) {
 	modulesLock.Lock()
 	defer modulesLock.Unlock()
 	for module := range modules {
 		if module != currentModule {
-			var tfnPatched, ifnPatched bool
+			var tfnPatched, ifnPatched, mtypPatched bool
 			tfn, tfnPatched = module.patchedTypeMethodsTfn[t]
 			ifn, ifnPatched = module.patchedTypeMethodsIfn[t]
-			if tfnPatched || ifnPatched {
+			mtyp, mtypPatched = module.patchedTypeMethodsMtyp[t]
+			if tfnPatched || ifnPatched || mtypPatched {
 				otherModule = module
 				return
 			}
 		}
 	}
-	return nil, nil, nil
+	return nil, nil, nil, nil
 }
 
 func unreachableMethod() {
@@ -43,6 +44,9 @@ var textIsWriteable = runtime.GOOS != "darwin"
 
 // Since multiple CodeModules might patch the first module we need to make sure to store all indices which have ever been patched
 var firstModuleMissingMethods = map[*_type]map[int]struct{}{}
+
+var firstModuleTypemapEntries = map[*_type]typeOff{}
+var firstModuleTypemapCounter typeOff = -1
 
 // Similar to runtime.(*itab).init() but replaces method text pointers to start the offset from the specified base address
 func (m *itab) adjustMethods(codeBase uintptr, methodIndices map[int]struct{}, writeablePages map[*byte]struct{}) {
@@ -107,13 +111,13 @@ imethods:
 	}
 }
 
-func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, patchedTypeMethodsIfn, patchedTypeMethodsTfn map[*_type]map[int]struct{}) (err error) {
+func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, patchedTypeMethodsIfn, patchedTypeMethodsTfn map[*_type]map[int]struct{}, patchedTypeMethodsMtyp map[*_type]map[int]typeOff) (err error) {
 	// It's possible that a baked in type in the main module does not have all its methods reachable
 	// (i.e. some method offsets will be set to -1 via the linker's reachability analysis) whereas the
 	// new type will have them them all.
 
 	// In this case, to avoid fatal "unreachable method called. linker bug?" errors, we need to
-	// manipulate the method offsets to make them not -1, and manually partially adjust the
+	// manipulate the method text and type offsets to make them not -1, and manually partially adjust the
 	// firstmodule itabs to rewrite the method addresses to point at the new module text (and remember to clean up afterwards)
 
 	if u != nil && prevU != nil && u != prevU && textIsWriteable {
@@ -128,7 +132,7 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 				}
 				_, markedMissing := missingIndices[i]
 
-				if methods[i].tfn == -1 || methods[i].ifn == -1 || markedMissing {
+				if methods[i].tfn == -1 || methods[i].ifn == -1 || methods[i].mtyp == -1 || markedMissing {
 					missingIndices[i] = struct{}{}
 
 					if prevMethods[i].ifn != -1 {
@@ -172,6 +176,44 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 						}
 						// Store for later cleanup on Unload()
 						patchedTypeMethodsTfn[t][i] = struct{}{}
+					}
+
+					if prevMethods[i].mtyp != -1 && methods[i].mtyp < 0 {
+						if _, ok := patchedTypeMethodsMtyp[t]; !ok {
+							patchedTypeMethodsMtyp[t] = map[int]typeOff{}
+						}
+						page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].mtyp)))
+						err = mprotect.MprotectMakeWritable(page)
+						if err != nil {
+							return fmt.Errorf("failed to make page writeable while patching type %s: %w", _name(t.nameOff(t.str)), err)
+						}
+
+						// The JIT type's mtyp would have been offset with respect to the new type's module's data base.
+						// Since the runtime assumes that types and their methods' types are defined in the same module, but we have a situation where the type
+						// is in the firstmodule, but method type is in a JIT module, we have to hack around runtime.resolveTypeOff
+						// by adding an entry under a negative offset (< -1) to the firstmodule's typemap
+						methodType := (*_type)(unsafe.Pointer(cm.module.types + uintptr(prevMethods[i].mtyp)))
+						firstModuleTypemapCounter--
+						if firstmoduledata.typemap == nil {
+							firstmoduledata.typemap = make(map[typeOff]*_type, len(firstmoduledata.typelinks)+1)
+							for _, tl := range firstmoduledata.typelinks {
+								firstmoduledata.typemap[typeOff(tl)] = (*_type)(unsafe.Pointer(firstmoduledata.types + uintptr(tl)))
+							}
+							pinnedTypemaps = append(pinnedTypemaps, firstmoduledata.typemap)
+						}
+						firstmoduledata.typemap[firstModuleTypemapCounter] = methodType
+						firstModuleTypemapEntries[methodType] = firstModuleTypemapCounter
+
+						cm.module.typemap[firstModuleTypemapCounter] = methodType // In case we need to resolve this method type with respect to the JIT type (unlikely since it should have been deduped with the firstmodule type?)
+						methods[i].mtyp = firstModuleTypemapCounter
+
+						err = mprotect.MprotectMakeReadOnly(page)
+						if err != nil {
+							return fmt.Errorf("failed to make page read only while patching type %s: %w", _name(t.nameOff(t.str)), err)
+						}
+						// Store for later cleanup on Unload()
+						patchedTypeMethodsMtyp[t][i] = firstModuleTypemapCounter
+						markedMissing = true
 					}
 
 					if markedMissing {
@@ -257,7 +299,7 @@ func (cm *CodeModule) revertPatchedTypeMethods() error {
 		u := t.uncommon()
 		methods := u.methods()
 		// Check if we have any other modules available which provide the same methods
-		otherModule, ifnPatchedOther, tfnPatchedOther := getOtherPatchedMethodsForType(t, cm)
+		otherModule, ifnPatchedOther, tfnPatchedOther, _ := getOtherPatchedMethodsForType(t, cm)
 		if otherModule != nil {
 			for _, itab := range firstModuleItabs[t] {
 				itab.adjustMethods(uintptr(otherModule.codeBase), ifnPatchedOther, writeablePages)
@@ -287,7 +329,7 @@ func (cm *CodeModule) revertPatchedTypeMethods() error {
 		u := t.uncommon()
 		methods := u.methods()
 		// Check if we have any other modules available which provide the same methods
-		otherModule, ifnPatchedOther, tfnPatchedOther := getOtherPatchedMethodsForType(t, cm)
+		otherModule, ifnPatchedOther, tfnPatchedOther, _ := getOtherPatchedMethodsForType(t, cm)
 		if otherModule != nil {
 			for _, itab := range firstModuleItabs[t] {
 				itab.adjustMethods(uintptr(otherModule.codeBase), ifnPatchedOther, writeablePages)
@@ -309,6 +351,45 @@ func (cm *CodeModule) revertPatchedTypeMethods() error {
 			for _, itab := range firstModuleItabs[t] {
 				// No other module found, all method offsets should be -1, so codeBase is irrelevant
 				itab.adjustMethods(0, indices, writeablePages)
+			}
+		}
+	}
+
+	for t, indices := range cm.patchedTypeMethodsMtyp {
+		u := t.uncommon()
+		methods := u.methods()
+		// Check if we have any other modules available which provide the same methods
+		otherModule, _, _, mtypPatchedOther := getOtherPatchedMethodsForType(t, cm)
+		if otherModule != nil {
+			for i := range indices {
+				if otherTypeOff, ok := mtypPatchedOther[i]; ok {
+					page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].mtyp)))
+					if _, ok := writeablePages[&page[0]]; !ok {
+						err := mprotect.MprotectMakeWritable(page)
+						if err != nil {
+							return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].tfn), err)
+						}
+						writeablePages[&page[0]] = struct{}{}
+					}
+					delete(firstmoduledata.typemap, methods[i].mtyp)
+					methods[i].mtyp = otherTypeOff
+				}
+			}
+		} else {
+			// Reset patched method type offsets back to -1, and delete firstmoduledata.typemap entries
+			for i := range indices {
+				page := mprotect.GetPage(uintptr(unsafe.Pointer(&methods[i].mtyp)))
+				if _, ok := writeablePages[&page[0]]; !ok {
+					err := mprotect.MprotectMakeWritable(page)
+					if err != nil {
+						return fmt.Errorf("failed to make page writeable while patching type %s %p: %w", _name(t.nameOff(t.str)), unsafe.Pointer(&methods[i].tfn), err)
+					}
+					writeablePages[&page[0]] = struct{}{}
+				}
+				if methods[i].mtyp < -1 {
+					delete(firstmoduledata.typemap, methods[i].mtyp)
+					methods[i].mtyp = -1
+				}
 			}
 		}
 	}
