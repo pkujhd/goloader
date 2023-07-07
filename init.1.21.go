@@ -4,6 +4,7 @@
 package goloader
 
 import (
+	"cmd/objfile/objabi"
 	"slices"
 	"sort"
 	"strings"
@@ -15,7 +16,7 @@ const (
 )
 
 func getInitFuncName(packagename string) string {
-	return packagename + _InitTaskSuffix
+	return objabi.PathToPrefix(packagename) + _InitTaskSuffix
 }
 
 // doInit1 is defined in package runtime
@@ -30,9 +31,15 @@ type initTask struct {
 }
 
 func (linker *Linker) doInitialize(codeModule *CodeModule, symbolMap map[string]uintptr) error {
+	// Autolib order is not necessarily the same as the  (*Link).inittaskSym algorithm in cmd/link/internal/ld/inittask.go,
+	// but it works and avoids a Kahn's graph traversal of R_INITORDER relocs...
 	autolibOrder := linker.Autolib()
+	for i := range autolibOrder {
+		// ..inittask symbol names will have their package escaped, so autolib list needs to as well
+		autolibOrder[i] = objabi.PathToPrefix(autolibOrder[i])
+	}
 	sort.Slice(linker.initFuncs, func(i, j int) bool {
-		return slices.Index(autolibOrder, linker.initFuncs[i]) < slices.Index(autolibOrder, linker.initFuncs[j])
+		return slices.Index(autolibOrder, strings.TrimSuffix(linker.initFuncs[i], _InitTaskSuffix)) < slices.Index(autolibOrder, strings.TrimSuffix(linker.initFuncs[j], _InitTaskSuffix))
 	})
 	for _, name := range linker.initFuncs {
 		if taskPtr, ok := symbolMap[name]; ok {
@@ -47,6 +54,7 @@ func (linker *Linker) doInitialize(codeModule *CodeModule, symbolMap map[string]
 				x.state = 0 // Reset the inittask state in order to rerun the init function for the new version of the package
 			}
 			if x.nfns == 0 {
+				// Linker is expected to have stripped inittasks with no funcs
 				continue
 			}
 			doInit1(adduintptr(taskPtr, 0))

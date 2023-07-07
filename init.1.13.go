@@ -4,6 +4,7 @@
 package goloader
 
 import (
+	"cmd/objfile/objabi"
 	"strings"
 	"unsafe"
 )
@@ -13,7 +14,7 @@ const (
 )
 
 func getInitFuncName(packagename string) string {
-	return packagename + _InitTaskSuffix
+	return objabi.PathToPrefix(packagename) + _InitTaskSuffix
 }
 
 // doInit is defined in package runtime
