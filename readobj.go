@@ -195,6 +195,13 @@ func ReadObjs(files []string, pkgPath []string, globalSymPtr map[string]uintptr,
 				linker.symMap[pkgName+"."+unresolved] = &obj.Sym{Name: pkgName + "." + unresolved, Offset: InvalidOffset, Pkg: pkgName}
 				objSym.Reloc = append(objSym.Reloc, obj.Reloc{Sym: linker.symMap[pkgName+"."+unresolved], Type: reloctype.R_KEEP})
 				linker.pkgNamesWithUnresolved[pkgName] = struct{}{}
+				objSym.Type = pkgName + "." + unresolved // keep it reachable by making the type non-empty
+				if objSym.Kind == symkind.SDATA || objSym.Kind == symkind.SBSS {
+					// Force both the symbol and the type to be reachable if it's a static/global variable which could contain pointers
+					// and therefore needs a gcmask/prog, to ensure we rebuild the package which defines the type
+					linker.collectReachableSymbols(objSym.Name)
+					linker.collectReachableSymbols(objSym.Type)
+				}
 			}
 		}
 		if _, presentInFirstModule := globalSymPtr[objSym.Name]; presentInFirstModule {
