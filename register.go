@@ -121,6 +121,10 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 
 	typelinksregister(symPtr, pkgSet)
 	syms, err := f.Symbols()
+	if err != nil {
+		return fmt.Errorf("could not get symbols of file %s: %w", path, err)
+	}
+
 	for _, sym := range syms {
 		if sym.Name == OsStdout {
 			symPtr[sym.Name] = uintptr(sym.Addr)
@@ -131,7 +135,7 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OsStdout])
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
-		if code == "B" || code == "D" {
+		if code == "B" || code == "D" || code == "R" {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
 		if strings.HasPrefix(sym.Name, ItabPrefix) {
