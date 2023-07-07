@@ -394,7 +394,11 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
 
-	symbol.Size = len(linker.code) - symbol.Offset
+	if symbol.Kind == symkind.STEXT {
+		symbol.Size = len(linker.code) - symbol.Offset // includes epilogue
+	} else {
+		symbol.Size = int(objsym.Size)
+	}
 	for _, loc := range objsym.Reloc {
 		reloc := loc
 		reloc.Offset = reloc.Offset + symbol.Offset
