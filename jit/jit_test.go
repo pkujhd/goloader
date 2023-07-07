@@ -1286,7 +1286,31 @@ func TestAnonymousStructType(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			time.Sleep(time.Second)
+		})
+	}
+}
+
+func TestProtobuf(t *testing.T) {
+	conf := baseConfig
+
+	data := testData{
+		files: []string{"./testdata/test_protobuf/test.go"},
+		pkg:   "./testdata/test_protobuf",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+			testFunc := symbols["TestProto"].(func())
+			testFunc()
+			runtime.GC()
+			runtime.GC()
+			err := module.Unload()
+			runtime.GC()
+			runtime.GC()
+			if err != nil {
+				t.Fatal(err)
+			}
 		})
 	}
 }
@@ -1320,7 +1344,6 @@ func TestK8s(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			time.Sleep(time.Second)
 		})
 	}
 }
@@ -1351,7 +1374,6 @@ func TestGCGlobals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			time.Sleep(time.Second)
 		})
 	}
 }

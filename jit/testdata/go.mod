@@ -7,8 +7,9 @@ require (
 	github.com/paulmach/orb v0.9.0 // indirect
 	github.com/ringsaturn/tzf v0.11.0
 	gonum.org/v1/gonum v0.12.0
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v1 v1.1.1
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/apimachinery v0.27.2 // indirect
+	k8s.io/apimachinery v0.27.2
 	k8s.io/client-go v0.27.2
 )
