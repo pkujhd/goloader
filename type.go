@@ -1,21 +1,19 @@
 package goloader
 
 import (
+	"fmt"
 	"reflect"
-	"runtime"
 	"strings"
 	"unsafe"
 
-	"github.com/pkujhd/goloader/constants"
+	"github.com/pkujhd/goloader/obj"
 )
 
 type tflag uint8
 
-const tflagExtraStar = 1 << 1
-
 // See reflect/value.go emptyInterface
 type emptyInterface struct {
-	typ  unsafe.Pointer
+	typ  *_type
 	word unsafe.Pointer
 }
 
@@ -97,6 +95,27 @@ func _Key(t *_type) reflect.Type
 //go:linkname _Elem reflect.(*rtype).Elem
 func _Elem(t *_type) reflect.Type
 
+//go:linkname _NumMethod reflect.(*rtype).NumMethod
+func _NumMethod(t *_type) int
+
+//go:linkname _ChanDir reflect.(*rtype).ChanDir
+func _ChanDir(t *_type) reflect.ChanDir
+
+//go:linkname _Len reflect.(*rtype).Len
+func _Len(t *_type) int
+
+//go:linkname _IsVariadic reflect.(*rtype).IsVariadic
+func _IsVariadic(t *_type) bool
+
+//go:linkname _Name reflect.(*rtype).Name
+func _Name(t *_type) string
+
+//go:linkname _string runtime.(*_type).string
+func _string(t *_type) string
+
+//go:linkname _PkgPath reflect.(*rtype).PkgPath
+func _PkgPath(t *_type) string
+
 //go:linkname resolveNameOff runtime.resolveNameOff
 func resolveNameOff(ptrInModule unsafe.Pointer, off nameOff) name
 
@@ -117,46 +136,113 @@ func (t *_type) NumOut() int                     { return _NumOut(t) }
 func (t *_type) Out(i int) reflect.Type          { return _Out(t, i) }
 func (t *_type) Key() reflect.Type               { return _Key(t) }
 func (t *_type) Elem() reflect.Type              { return _Elem(t) }
+func (t *_type) NumMethod() int                  { return _NumMethod(t) }
+func (t *_type) ChanDir() reflect.ChanDir        { return _ChanDir(t) }
+func (t *_type) Len() int                        { return _Len(t) }
+func (t *_type) IsVariadic() bool                { return _IsVariadic(t) }
+func (t *_type) Name() string                    { return _Name(t) }
+func (t *_type) string() string                  { return _string(t) }
+func (t *_type) PkgPath() string                 { return _PkgPath(t) }
 
 func rtypeOf(i reflect.Type) *_type {
 	eface := (*emptyInterface)(unsafe.Pointer(&i))
 	return (*_type)(eface.word)
 }
 
-func pkgname(pkgpath string) string {
-	slash := strings.LastIndexByte(pkgpath, '/')
-	if slash > -1 {
-		return pkgpath[slash+1:]
-	} else {
-		return pkgpath
+func resolveTypeName(typ *_type) string {
+	pkgPath := obj.PathToPrefix(typ.PkgPath())
+	name := typ.Name()
+	if pkgPath != EmptyString && name != EmptyString {
+		return pkgPath + "." + name
 	}
-}
-
-func (t *_type) PkgPath() string {
-	ut := t.uncommon()
-	if ut == nil {
-		return EmptyString
+	//golang <= 1.16 map.bucket has a self-contained struct filed
+	if strings.HasPrefix(typ.string(), "map.bucket[") {
+		return typ.string()
 	}
-	return t.nameOff(ut.pkgPath).name()
+	switch typ.Kind() {
+	case reflect.Ptr:
+		name := "*" + resolveTypeName(rtypeOf(typ.Elem()))
+		return name
+	case reflect.Struct:
+		if typ.NumField() == 0 {
+			return typ.string()
+		}
+		fields := make([]string, typ.NumField())
+		for i := 0; i < typ.NumField(); i++ {
+			fieldName := EmptyString
+			if !typ.Field(i).Anonymous {
+				if typ.Field(i).PkgPath != EmptyString {
+					fieldName = obj.PathToPrefix(typ.Field(i).PkgPath) + "."
+				}
+				fieldName = fieldName + typ.Field(i).Name + " "
+			}
+			fields[i] = fieldName + resolveTypeName(rtypeOf(typ.Field(i).Type))
+			if typ.Field(i).Tag != EmptyString {
+				fields[i] = fields[i] + fmt.Sprintf(" %q", string(typ.Field(i).Tag))
+			}
+		}
+		return fmt.Sprintf("struct { %s }", strings.Join(fields, "; "))
+	case reflect.Map:
+		return fmt.Sprintf("map[%s]%s", resolveTypeName(rtypeOf(typ.Key())), resolveTypeName(rtypeOf(typ.Elem())))
+	case reflect.Chan:
+		return fmt.Sprintf("%s %s", typ.ChanDir().String(), resolveTypeName(rtypeOf(typ.Elem())))
+	case reflect.Slice:
+		return fmt.Sprintf("[]%s", resolveTypeName(rtypeOf(typ.Elem())))
+	case reflect.Array:
+		return fmt.Sprintf("[%d]%s", typ.Len(), resolveTypeName(rtypeOf(typ.Elem())))
+	case reflect.Func:
+		ins := make([]string, typ.NumIn())
+		outs := make([]string, typ.NumOut())
+		for i := 0; i < typ.NumIn(); i++ {
+			if i == typ.NumIn()-1 && typ.IsVariadic() {
+				ins[i] = "..." + resolveTypeName(rtypeOf(typ.In(i).Elem()))
+			} else {
+				ins[i] = resolveTypeName(rtypeOf(typ.In(i)))
+			}
+		}
+		for i := 0; i < typ.NumOut(); i++ {
+			outs[i] = resolveTypeName(rtypeOf(typ.Out(i)))
+		}
+		name := "func(" + strings.Join(ins, ", ") + ")"
+		if len(outs) > 0 {
+			name += " "
+		}
+		outName := strings.Join(outs, ", ")
+		if len(outs) > 1 {
+			outName = "(" + outName + ")"
+		}
+		return name + outName
+	case reflect.Interface:
+		if typ.NumMethod() == 0 {
+			return typ.string()
+		}
+		methods := make([]string, typ.NumMethod())
+		ifaceT := (*interfacetype)(unsafe.Pointer(typ))
+		for i := 0; i < typ.NumMethod(); i++ {
+			methodType := typ.typeOff(ifaceT.mhdr[i].ityp)
+			methodName := typ.nameOff(ifaceT.mhdr[i].name).name()
+			methods[i] = methodName + strings.TrimPrefix(resolveTypeName(methodType), "func")
+		}
+		return fmt.Sprintf("interface { %s }", strings.Join(methods, "; "))
+	case reflect.Bool,
+		reflect.Int, reflect.Uint,
+		reflect.Int64, reflect.Uint64,
+		reflect.Int32, reflect.Uint32,
+		reflect.Int16, reflect.Uint16,
+		reflect.Int8, reflect.Uint8,
+		reflect.Float64, reflect.Float32,
+		reflect.Complex64, reflect.Complex128,
+		reflect.String, reflect.UnsafePointer,
+		reflect.Uintptr:
+		return typ.string()
+	default:
+		panic("unexpected builtin type: " + typ.string())
+	}
 }
 
 func RegTypes(symPtr map[string]uintptr, interfaces ...interface{}) {
 	for _, inter := range interfaces {
-		v := reflect.ValueOf(inter)
-		regType(symPtr, v)
-		if v.Kind() == reflect.Ptr {
-			regType(symPtr, v.Elem())
-		}
+		header := (*emptyInterface)(unsafe.Pointer(&inter))
+		registerType(header.typ, symPtr)
 	}
-}
-
-func regType(symPtr map[string]uintptr, v reflect.Value) {
-	inter := v.Interface()
-	if v.Kind() == reflect.Func && getFunctionPtr(inter) != 0 {
-		symPtr[runtime.FuncForPC(v.Pointer()).Name()] = getFunctionPtr(inter)
-	}
-	header := (*emptyInterface)(unsafe.Pointer(&inter))
-	pkgpath := (*_type)(header.typ).PkgPath()
-	name := strings.Replace(v.Type().String(), pkgname(pkgpath), pkgpath, 1)
-	symPtr[constants.TypePrefix+name] = uintptr(header.typ)
 }

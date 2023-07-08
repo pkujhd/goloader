@@ -40,14 +40,7 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 		panic("Unexpected invalid kind during registration!")
 	}
 
-	pkgpath := t.PkgPath()
-	name := t.nameOff(t.str).name()
-	name = strings.Replace(name, pkgname(pkgpath), pkgpath, 1)
-
-	if t.tflag&tflagExtraStar != 0 {
-		name = name[1:]
-	}
-	name = constants.TypePrefix + name
+	name := constants.TypePrefix + resolveTypeName(t)
 	if _, ok := symPtr[name]; ok {
 		return
 	}
@@ -126,8 +119,4 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 		}
 	}
 	return nil
-}
-
-func getFunctionPtr(function interface{}) uintptr {
-	return *(*uintptr)((*emptyInterface)(unsafe.Pointer(&function)).word)
 }
