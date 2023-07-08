@@ -33,15 +33,3 @@ type _type struct {
 	str       nameOff
 	ptrToThis typeOff
 }
-
-// uncommonType is present only for types with names or methods
-// (if T is a named type, the uncommonTypes for T and *T have methods).
-// Using a pointer to this struct reduces the overall size required
-// to describe an unnamed type with no methods.
-type uncommonType struct {
-	pkgPath nameOff // import path; empty for built-in types like int, string
-	mcount  uint16  // number of methods
-	_       uint16  // unused
-	moff    uint32  // offset from this uncommontype to [mcount]method
-	_       uint32  // unused
-}
