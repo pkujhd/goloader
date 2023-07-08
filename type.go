@@ -52,16 +52,6 @@ type interfacetype struct {
 type name struct {
 	bytes *byte
 }
-
-//go:linkname _nameOff runtime.(*_type).nameOff
-func _nameOff(t *_type, off nameOff) name
-
-//go:linkname _typeOff runtime.(*_type).typeOff
-func _typeOff(t *_type, off typeOff) *_type
-
-//go:linkname _name runtime.name.name
-func _name(n name) string
-
 //go:linkname _Kind reflect.(*rtype).Kind
 func _Kind(t *_type) reflect.Kind
 
@@ -92,6 +82,9 @@ func _Elem(t *_type) reflect.Type
 //go:linkname _NumMethod reflect.(*rtype).NumMethod
 func _NumMethod(t *_type) int
 
+//go:linkname _Method reflect.(*rtype).Method
+func _Method(t *_type, i int) reflect.Method
+
 //go:linkname _ChanDir reflect.(*rtype).ChanDir
 func _ChanDir(t *_type) reflect.ChanDir
 
@@ -104,21 +97,15 @@ func _IsVariadic(t *_type) bool
 //go:linkname _Name reflect.(*rtype).Name
 func _Name(t *_type) string
 
-//go:linkname _string runtime.(*_type).string
-func _string(t *_type) string
+//go:linkname _String reflect.(*rtype).String
+func _String(t *_type) string
 
 //go:linkname _PkgPath reflect.(*rtype).PkgPath
 func _PkgPath(t *_type) string
 
-//go:linkname resolveNameOff runtime.resolveNameOff
-func resolveNameOff(ptrInModule unsafe.Pointer, off nameOff) name
-
 //go:linkname typelinksinit runtime.typelinksinit
 func typelinksinit()
 
-func (t *_type) nameOff(off nameOff) name        { return _nameOff(t, off) }
-func (t *_type) typeOff(off typeOff) *_type      { return _typeOff(t, off) }
-func (n name) name() string                      { return _name(n) }
 func (t *_type) Kind() reflect.Kind              { return _Kind(t) }
 func (t *_type) NumField() int                   { return _NumField(t) }
 func (t *_type) Field(i int) reflect.StructField { return _Field(t, i) }
@@ -129,11 +116,12 @@ func (t *_type) Out(i int) reflect.Type          { return _Out(t, i) }
 func (t *_type) Key() reflect.Type               { return _Key(t) }
 func (t *_type) Elem() reflect.Type              { return _Elem(t) }
 func (t *_type) NumMethod() int                  { return _NumMethod(t) }
+func (t *_type) Method(i int) reflect.Method     { return _Method(t, i) }
 func (t *_type) ChanDir() reflect.ChanDir        { return _ChanDir(t) }
 func (t *_type) Len() int                        { return _Len(t) }
 func (t *_type) IsVariadic() bool                { return _IsVariadic(t) }
 func (t *_type) Name() string                    { return _Name(t) }
-func (t *_type) string() string                  { return _string(t) }
+func (t *_type) String() string                  { return _String(t) }
 func (t *_type) PkgPath() string                 { return _PkgPath(t) }
 
 func rtypeOf(i reflect.Type) *_type {
@@ -148,8 +136,8 @@ func resolveTypeName(typ *_type) string {
 		return pkgPath + "." + name
 	}
 	//golang <= 1.16 map.bucket has a self-contained struct filed
-	if strings.HasPrefix(typ.string(), "map.bucket[") {
-		return typ.string()
+	if strings.HasPrefix(typ.String(), "map.bucket[") {
+		return typ.String()
 	}
 	switch typ.Kind() {
 	case reflect.Ptr:
@@ -157,7 +145,7 @@ func resolveTypeName(typ *_type) string {
 		return name
 	case reflect.Struct:
 		if typ.NumField() == 0 {
-			return typ.string()
+			return typ.String()
 		}
 		fields := make([]string, typ.NumField())
 		for i := 0; i < typ.NumField(); i++ {
@@ -206,14 +194,12 @@ func resolveTypeName(typ *_type) string {
 		return name + outName
 	case reflect.Interface:
 		if typ.NumMethod() == 0 {
-			return typ.string()
+			return typ.String()
 		}
 		methods := make([]string, typ.NumMethod())
-		ifaceT := (*interfacetype)(unsafe.Pointer(typ))
 		for i := 0; i < typ.NumMethod(); i++ {
-			methodType := typ.typeOff(ifaceT.mhdr[i].ityp)
-			methodName := typ.nameOff(ifaceT.mhdr[i].name).name()
-			methods[i] = methodName + strings.TrimPrefix(resolveTypeName(methodType), "func")
+			method := typ.Method(i)
+			methods[i] = method.Name + strings.TrimPrefix(resolveTypeName(rtypeOf(method.Type)), "func")
 		}
 		return fmt.Sprintf("interface { %s }", strings.Join(methods, "; "))
 	case reflect.Bool,
@@ -226,9 +212,9 @@ func resolveTypeName(typ *_type) string {
 		reflect.Complex64, reflect.Complex128,
 		reflect.String, reflect.UnsafePointer,
 		reflect.Uintptr:
-		return typ.string()
+		return typ.String()
 	default:
-		panic("unexpected builtin type: " + typ.string())
+		panic("unexpected builtin type: " + typ.String())
 	}
 }
 
