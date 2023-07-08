@@ -70,6 +70,7 @@ const (
 
 const (
 	//not used, only adapter golang higher version
+	R_INITORDER          = 0x10000000 - 9
 	R_ARM64_PCREL_LDST8  = 0x10000000 - 8
 	R_ARM64_PCREL_LDST16 = 0x10000000 - 7
 	R_ARM64_PCREL_LDST32 = 0x10000000 - 6

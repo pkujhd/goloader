@@ -244,9 +244,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					}
 				}
 			}
-			if !exist {
-				//golang1.8, some function generates more than one (MOVQ (TLS), CX)
-				//so when same name symbol in linker.symMap, do not update it
+			if !exist && loc.Size > 0 {
 				linker.symMap[reloc.Sym.Name] = reloc.Sym
 			}
 		}
@@ -353,7 +351,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if strings.HasPrefix(name, constants.TypeStringPrefix) {
-				symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
+					symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
 			} else if strings.HasPrefix(name, constants.TypePrefix) {
 				if _, ok := linker.symMap[name]; ok {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
@@ -363,10 +361,10 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			} else if _, ok := symPtr[name]; ok {
 				symbolMap[name] = symPtr[name]
 			} else {
-				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
+				}
 			}
 		}
-	}
 	return symbolMap, err
 }
 
@@ -515,7 +513,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 		if err = linker.relocate(codeModule, symbolMap, symPtr); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
 				MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeModule.maxCodeLength)
-				if err = linker.doInitialize(codeModule, symbolMap); err == nil {
+				if err = linker.doInitialize(symPtr, symbolMap); err == nil {
 					return codeModule, err
 				}
 			}

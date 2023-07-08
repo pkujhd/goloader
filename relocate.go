@@ -323,13 +323,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					offset := uint32(segment.dataBase + segment.dataOff - addrBase - loc.Offset - loc.Size)
 					byteorder.PutUint32(relocByte[loc.Offset:], offset)
 					putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr))
-				case reloctype.R_USETYPE:
-					//nothing todo
-				case reloctype.R_USEIFACE:
-					//nothing todo
-				case reloctype.R_USEIFACEMETHOD:
-					//nothing todo
-				case reloctype.R_ADDRCUOFF:
+				case reloctype.R_USETYPE,
+					reloctype.R_USEIFACE,
+					reloctype.R_USEIFACEMETHOD,
+					reloctype.R_ADDRCUOFF,
+					reloctype.R_INITORDER:
 					//nothing todo
 				default:
 					err = fmt.Errorf("unknown reloc type:%s sym:%s", reloctype.RelocTypeString(loc.Type), sym.Name)

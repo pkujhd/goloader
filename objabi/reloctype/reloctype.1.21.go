@@ -1,5 +1,5 @@
-//go:build go1.20 && !go1.21
-// +build go1.20,!go1.21
+//go:build go1.21 && !go1.22
+// +build go1.21,!go1.22
 
 package reloctype
 
@@ -77,15 +77,16 @@ const (
 	// R_ARM64_PCREL_LDST64 resolves a PC-relative addresses instruction sequence, usually an
 	// adrp followed by a LD64 or ST64 instruction.
 	R_ARM64_PCREL_LDST64 = (int)(objabi.R_ARM64_PCREL_LDST64)
-	R_WEAK               = 0x8000
+
+	// R_INITORDER specifies an ordering edge between two inittask records.
+	// (From one p..inittask record to another one.)
+	// This relocation does not apply any changes to the actual data, it is
+	// just used in the linker to order the inittask records appropriately.
+	R_INITORDER = (int)(objabi.R_INITORDER)
+	R_WEAK      = 0x8000
 
 	R_WEAKADDR    = R_WEAK | R_ADDR
 	R_WEAKADDROFF = R_WEAK | R_ADDROFF
-)
-
-const (
-	//not used, only adapter golang higher version
-	R_INITORDER = 0x10000000 - 9
 )
 
 func RelocTypeString(relocType int) string {

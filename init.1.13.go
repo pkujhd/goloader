@@ -19,7 +19,7 @@ func getInitFuncName(packagename string) string {
 //go:linkname doInit runtime.doInit
 func doInit(t unsafe.Pointer) // t should be a *runtime.initTask
 
-func (linker *Linker) doInitialize(codeModule *CodeModule, symbolMap map[string]uintptr) error {
+func (linker *Linker) doInitialize(symPtr, symbolMap map[string]uintptr) error {
 	for _, name := range linker.initFuncs {
 		if funcPtr, ok := symbolMap[name]; ok {
 			doInit(adduintptr(funcPtr, 0))

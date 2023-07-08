@@ -1,5 +1,5 @@
-// +build go1.8
-// +build !go1.13
+//go:build go1.8 && !go1.13
+// +build go1.8,!go1.13
 
 package goloader
 
@@ -15,9 +15,9 @@ func getInitFuncName(packagename string) string {
 	return packagename + _InitTaskSuffix
 }
 
-func (linker *Linker) doInitialize(codeModule *CodeModule, symbolMap map[string]uintptr) error {
+func (linker *Linker) doInitialize(symPtr, symbolMap map[string]uintptr) error {
 	for _, name := range linker.initFuncs {
-		if funcPtr, ok := codeModule.Syms[name]; ok {
+		if funcPtr, ok := symbolMap[name]; ok {
 			funcPtrContainer := (uintptr)(unsafe.Pointer(&funcPtr))
 			runFunc := *(*func())(unsafe.Pointer(&funcPtrContainer))
 			runFunc()

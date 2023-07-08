@@ -5,7 +5,7 @@ package reloctype
 
 import "cmd/objfile/obj"
 
-// copy from $GOROOT/src/cmd/internal/objabi/reloctype.go
+// copy from $GOROOT/src/cmd/internal/obj/link.go
 const (
 	R_ADDR = (int)(obj.R_ADDR)
 	// R_ADDRARM64 relocates an adrp, add pair to compute the address of the
@@ -43,6 +43,7 @@ const (
 
 const (
 	//not used, only adapter golang higher version
+	R_INITORDER          = 0x10000000 - 9
 	R_ARM64_PCREL_LDST8  = 0x10000000 - 8
 	R_ARM64_PCREL_LDST16 = 0x10000000 - 7
 	R_ARM64_PCREL_LDST32 = 0x10000000 - 6
