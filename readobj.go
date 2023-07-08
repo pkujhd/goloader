@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -41,16 +42,16 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
-			if !strings.HasPrefix(sym.Reloc[index].Sym.Name, TypeStringPrefix) {
-				sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
+			if !strings.HasPrefix(sym.Reloc[index].Sym.Name, constants.TypeStringPrefix) {
+				sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, constants.EmptyPkgPath, pkg.PkgPath, -1)
 			}
 		}
 		if sym.Type != EmptyString {
-			sym.Type = strings.Replace(sym.Type, EmptyPkgPath, pkg.PkgPath, -1)
+			sym.Type = strings.Replace(sym.Type, constants.EmptyPkgPath, pkg.PkgPath, -1)
 		}
 		if sym.Func != nil {
 			for index, FuncData := range sym.Func.FuncData {
-				sym.Func.FuncData[index] = strings.Replace(FuncData, EmptyPkgPath, pkg.PkgPath, -1)
+				sym.Func.FuncData[index] = strings.Replace(FuncData, constants.EmptyPkgPath, pkg.PkgPath, -1)
 			}
 			sym.Func.CUOffset += int32(cuOffset)
 		}

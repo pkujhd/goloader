@@ -9,6 +9,8 @@ import (
 	"cmd/objfile/objabi"
 	"fmt"
 	"strings"
+
+	"github.com/pkujhd/goloader/constants"
 )
 
 func (pkg *Pkg) Symbols() error {
@@ -47,8 +49,8 @@ func (pkg *Pkg) Symbols() error {
 		}
 	}
 	for _, sym := range pkg.Syms {
-		if !strings.HasPrefix(sym.Name, TypeStringPrefix) {
-			sym.Name = strings.Replace(sym.Name, EmptyPkgPath, pkg.PkgPath, -1)
+		if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
+			sym.Name = strings.Replace(sym.Name, constants.EmptyPkgPath, pkg.PkgPath, -1)
 		}
 	}
 	return nil
@@ -112,7 +114,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 			}
 			for _, inl := range funcInfo.InlTree {
 				funcname, _ := resolveSymRef(inl.Func, r, refNames)
-				funcname = strings.Replace(funcname, EmptyPkgPath, pkg.PkgPath, -1)
+				funcname = strings.Replace(funcname, constants.EmptyPkgPath, pkg.PkgPath, -1)
 				inlNode := InlTreeNode{
 					Parent:   int64(inl.Parent),
 					File:     r.File(int(inl.File)),

@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"strings"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
 )
 
 type tflag uint8
@@ -156,5 +158,5 @@ func regType(symPtr map[string]uintptr, v reflect.Value) {
 	header := (*emptyInterface)(unsafe.Pointer(&inter))
 	pkgpath := (*_type)(header.typ).PkgPath()
 	name := strings.Replace(v.Type().String(), pkgname(pkgpath), pkgpath, 1)
-	symPtr[TypePrefix+name] = uintptr(header.typ)
+	symPtr[constants.TypePrefix+name] = uintptr(header.typ)
 }

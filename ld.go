@@ -10,6 +10,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
@@ -116,7 +117,7 @@ func (linker *Linker) addSymbols() error {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if strings.HasPrefix(sym.Name, TypeStringPrefix) {
+			if strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
 				//nothing todo
 			} else {
 				offset += len(linker.data)
@@ -160,7 +161,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		bytearrayAlign(&linker.data, PtrSize)
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants in heap.
-		if strings.HasPrefix(symbol.Name, TypeStringPrefix) {
+		if strings.HasPrefix(symbol.Name, constants.TypeStringPrefix) {
 			data := make([]byte, len(objsym.Data))
 			copy(data, objsym.Data)
 			stringVal := string(data)
@@ -211,11 +212,11 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				reloc.Sym.Offset = 0
 			}
 			_, exist := linker.symMap[reloc.Sym.Name]
-			if strings.HasPrefix(reloc.Sym.Name, TypeImportPathPrefix) {
+			if strings.HasPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix) {
 				if exist {
 					reloc.Sym = linker.symMap[reloc.Sym.Name]
 				} else {
-					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, TypeImportPathPrefix), ".")
+					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix), ".")
 					reloc.Sym.Kind = symkind.SNOPTRDATA
 					reloc.Sym.Offset = len(linker.noptrdata)
 					//name memory layout
@@ -346,14 +347,14 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		} else if sym.Kind == symkind.STEXT {
 			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
-		} else if strings.HasPrefix(sym.Name, ItabPrefix) {
+		} else if strings.HasPrefix(sym.Name, constants.ItabPrefix) {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
 			}
 		} else {
-			if strings.HasPrefix(name, TypeStringPrefix) {
+			if strings.HasPrefix(name, constants.TypeStringPrefix) {
 				symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
-			} else if strings.HasPrefix(name, TypePrefix) {
+			} else if strings.HasPrefix(name, constants.TypePrefix) {
 				if _, ok := linker.symMap[name]; ok {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 				} else {
@@ -450,8 +451,8 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 		return err
 	}
 	for name, addr := range symbolMap {
-		if strings.HasPrefix(name, TypePrefix) &&
-			!strings.HasPrefix(name, TypeDoubleDotPrefix) &&
+		if strings.HasPrefix(name, constants.TypePrefix) &&
+			!strings.HasPrefix(name, constants.TypeDoubleDotPrefix) &&
 			addr >= module.types && addr < module.etypes {
 			module.typelinks = append(module.typelinks, int32(addr-module.types))
 		}

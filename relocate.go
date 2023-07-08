@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
@@ -275,7 +276,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
-			if addr == 0 && strings.HasPrefix(sym.Name, ItabPrefix) {
+			if addr == 0 && strings.HasPrefix(sym.Name, constants.ItabPrefix) {
 				addr = uintptr(segment.dataBase + loc.Sym.Offset)
 				symbolMap[loc.Sym.Name] = addr
 				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))

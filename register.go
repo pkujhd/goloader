@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
 )
 
 // !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
@@ -24,7 +26,7 @@ func typelinksRegister(symPtr map[string]uintptr) {
 		if int(f.funcoff) < len(md.pclntable) {
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
 			name := getfuncname(_func, &md)
-			if !strings.HasPrefix(name, TypeDoubleDotPrefix) && name != EmptyString {
+			if !strings.HasPrefix(name, constants.TypeDoubleDotPrefix) && name != EmptyString {
 				if _, ok := symPtr[name]; !ok {
 					symPtr[name] = getfuncentry(_func, md.text)
 				}
@@ -45,7 +47,7 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 	if t.tflag&tflagExtraStar != 0 {
 		name = name[1:]
 	}
-	name = TypePrefix + name
+	name = constants.TypePrefix + name
 	if _, ok := symPtr[name]; ok {
 		return
 	}
@@ -119,7 +121,7 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 		if code == "B" || code == "D" {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
-		if strings.HasPrefix(sym.Name, ItabPrefix) {
+		if strings.HasPrefix(sym.Name, constants.ItabPrefix) {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
 	}
