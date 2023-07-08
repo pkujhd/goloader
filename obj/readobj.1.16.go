@@ -591,6 +591,17 @@ func (pkg *Pkg) convertElfRelocs(f *elf.File, e archive.Entry) error {
 							Type:   reloctype.R_CALLARM64,
 							Add:    0, // Even though elf addend is -4, a Go PCREL reloc doesn't need this.
 						})
+					case elf.R_AARCH64_ADR_GOT_PAGE:
+						target.Reloc = append(target.Reloc, Reloc{
+							Offset: int(rela.Off - targetAddr),
+							Sym:    &Sym{Name: sym.Name, Offset: InvalidOffset},
+							Size:   8,
+							Type:   reloctype.R_ARM64_GOTPCREL,
+							Add:    int(rela.Addend), // TODO - test that this is correct
+						})
+					case elf.R_AARCH64_LD64_GOT_LO12_NC:
+						// Should be taken care of in above as these should always come in pairs?
+						// TODO - test that this is correct
 					default:
 						return fmt.Errorf("only a limited subset of elf relocations currently supported, got %s for symbol %s reloc to %s", t.GoString(), target.Name, sym.Name)
 					}
@@ -646,26 +657,28 @@ func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
 	if f.Symtab == nil {
 		return nil
 	}
-	var text []byte
-	var err error
-	var textSect = f.Section("__text")
+	var allData []byte
 
-	if textSect == nil {
-		return nil
-	}
-	text, err = textSect.Data()
-	if err != nil {
-		return fmt.Errorf("failed to read __text section data from %s: %w", e.Name, err)
-	}
+	sectionsSortedByAddr := make([]*macho.Section, len(f.Sections))
+	copy(sectionsSortedByAddr, f.Sections)
 
+	sort.Slice(sectionsSortedByAddr, func(i, j int) bool {
+		return sectionsSortedByAddr[i].Addr < sectionsSortedByAddr[j].Addr
+	})
+
+	for _, section := range sectionsSortedByAddr {
+		data, err := section.Data()
+		if err != nil {
+			return fmt.Errorf("failed to read data for section %s: %w", section.Name, err)
+		}
+		grow(&data, int(section.Size+uint64(section.Align)))
+		allData = append(allData, data...)
+	}
 	// Build sorted list of addresses of all symbols.
 	// We infer the size of a symbol by looking at where the next symbol begins.
 	var addrs []uint64
 	for _, s := range f.Symtab.Syms {
-		// Skip stab debug info.
-		if s.Type&0xe0 == 0 {
-			addrs = append(addrs, s.Value)
-		}
+		addrs = append(addrs, s.Value)
 	}
 	sort.Sort(uint64s(addrs))
 
@@ -689,13 +702,13 @@ func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
 		if i < len(addrs) {
 			sym.Size = int64(addrs[i] - s.Value)
 		} else {
-			sym.Size = int64(len(text))
+			sym.Size = int64(f.Sections[s.Sect-1].Addr + f.Sections[s.Sect-1].Size - s.Value)
 		}
 
-		if sym.Size > 0 && s.Sect > 0 && f.Sections[s.Sect-1] == textSect {
+		if sym.Size > 0 && s.Sect > 0 {
 			addr = s.Value
 			data := make([]byte, sym.Size)
-			copy(data, text[addr:])
+			copy(data, allData[addr:])
 			sym.Data = data
 		}
 
@@ -719,26 +732,94 @@ func (pkg *Pkg) convertMachoRelocs(f *macho.File, e archive.Entry) error {
 			}
 		}
 
-		for _, reloc := range append(textSect.Relocs) {
+		for _, reloc := range append(f.Sections[s.Sect-1].Relocs) {
+			// TODO - review https://opensource.apple.com/source/xnu/xnu-4570.71.2/EXTERNAL_HEADERS/mach-o/reloc.h.auto.html
 			if uint64(reloc.Addr) < s.Value+uint64(sym.Size) && uint64(reloc.Addr) > s.Value {
 				// when Scattered == false && Extern == true, Value is the symbol number.
 				// when Scattered == false && Extern == false, Value is the section number.
 				// when Scattered == true, Value is the value that this reloc refers to.
 
 				if pkg.Arch == "arm64" {
-					if !reloc.Scattered && reloc.Extern && reloc.Pcrel {
+					// https://opensource.apple.com/source/cctools/cctools-877.5/include/mach-o/arm64/reloc.h.auto.html
+					var rType int
+					var rSize int
+					switch macho.RelocTypeARM64(reloc.Type) {
+					case macho.ARM64_RELOC_BRANCH26:
+						rType = reloctype.R_CALLARM64
+						rSize = 4
+						if rSize != 1<<reloc.Len {
+							return fmt.Errorf("unexpected size of macho reloc - Expected 4, got %d %#v", 1<<reloc.Len, reloc)
+						}
+					case macho.ARM64_RELOC_GOT_LOAD_PAGE21:
+						rType = reloctype.R_ADDRARM64
+						rSize = 8
+					case macho.ARM64_RELOC_GOT_LOAD_PAGEOFF12:
+						// Presumably paired with above?
+						continue
+					case macho.ARM64_RELOC_PAGE21:
+						rType = reloctype.R_ADDRARM64
+						rSize = 8
+					case macho.ARM64_RELOC_PAGEOFF12:
+						// Presumably paired with above?
+						continue
+					case macho.ARM64_RELOC_POINTER_TO_GOT:
+						rType = reloctype.R_ARM64_GOTPCREL
+						rSize = 8
+					case macho.ARM64_RELOC_UNSIGNED,
+						macho.ARM64_RELOC_SUBTRACTOR,
+						macho.ARM64_RELOC_TLVP_LOAD_PAGE21,
+						macho.ARM64_RELOC_TLVP_LOAD_PAGEOFF12,
+						macho.ARM64_RELOC_ADDEND:
+
+						return fmt.Errorf("got an unsupported macho reloc: %#v", reloc)
+					}
+					if !reloc.Scattered && reloc.Pcrel {
+						if reloc.Extern {
+							sym.Reloc = append(sym.Reloc, Reloc{
+								Offset: int(uint64(reloc.Addr) - s.Value),
+								Sym:    &Sym{Name: f.Symtab.Syms[reloc.Value].Name, Offset: InvalidOffset},
+								Size:   rSize,
+								Type:   rType,
+								Add:    0, // TODO - Is this correct?
+							})
+						} else {
+							sym.Reloc = append(sym.Reloc, Reloc{
+								Offset: int(uint64(reloc.Addr) - f.Sections[s.Value].Addr),
+								Sym:    &Sym{Name: f.Sections[s.Value].Name, Offset: InvalidOffset},
+								Size:   rSize,
+								Type:   rType,
+								Add:    0,
+							})
+						}
+
+					} else if !reloc.Scattered && !reloc.Pcrel {
 						sym.Reloc = append(sym.Reloc, Reloc{
 							Offset: int(uint64(reloc.Addr) - s.Value),
 							Sym:    &Sym{Name: f.Symtab.Syms[reloc.Value].Name, Offset: InvalidOffset},
-							Size:   4,
-							Type:   reloctype.R_CALLARM64,
+							Size:   rSize,
+							Type:   rType,
 							Add:    0,
 						})
 					} else {
 						return fmt.Errorf("got an unsupported macho reloc: %#v", reloc)
 					}
 				} else if pkg.Arch == "amd64" {
-					if !reloc.Scattered && reloc.Extern && reloc.Pcrel {
+					// https://opensource.apple.com/source/xnu/xnu-1504.7.4/EXTERNAL_HEADERS/mach-o/x86_64/reloc.h.auto.html
+
+					switch macho.RelocTypeX86_64(reloc.Type) {
+					case macho.X86_64_RELOC_UNSIGNED,
+						macho.X86_64_RELOC_SIGNED,
+						macho.X86_64_RELOC_BRANCH,
+						macho.X86_64_RELOC_GOT_LOAD,
+						macho.X86_64_RELOC_GOT,
+						macho.X86_64_RELOC_SUBTRACTOR,
+						macho.X86_64_RELOC_SIGNED_1,
+						macho.X86_64_RELOC_SIGNED_2,
+						macho.X86_64_RELOC_SIGNED_4,
+						macho.X86_64_RELOC_TLV:
+						// TODO - set the size and reloctype based on these instead of blindly assuming R_PCREL
+					}
+					if !reloc.Scattered && reloc.Pcrel {
 						sym.Reloc = append(sym.Reloc, Reloc{
 							Offset: int(uint64(reloc.Addr) - s.Value),
 							Sym:    &Sym{Name: f.Symtab.Syms[reloc.Value].Name, Offset: InvalidOffset},
