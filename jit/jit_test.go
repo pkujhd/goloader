@@ -447,6 +447,42 @@ func TestPatchMultipleModuleItabs(t *testing.T) {
 	}
 }
 
+func TestPatchMultipleModuleItabsIssue55(t *testing.T) {
+	conf := baseConfig
+
+	data := testData{
+		files: []string{"./testdata/test_issue55/t/t.go"},
+		pkg:   "./testdata/test_issue55/t",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module1, symbols1 := buildLoadable(t, conf, testName, data)
+			module2, symbols2 := buildLoadable(t, conf, testName, data)
+
+			test1 := symbols1["Test"].(func(intf p.Intf) p.Intf)
+			test2 := symbols2["Test"].(func(intf p.Intf) p.Intf)
+			test1(&p.Stru{})
+			test2(&p.Stru{})
+
+			err := module1.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			test2(&p.Stru{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = module2.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 // TODO - something wrong with this
 func TestJitPanicRecoveryStackTrace(t *testing.T) {
 	conf := baseConfig
