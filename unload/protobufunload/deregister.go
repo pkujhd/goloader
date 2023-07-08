@@ -52,11 +52,21 @@ var globalTypes = (*ProtoRegistryTypes)(unsafe.Pointer(protoregistry.GlobalTypes
 //go:linkname globalMutex google.golang.org/protobuf/reflect/protoregistry.globalMutex
 var globalMutex sync.RWMutex
 
+type emptyInterface struct {
+	typ  unsafe.Pointer
+	data unsafe.Pointer
+}
+
 func deregisterProtobufPackages(dataStart, dataEnd uintptr) {
 	globalMutex.Lock()
 	defer globalMutex.Unlock()
 
 	for k, desc := range globalTypes.typesByName {
+		eface := (*emptyInterface)(unsafe.Pointer(&desc))
+		if uintptr(eface.typ) < dataEnd && uintptr(eface.typ) >= dataStart {
+			delete(globalTypes.typesByName, k)
+			continue
+		}
 		gopkger, ok := desc.(interface{ GoPackagePath() string })
 		if ok {
 			strVal := gopkger.GoPackagePath()
@@ -68,6 +78,11 @@ func deregisterProtobufPackages(dataStart, dataEnd uintptr) {
 	}
 
 	for k, v := range globalFiles.descsByName {
+		eface := (*emptyInterface)(unsafe.Pointer(&v))
+		if uintptr(eface.typ) < dataEnd && uintptr(eface.typ) >= dataStart {
+			delete(globalFiles.descsByName, k)
+			continue
+		}
 		switch desc := v.(type) {
 		case protoreflect.EnumDescriptor, protoreflect.EnumValueDescriptor, protoreflect.MessageDescriptor,
 			protoreflect.ExtensionDescriptor, protoreflect.ServiceDescriptor:

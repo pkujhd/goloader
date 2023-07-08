@@ -1290,5 +1290,5 @@ func (cm *CodeModule) DataAddr() (start, end uintptr) {
 	if cm.module == nil {
 		return 0, 0
 	}
-	return cm.module.data, cm.module.edata
+	return cm.module.data, cm.module.enoptrbss
 }

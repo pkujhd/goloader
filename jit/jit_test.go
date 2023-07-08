@@ -1351,6 +1351,48 @@ func TestProtobuf(t *testing.T) {
 	}
 }
 
+// This test is commented to avoid adding protobuf as a dependency to the jit package purely for a test
+// TODO - split out all tests into a separate package/module so they can add dependencies more freely
+
+//func TestProtobufUnload(t *testing.T) {
+//	conf := baseConfig
+//	_ = os.Setenv("GOLANG_PROTOBUF_REGISTRATION_CONFLICT", "warn")
+//
+//	data := testData{
+//		files: []string{"./testdata/test_protobuf/test.go"},
+//		pkg:   "./testdata/test_protobuf",
+//	}
+//	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+//	for _, testName := range testNames {
+//		t.Run(testName, func(t *testing.T) {
+//			module1, symbols1 := buildLoadable(t, conf, testName, data)
+//			module2, symbols2 := buildLoadable(t, conf, testName, data)
+//			testFunc1 := symbols1["TestProto"].(func())
+//			testFunc2 := symbols2["TestProto"].(func())
+//			testFunc1()
+//			runtime.GC()
+//			runtime.GC()
+//			protobufunload.Unload(module1.DataAddr())
+//			err := module1.Unload()
+//			runtime.GC()
+//			runtime.GC()
+//			if err != nil {
+//				t.Fatal(err)
+//			}
+//			testFunc2()
+//			runtime.GC()
+//			runtime.GC()
+//			protobufunload.Unload(module2.DataAddr())
+//			err = module2.Unload()
+//			runtime.GC()
+//			runtime.GC()
+//			if err != nil {
+//				t.Fatal(err)
+//			}
+//		})
+//	}
+//}
+
 func TestK8s(t *testing.T) {
 	if goVersion(t) < 19 {
 		t.Skip("k8s requires 1.19+")
