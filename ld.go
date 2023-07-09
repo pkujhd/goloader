@@ -310,9 +310,14 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesCALLARM64+alignment)...)
 			case reloctype.R_PCREL:
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
-				instructionBytes := objsym.Data[reloc.Offset-2 : reloc.Offset+reloc.Size]
-				opcode := instructionBytes[0]
 				var epilogueSize int
+				offset := reloc.Offset
+				if reloc.Offset == 1 {
+					// This might happen if a CGo E9 JMP is right at the beginning of a function, so we want to avoid slicing before the start of the text
+					offset += 1
+				}
+				instructionBytes := objsym.Data[offset-2 : reloc.Offset+reloc.Size]
+				opcode := instructionBytes[0]
 				switch opcode {
 				case x86amd64LEAcode:
 					epilogueSize = maxExtraInstructionBytesPCRELxLEAQ
@@ -320,6 +325,12 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 					epilogueSize = maxExtraInstructionBytesPCRELxMOVNear
 				case x86amd64CMPLcode:
 					epilogueSize = maxExtraInstructionBytesPCRELxCMPLNear
+				case x86amd64JMPcode:
+					epilogueSize = maxExtraInstructionBytesPCRELxJMP
+				case x86amd64CALL2code: // CGo FF 15 PCREL call
+					if instructionBytes[1] == 0x15 {
+						epilogueSize = maxExtraInstructionBytesPCRELxCALL2
+					}
 				default:
 					switch instructionBytes[1] {
 					case x86amd64CALLcode:

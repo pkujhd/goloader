@@ -1,5 +1,5 @@
-//go:build (!cgo && !darwin) || windows
-// +build !cgo,!darwin windows
+//go:build !cgo && !darwin
+// +build !cgo,!darwin
 
 package libc
 

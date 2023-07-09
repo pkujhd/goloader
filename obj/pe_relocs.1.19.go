@@ -172,9 +172,14 @@ func (pkg *Pkg) convertPERelocs(f *pe.File, e archive.Entry) error {
 		}
 
 		sect := f.Sections[s.SectionNumber-1]
-		text, err := sect.Data()
-		if err != nil {
-			return fmt.Errorf("failed to read section data for symbol %s, section %d: %w", s.Name, s.SectionNumber, err)
+		var text []byte
+		if sect.Characteristics&pe.IMAGE_SCN_CNT_UNINITIALIZED_DATA != 0 {
+			text = make([]byte, sect.Size)
+		} else {
+			text, err = sect.Data()
+			if err != nil {
+				return fmt.Errorf("failed to read section data for symbol %s, section %d (%s): %w", s.Name, s.SectionNumber, sect.Name, err)
+			}
 		}
 
 		var sym *ObjSymbol
@@ -217,9 +222,8 @@ func (pkg *Pkg) convertPERelocs(f *pe.File, e archive.Entry) error {
 	}
 
 	for _, section := range f.Sections {
-		if section != textSect {
-			// Only relocate inside .text
-			// TODO - does this make sense?
+		if strings.HasPrefix(section.Name, ".debug_") {
+			// Don't bother relocating debug sections
 			continue
 		}
 		if section.NumberOfRelocations == 0 {
@@ -247,7 +251,7 @@ func (pkg *Pkg) convertPERelocs(f *pe.File, e archive.Entry) error {
 			if err != nil {
 				return err
 			}
-			if section.Name == relocSymName {
+			if f.Section(relocSymName) != nil {
 				continue
 			}
 			rSize := uint8(4)
@@ -312,7 +316,7 @@ func (pkg *Pkg) convertPERelocs(f *pe.File, e archive.Entry) error {
 	}
 
 	for _, symbol := range objSymbols {
-		if symbol != nil && symbol.Name != "" && symbol.Size > 0 && symbol.Kind == symkind.STEXT {
+		if symbol != nil && symbol.Name != "" && symbol.Size > 0 {
 			if _, ok := pkg.Syms[symbol.Name]; !ok {
 				pkg.SymNameOrder = append(pkg.SymNameOrder, symbol.Name)
 			}

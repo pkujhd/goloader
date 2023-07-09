@@ -22,6 +22,7 @@ var (
 	maxExtraInstructionBytesPCRELxCMPLShort = len(x86amd64replaceCMPLcode) + len(x86amd64JMPShortCode)
 	maxExtraInstructionBytesPCRELxCMPLNear  = len(x86amd64replaceCMPLcode) + len(x86amd64JMPNearCode)
 	maxExtraInstructionBytesPCRELxCALL      = len(x86amd64JMPLcode) + PtrSize
+	maxExtraInstructionBytesPCRELxCALL2     = PtrSize
 	maxExtraInstructionBytesPCRELxJMP       = len(x86amd64JMPLcode) + PtrSize
 	maxExtraInstructionBytesCALL            = len(x86amd64JMPLcode) + PtrSize
 	maxExtraInstructionBytesGOTPCREL        = PtrSize
@@ -197,6 +198,9 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		} else if opcode == x86amd64CMPLcode {
 			copy(bytes, append(x86amd64JMPNearCode, x86amd64NOPcode, x86amd64NOPcode))
 			relocOffsetIdx = 1
+		} else if opcode == x86amd64CALL2code {
+			// Probably a CGo FF15 call - CALL into the epilogue, then immediately JMP into function, then RET will bring us back to callsite
+			relocOffsetIdx = 2
 		} else if (bytes[1] == x86amd64CALLcode) && binary.LittleEndian.Uint32(relocByte[loc.Offset:]) == 0 {
 			// Probably a CGo call - CALL into the epilogue, then immediately JMP into function, then RET will bring us back to callsite
 			opcode = bytes[1]
@@ -231,6 +235,8 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		case x86amd64CALLcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
 			epilogueOffset += len(x86amd64JMPLcode)
+			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
+		case x86amd64CALL2code:
 			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
 		case x86amd64JMPcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)

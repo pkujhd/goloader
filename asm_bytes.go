@@ -1,11 +1,12 @@
 package goloader
 
 const (
-	x86amd64MOVcode  byte = 0x8B
-	x86amd64LEAcode  byte = 0x8D
-	x86amd64CMPLcode byte = 0x83
-	x86amd64CALLcode byte = 0xE8
-	x86amd64JMPcode  byte = 0xE9
+	x86amd64MOVcode   byte = 0x8B
+	x86amd64LEAcode   byte = 0x8D
+	x86amd64CMPLcode  byte = 0x83
+	x86amd64CALLcode  byte = 0xE8
+	x86amd64CALL2code byte = 0xFF
+	x86amd64JMPcode   byte = 0xE9
 )
 
 // arm/arm64

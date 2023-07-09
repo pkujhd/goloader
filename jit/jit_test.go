@@ -354,6 +354,49 @@ func TestJitCGoCall(t *testing.T) {
 	}
 }
 
+func TestJitCGoPackage(t *testing.T) {
+	if os.Getenv("CGO_ENABLED") == "0" {
+		t.Skip("CGo disabled")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("TODO - C calling Go not yet supported on Windows")
+	}
+	conf := baseConfig
+
+	data := testData{
+		pkg: "testdata/test_cgo_package",
+	}
+	module, symbols := buildLoadable(t, conf, "BuildGoPackage", data)
+	cgoCall := symbols["CGoCall"].(func(a, b int32) (int32, int32, int32, int32, int32))
+	mul, add, constant, blah, cCallsGo := cgoCall(2, 3)
+
+	// This won't pass since nothing currently applies native elf/macho relocations in native code
+	if mul != 6 {
+		t.Errorf("expected mul to be 2 * 3 == 6, got %d", mul)
+	}
+	if add != 5 {
+		t.Errorf("expected mul to be 2 + 3 == 5, got %d", add)
+	}
+	if constant != 5 {
+		t.Errorf("expected constant to be 5, got %d", add)
+	}
+	if blah != 999+5 {
+		t.Errorf("expected blah to be 999+5, got %d", blah)
+	}
+	if cCallsGo != 30 {
+		t.Errorf("expected cCallsGo to be 30, got %d", cCallsGo)
+	}
+	fmt.Println(mul, add, constant, blah, cCallsGo)
+
+	err := module.Unload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestJitHttpGet(t *testing.T) {
 	conf := baseConfig
 

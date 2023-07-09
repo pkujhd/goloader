@@ -4,6 +4,7 @@ import (
 	"cmd/objfile/gcprog"
 	"fmt"
 	"sort"
+	"strings"
 	"unsafe"
 
 	"github.com/eh-steve/goloader/obj"
@@ -45,6 +46,10 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 			w.Append(prog[4:], nptr)
 		}
 	} else {
+		if strings.HasPrefix(sym.Name, "_cgo_") || strings.Count(sym.Name, ".") == 0 {
+			// CGo symbols don't need gcdata
+			return nil
+		}
 		return fmt.Errorf("type: '%s' for symbol '%s' not found\n", typeName, sym.Name)
 	}
 	return nil
