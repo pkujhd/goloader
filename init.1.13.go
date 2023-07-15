@@ -5,6 +5,8 @@ package goloader
 
 import (
 	"unsafe"
+
+	"github.com/pkujhd/goloader/obj"
 )
 
 const (
@@ -12,10 +14,9 @@ const (
 )
 
 func getInitFuncName(packagename string) string {
-	return packagename + _InitTaskSuffix
+	return obj.PathToPrefix(packagename) + _InitTaskSuffix
 }
 
-// doInit is defined in package runtime
 //go:linkname doInit runtime.doInit
 func doInit(t unsafe.Pointer) // t should be a *runtime.initTask
 

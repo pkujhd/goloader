@@ -6,6 +6,7 @@ package goloader
 import (
 	"unsafe"
 
+	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 )
 
@@ -20,11 +21,9 @@ const (
 )
 
 func getInitFuncName(packagename string) string {
-	return packagename + _InitTaskSuffix
+	return obj.PathToPrefix(packagename) + _InitTaskSuffix
 }
 
-// doInit is defined in package runtime
-//
 //go:linkname doInit1 runtime.doInit1
 func doInit1(t unsafe.Pointer) // t should be a *runtime.initTask
 
