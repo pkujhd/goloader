@@ -288,11 +288,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
-				case reloctype.R_CALL:
+				case reloctype.R_CALL, reloctype.R_CALL | reloctype.R_WEAK:
 					linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
 				case reloctype.R_PCREL:
 					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
-				case reloctype.R_CALLARM, reloctype.R_CALLARM64:
+				case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALLARM64 | reloctype.R_WEAK:
 					linker.relocteCALLARM(addr, loc, segment)
 				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 					if symbol.Kind != symkind.STEXT {

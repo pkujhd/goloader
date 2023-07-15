@@ -53,6 +53,7 @@ const (
 	R_USEIFACEMETHOD     = 0x10000000 - 2
 	R_ADDRCUOFF          = 0x10000000 - 1
 	R_WEAKADDR           = 0x20000000
+	R_WEAK               = 0x8000
 )
 
 func RelocTypeString(relocType int) string {

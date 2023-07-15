@@ -64,6 +64,7 @@ const (
 	R_ARM64_PCREL_LDST64 = 0x10000000 - 5
 	R_USETYPE            = 0x10000000 - 4
 	R_WEAKADDR           = 0x20000000
+	R_WEAK               = 0x8000
 )
 
 func RelocTypeString(relocType int) string {
