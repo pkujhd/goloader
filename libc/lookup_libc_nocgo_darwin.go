@@ -6,6 +6,7 @@ package libc
 import (
 	"fmt"
 	"github.com/eh-steve/goloader"
+	"github.com/eh-steve/goloader/goversion"
 	"reflect"
 	"runtime"
 	"syscall"
@@ -21,9 +22,13 @@ var selfDlHandle uintptr
 
 func libc_dlopen_trampoline()
 
+func libc_dlopen_noframe_trampoline()
+
 //go:cgo_import_dynamic libc_dlopen dlopen "/usr/lib/libSystem.B.dylib"
 
 func libc_dlsym_trampoline()
+
+func libc_dlsym_noframe_trampoline()
 
 //go:cgo_import_dynamic libc_dlsym dlsym "/usr/lib/libSystem.B.dylib"
 
@@ -35,8 +40,15 @@ var dlsymABI0 uintptr
 
 func init() {
 
-	dlopenABIInternal := reflect.ValueOf(libc_dlopen_trampoline).Pointer()
-	dlsymABIInternal := reflect.ValueOf(libc_dlsym_trampoline).Pointer()
+	var dlopenABIInternal, dlsymABIInternal uintptr
+	if goversion.GoVersion() >= 21 {
+		// Go 1.21 automatically wraps asm funcs with a BP push/pop to create a frame, so no need to do it ourselves
+		dlopenABIInternal = reflect.ValueOf(libc_dlopen_noframe_trampoline).Pointer()
+		dlsymABIInternal = reflect.ValueOf(libc_dlsym_noframe_trampoline).Pointer()
+	} else {
+		dlopenABIInternal = reflect.ValueOf(libc_dlopen_trampoline).Pointer()
+		dlsymABIInternal = reflect.ValueOf(libc_dlsym_trampoline).Pointer()
+	}
 
 	// reflect.(*Value).Pointer() will always give the ABIInternal FuncPC, not the ABI0.
 	// Since we don't have access to internal/abi.FuncPCABI0, we need to find the ABI0

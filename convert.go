@@ -5,6 +5,7 @@ package goloader
 
 import (
 	"fmt"
+	"github.com/eh-steve/goloader/goversion"
 	"github.com/eh-steve/goloader/mprotect"
 	"log"
 	"reflect"
@@ -290,7 +291,7 @@ func cvt(oldModule, newModule *CodeModule, oldValue Value, newType Type, oldValu
 								closure.F = entry
 							} else if closureFuncRegex.MatchString(oldFName) {
 								containerSym, haveContainerSym := newModule.Syms[oldFName+"·f"]
-								if haveContainerSym && goVersion() > 18 {
+								if haveContainerSym && goversion.GoVersion() > 18 {
 									funcContainer = unsafe.Pointer(containerSym)
 								} else {
 									// This is a closure which is unlikely to be safe since the variables it closes over might be in the old module's memory

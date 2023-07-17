@@ -32,3 +32,9 @@ TEXT ·libc_dlsym_trampoline(SB),NOSPLIT,$0
 ok:
 	MOVD	R0, 16(R19) // ret 1 p
 	RET
+
+TEXT ·libc_dlopen_noframe_trampoline(SB),NOSPLIT,$0
+	B	·libc_dlopen_trampoline(SB)
+
+TEXT ·libc_dlsym_noframe_trampoline(SB),NOSPLIT,$0
+	B	·libc_dlsym_trampoline(SB)
