@@ -257,7 +257,7 @@ func PatchGC(goBinary string, debugLog bool) error {
 
 func move(source, destination string) error {
 	err := os.Rename(source, destination)
-	if err != nil && strings.Contains(err.Error(), "cross-device link") {
+	if err != nil && (strings.Contains(err.Error(), "cross-device link") || strings.Contains(err.Error(), "cannot move the file to a different disk drive")) {
 		return moveCrossDevice(source, destination)
 	}
 	return err
