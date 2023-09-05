@@ -310,6 +310,35 @@ func TestJitEmbeddedStruct(t *testing.T) {
 	}
 }
 
+func TestSchedule(t *testing.T) {
+	conf := baseConfig
+	data := testData{
+		files: []string{"./testdata/test_schedule/test.go"},
+		pkg:   "testdata/test_schedule",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+
+			test := symbols["Test"].(func())
+			for i := 0; i < 100; i++ {
+				fmt.Println("Test ", i)
+				test()
+			}
+
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestJitCGoCall(t *testing.T) {
 	if os.Getenv("CGO_ENABLED") == "0" {
 		t.Skip("CGo disabled")
