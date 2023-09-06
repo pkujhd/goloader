@@ -19,9 +19,9 @@ const (
 	maxExtraCodeSize_ARM64_PCREL_LDST = 24
 	maxExtraCodeSize_PCRELxMOV        = 18
 	maxExtraCodeSize_PCRELxCMPL       = 21
-	maxExtraCodeSize_PCRELxCALL       = 14
+	maxExtraCodeSize_PCRELxCALL       = 11
 	maxExtraCodeSize_PCRELxJMP        = 14
-	maxExtraCodeSize_CALL             = 14
+	maxExtraCodeSize_CALL             = 11
 )
 
 func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
@@ -154,11 +154,17 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+		segment.dataOff = alignof(segment.dataOff, PtrSize)
 		epilogueOffset := loc.Epilogue.Offset
 		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
-		copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
-		epilogueOffset += len(x86amd64JMPLcode)
-		putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
+		relocByte[loc.Offset-1] = x86amd64JMPcode
+		copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
+		off := (segment.dataBase + segment.dataOff - segment.codeBase - epilogueOffset - 6)
+		byteorder.PutUint32(segment.codeByte[epilogueOffset+2:], uint32(off))
+		putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr)+uint64(loc.Add))
+		epilogueOffset += len(x86amd64replaceCALLcode)
+		off = addrBase + loc.Offset + loc.Size - segment.codeBase - epilogueOffset
+		byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(off))
 	}
 	byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 }
@@ -202,9 +208,15 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 			putAddress(byteorder, segment.codeByte[epilogueOffset+2:], uint64(addr)+uint64(loc.Add))
 			epilogueOffset += len(x86amd64replaceMOVQcode)
 		case x86amd64CALLcode:
-			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
-			epilogueOffset += len(x86amd64JMPLcode)
-			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
+			segment.dataOff = alignof(segment.dataOff, PtrSize)
+			bytes[1] = x86amd64JMPcode
+			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
+			off := (segment.dataBase + segment.dataOff - segment.codeBase - epilogueOffset - 6)
+			byteorder.PutUint32(segment.codeByte[epilogueOffset+2:], uint32(off))
+			epilogueOffset += len(x86amd64replaceCALLcode)
+			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr)+uint64(loc.Add))
+			off = addrBase + loc.Offset + loc.Size - segment.codeBase - epilogueOffset
+			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(off))
 		case x86amd64JMPcode:
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
 			epilogueOffset += len(x86amd64JMPLcode)
