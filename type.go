@@ -52,6 +52,7 @@ type interfacetype struct {
 type name struct {
 	bytes *byte
 }
+
 //go:linkname _Kind reflect.(*rtype).Kind
 func _Kind(t *_type) reflect.Kind
 
@@ -135,7 +136,7 @@ func resolveTypeName(typ *_type) string {
 	if pkgPath != EmptyString && name != EmptyString {
 		return pkgPath + "." + name
 	}
-	//golang <= 1.16 map.bucket has a self-contained struct filed
+	//golang <= 1.16 map.bucket has a self-contained struct field
 	if strings.HasPrefix(typ.String(), "map.bucket[") {
 		return typ.String()
 	}

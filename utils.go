@@ -40,7 +40,7 @@ func bytearrayAlign(b *[]byte, align int) {
 func bytearrayAlignNops(arch *sys.Arch, b *[]byte, align int) {
 	length := len(*b)
 	if length%align != 0 {
-		*b = append(*b, make([]byte, align-length%align)...)
+		*b = append(*b, createArchNops(arch, align-length%align)...)
 	}
 }
 
