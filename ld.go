@@ -330,11 +330,14 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				case x86amd64CALL2code: // CGo FF 15 PCREL call
 					if instructionBytes[1] == 0x15 {
 						epilogueSize = maxExtraInstructionBytesPCRELxCALL2
+						break
 					}
+					fallthrough // Might be FF XX E8/E9 ...
 				default:
 					switch instructionBytes[1] {
 					case x86amd64CALLcode:
-						epilogueSize = maxExtraInstructionBytesPCRELxCALL
+						opcode = x86amd64CALLcode
+						epilogueSize = maxExtraInstructionBytesCALLNear
 					case x86amd64JMPcode:
 						epilogueSize = maxExtraInstructionBytesPCRELxJMP
 					}
@@ -350,6 +353,10 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 					if shortJmp {
 						epilogueSize = maxExtraInstructionBytesPCRELxCMPLShort
 					}
+				case x86amd64CALLcode:
+					if shortJmp {
+						epilogueSize = maxExtraInstructionBytesCALLShort
+					}
 				}
 				objsym.Reloc[i].EpilogueSize = epilogueSize
 				linker.code = append(linker.code, createArchNops(linker.Arch, epilogueSize)...)
@@ -364,9 +371,15 @@ func (linker *Linker) addSymbol(name string, globalSymPtr map[string]uintptr) (s
 				alignment := alignof(len(linker.code)-symbol.Offset, PtrSize) - (len(linker.code) - symbol.Offset)
 				linker.code = append(linker.code, createArchNops(linker.Arch, objsym.Reloc[i].EpilogueSize+alignment)...)
 			case reloctype.R_CALL, reloctype.R_CALL | reloctype.R_WEAK:
+				epilogueSize := maxExtraInstructionBytesCALLNear
+				returnOffset := (reloc.Offset + reloc.Size) - (objsym.Reloc[i].EpilogueOffset + epilogueSize) - len(x86amd64JMPShortCode) //  assumes short jump, adjusts if not
+				shortJmp := returnOffset < 0 && returnOffset > -0x80
 				objsym.Reloc[i].EpilogueOffset = len(linker.code) - symbol.Offset
-				objsym.Reloc[i].EpilogueSize = maxExtraInstructionBytesCALL
-				linker.code = append(linker.code, createArchNops(linker.Arch, maxExtraInstructionBytesCALL)...)
+				if shortJmp {
+					epilogueSize = maxExtraInstructionBytesCALLShort
+				}
+				objsym.Reloc[i].EpilogueSize = epilogueSize
+				linker.code = append(linker.code, createArchNops(linker.Arch, epilogueSize)...)
 			}
 			bytearrayAlignNops(linker.Arch, &linker.code, PtrSize)
 		}

@@ -21,10 +21,10 @@ var (
 	maxExtraInstructionBytesPCRELxMOVNear   = len(x86amd64replaceMOVQcode) + len(x86amd64JMPNearCode)
 	maxExtraInstructionBytesPCRELxCMPLShort = len(x86amd64replaceCMPLcode) + len(x86amd64JMPShortCode)
 	maxExtraInstructionBytesPCRELxCMPLNear  = len(x86amd64replaceCMPLcode) + len(x86amd64JMPNearCode)
-	maxExtraInstructionBytesPCRELxCALL      = len(x86amd64JMPLcode) + PtrSize
 	maxExtraInstructionBytesPCRELxCALL2     = PtrSize
 	maxExtraInstructionBytesPCRELxJMP       = len(x86amd64JMPLcode) + PtrSize
-	maxExtraInstructionBytesCALL            = len(x86amd64JMPLcode) + PtrSize
+	maxExtraInstructionBytesCALLShort       = len(x86amd64CALLFarCode) + len(x86amd64JMPShortCode) + PtrSize
+	maxExtraInstructionBytesCALLNear        = len(x86amd64CALLFarCode) + len(x86amd64JMPNearCode) + PtrSize
 	maxExtraInstructionBytesGOTPCREL        = PtrSize
 	maxExtraInstructionBytesARM64GOTPCREL   = PtrSize
 )
@@ -140,14 +140,28 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 	copy(segment.codeByte[epilogueOffset:epilogueOffset+loc.EpilogueSize], createX86Nops(loc.EpilogueSize))
 
 	if offset > 0x7FFFFFFF || offset < -0x80000000 || (linker.options.ForceTestRelocationEpilogues && loc.EpilogueSize > 0) {
-		// "CALL" into the epilogue, then immediately JMPL into the actual func using a PCREL 8 byte
-		// address immediately after the epilogue - the RET will bring us straight back to the call site
+		// JMP into the epilogue, then CALL into the actual func using a PCREL 8 byte address placed after the JMP back from the epilogue
 		if loc.EpilogueSize == 0 {
 			return fmt.Errorf("relocation epilogue not available but got a >32-bit CALL reloc (x86 code: %x) with offset %d: %s", relocByte[loc.Offset-2:loc.Offset+loc.Size], offset, loc.Sym.Name)
 		}
-		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
-		copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
-		epilogueOffset += len(x86amd64JMPLcode)
+		// Replace the E8 CALL with a E9 JMP into the epilogue, the CALL the function, then JMP (near or far) back
+		relocByte[loc.Offset-1] = x86amd64JMPcode
+		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size) // Point the JMP offset at the epilogue
+		copy(segment.codeByte[epilogueOffset:], x86amd64CALLFarCode)
+		epilogueOffset += len(x86amd64CALLFarCode)
+		returnOffset := (loc.Offset + loc.Size) - epilogueOffset - len(x86amd64JMPShortCode) // assumes short jump - if we need a near jump, we'll adjust
+		if returnOffset > -0x80 && returnOffset < 0 {
+			byteorder.PutUint32(relocByte[epilogueOffset-4:], uint32(len(x86amd64JMPShortCode))) // Read the 8 bytes after the length of the JMP back
+			copy(segment.codeByte[epilogueOffset:], x86amd64JMPShortCode)
+			segment.codeByte[epilogueOffset+1] = uint8(returnOffset)
+			epilogueOffset += len(x86amd64JMPShortCode)
+		} else {
+			byteorder.PutUint32(relocByte[epilogueOffset-4:], uint32(len(x86amd64JMPNearCode))) // Read the 8 bytes after the length of the JMP back
+			returnOffset -= len(x86amd64JMPNearCode) - len(x86amd64JMPShortCode)
+			copy(segment.codeByte[epilogueOffset:], x86amd64JMPNearCode)
+			byteorder.PutUint32(segment.codeByte[epilogueOffset+1:], uint32(returnOffset))
+			epilogueOffset += len(x86amd64JMPNearCode)
+		}
 		putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
 	}
 	byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
@@ -233,8 +247,23 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 				epilogueOffset += len(x86amd64replaceMOVQcode)
 			}
 		case x86amd64CALLcode:
-			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
-			epilogueOffset += len(x86amd64JMPLcode)
+			bytes[1] = x86amd64JMPcode
+			offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size) // Point the JMP offset at the epilogue
+			copy(segment.codeByte[epilogueOffset:], x86amd64CALLFarCode)
+			epilogueOffset += len(x86amd64CALLFarCode)
+			returnOffset := (loc.Offset + loc.Size) - epilogueOffset - len(x86amd64JMPShortCode) // assumes short jump - if we need a near jump, we'll adjust
+			if returnOffset > -0x80 && returnOffset < 0 {
+				byteorder.PutUint32(relocByte[epilogueOffset-4:], uint32(len(x86amd64JMPShortCode))) // Read the 8 bytes after the length of the JMP back
+				copy(segment.codeByte[epilogueOffset:], x86amd64JMPShortCode)
+				segment.codeByte[epilogueOffset+1] = uint8(returnOffset)
+				epilogueOffset += len(x86amd64JMPShortCode)
+			} else {
+				byteorder.PutUint32(relocByte[epilogueOffset-4:], uint32(len(x86amd64JMPNearCode))) // Read the 8 bytes after the length of the JMP back
+				returnOffset -= len(x86amd64JMPNearCode) - len(x86amd64JMPShortCode)
+				copy(segment.codeByte[epilogueOffset:], x86amd64JMPNearCode)
+				byteorder.PutUint32(segment.codeByte[epilogueOffset+1:], uint32(returnOffset))
+				epilogueOffset += len(x86amd64JMPNearCode)
+			}
 			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))
 		case x86amd64CALL2code:
 			putAddressAddOffset(byteorder, segment.codeByte, &epilogueOffset, uint64(addr)+uint64(loc.Add))

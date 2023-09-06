@@ -60,7 +60,7 @@ func createARM64Nops(size int) []byte {
 	}
 
 	nops := make([]byte, size)
-	for i := 0; i < size/4; i += 4 {
+	for i := 0; i < size; i += 4 {
 		copy(nops[i:], arm64NopCode)
 	}
 	return nops
