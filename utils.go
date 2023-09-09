@@ -64,11 +64,11 @@ func createX86Amd64Nops(size int) []byte {
 }
 
 func createArm64Nops(size int) []byte {
-	if size%4 != 0 {
-		panic(fmt.Sprintf("can't make nop instruction if padding is not multiple of 4, got %d", size))
+	if size%sys.ArchARM.MinLC != 0 {
+		panic(fmt.Sprintf("can't make nop instruction if padding is not multiple of %d, got %d", sys.ArchARM.MinLC, size))
 	}
 	nops := make([]byte, size)
-	for i := 0; i < size/sys.ArchARM.MinLC; i += 4 {
+	for i := 0; i < size; i += sys.ArchARM.MinLC {
 		copy(nops[i:], arm64Nopcode)
 	}
 	return nops
