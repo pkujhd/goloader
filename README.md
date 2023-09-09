@@ -67,10 +67,10 @@ Don't use "-s -w" compile argument, It strips symbol table.
 
 This has currently only been tested and developed on:
 
-Golang 1.8-1.20 (x64/x86, darwin, linux, windows)
+Golang 1.8-1.21 (x64/x86, darwin, linux, windows)
 
-Golang 1.10-1.20 (arm, linux, android)
+Golang 1.10-1.21 (arm, linux, android)
 
-Golang 1.8-1.20 (arm64, linux, android)
+Golang 1.8-1.21 (arm64, linux, android)
 
-Golang 1.16-1.20 (arm64, darwin)
+Golang 1.16-1.21 (arm64, darwin)
