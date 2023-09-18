@@ -19,7 +19,9 @@ Please note that Goloader is not a scripting engine. It reads the output of Go c
 
 Goloader reuses the Go runtime, which makes it much smaller. And code loaded by Goloader is unloadable.
 
-Goloader supports pprof tool(Yes, you can see code loaded by Goloader in pprof).
+Goloader supports pprof tool(Yes, you can see code loaded by Goloader in pprof). 
+
+Goloader don't support obj file with cgo.
 
 ## Build
 
