@@ -19,8 +19,13 @@ import (
 )
 
 func init() {
+	path, err := os.Executable()
+	if err != nil {
+		panic(fmt.Errorf("could not find executable path: %w", err))
+	}
+
 	// This is somewhat insane, but hey ¯\_(ツ)_/¯
-	havePatched, err := PatchMachoSelfMakeWriteable()
+	havePatched, err := PatchMachoSelfMakeWriteable(path)
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +39,7 @@ func init() {
 			if err != nil {
 				panic(err)
 			}
-			orig, err := os.OpenFile(os.Args[0], os.O_RDONLY, 0755)
+			orig, err := os.OpenFile(path, os.O_RDONLY, 0755)
 			if err != nil {
 				panic(err)
 			}
@@ -51,7 +56,7 @@ func init() {
 			if err != nil {
 				panic(err)
 			}
-			err = os.Rename(f.Name(), os.Args[0])
+			err = os.Rename(f.Name(), path)
 			if err != nil {
 				panic(err)
 			}
@@ -70,12 +75,7 @@ const (
 	fileHeaderSize64 = 8 * 4
 )
 
-func PatchMachoSelfMakeWriteable() (bool, error) {
-	path, err := os.Executable()
-	if err != nil {
-		return false, fmt.Errorf("could not find executable path: %w", err)
-	}
-
+func PatchMachoSelfMakeWriteable(path string) (bool, error) {
 	r, err := os.OpenFile(path, os.O_RDWR, 0755)
 
 	if err != nil {
