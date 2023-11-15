@@ -295,8 +295,12 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	linker._func = append(linker._func, &_func)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
-		Func.PCData = append(Func.PCData, uint32(len(linker.pclntable)))
-		linker.pclntable = append(linker.pclntable, pcdata...)
+		if len(pcdata) == 0 {
+			Func.PCData = append(Func.PCData, 0)
+		} else {
+			Func.PCData = append(Func.PCData, uint32(len(linker.pclntable)))
+			linker.pclntable = append(linker.pclntable, pcdata...)
+		}
 	}
 
 	for _, name := range symbol.Func.FuncData {
@@ -351,7 +355,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			}
 		} else {
 			if strings.HasPrefix(name, constants.TypeStringPrefix) {
-					symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
+				symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
 			} else if strings.HasPrefix(name, constants.TypePrefix) {
 				if _, ok := linker.symMap[name]; ok {
 					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
@@ -361,10 +365,10 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			} else if _, ok := symPtr[name]; ok {
 				symbolMap[name] = symPtr[name]
 			} else {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-				}
+				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
 			}
 		}
+	}
 	return symbolMap, err
 }
 
