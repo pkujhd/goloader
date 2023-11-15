@@ -545,8 +545,12 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	linker._func = append(linker._func, &_func)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
-		Func.PCData = append(Func.PCData, uint32(len(linker.pctab)))
-		linker.pctab = append(linker.pctab, pcdata...)
+		if len(pcdata) == 0 {
+			Func.PCData = append(Func.PCData, 0)
+		} else {
+			Func.PCData = append(Func.PCData, uint32(len(linker.pctab)))
+			linker.pctab = append(linker.pctab, pcdata...)
+		}
 	}
 
 	for _, name := range symbol.Func.FuncData {
