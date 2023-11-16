@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
+	"github.com/pkujhd/goloader/objabi/funcalign"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"github.com/pkujhd/goloader/stackobject"
@@ -150,7 +151,10 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		symbol.Offset = len(linker.code)
 		linker.code = append(linker.code, objsym.Data...)
 		expandFunc(linker, objsym, symbol)
-		bytearrayAlignNops(linker.Arch, &linker.code, PtrSize)
+		if len(linker.code)-symbol.Offset < minfunc {
+			linker.code = append(linker.code, createArchNops(linker.Arch, minfunc-(len(linker.code)-symbol.Offset))...)
+		}
+		bytearrayAlignNops(linker.Arch, &linker.code, funcalign.GetFuncAlign(linker.Arch))
 		symbol.Func = &obj.Func{}
 		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
