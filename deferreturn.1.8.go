@@ -3,6 +3,6 @@
 
 package goloader
 
-func (linker *Linker) addDeferReturn(_func *_func) (err error) {
+func (linker *Linker) addDeferReturn(_func *_func, module *moduledata) (err error) {
 	return nil
 }

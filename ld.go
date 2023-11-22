@@ -377,14 +377,14 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 }
 
 func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map[string]uintptr) (err error) {
-	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+	funcname := getfuncname(_func, module)
 	setfuncentry(_func, symbolMap[funcname], module.text)
 	Func := linker.symMap[funcname].Func
 
 	if err = stackobject.AddStackObject(funcname, linker.symMap, symbolMap, module.noptrdata); err != nil {
 		return err
 	}
-	if err = linker.addDeferReturn(_func); err != nil {
+	if err = linker.addDeferReturn(_func, module); err != nil {
 		return err
 	}
 
@@ -420,10 +420,11 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.end = module.enoptrbss
 	module.types = module.data
 	module.etypes = module.enoptrbss
+	initmodule(codeModule.module, linker)
 
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker._func {
-		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+		funcname := getfuncname(_func, module)
 		module.ftab = append(module.ftab, initfunctab(symbolMap[funcname], uintptr(len(module.pclntable)), module.text))
 		if err = linker.addFuncTab(module, linker._func[index], symbolMap); err != nil {
 			return err
@@ -434,7 +435,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	//see:^src/cmd/link/internal/ld/pcln.go findfunctab
 	funcbucket := []findfuncbucket{}
 	for k, _func := range linker._func {
-		funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+		funcname := getfuncname(_func, module)
 		x := linker.symMap[funcname].Offset
 		b := x / pcbucketsize
 		i := x % pcbucketsize / (pcbucketsize / nsub)
@@ -463,7 +464,6 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 			module.typelinks = append(module.typelinks, int32(addr-module.types))
 		}
 	}
-	initmodule(codeModule.module, linker)
 
 	modulesLock.Lock()
 	addModule(codeModule.module)

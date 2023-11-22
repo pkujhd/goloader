@@ -10,8 +10,8 @@ import (
 	"github.com/pkujhd/goloader/objabi/dataindex"
 )
 
-func (linker *Linker) addDeferReturn(_func *_func) (err error) {
-	funcname := gostringnocopy(&linker.pclntable[_func.nameoff])
+func (linker *Linker) addDeferReturn(_func *_func, module *moduledata) (err error) {
+	funcname := getfuncname(_func, module)
 	Func := linker.symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
 		sym := linker.symMap[funcname]
