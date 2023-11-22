@@ -308,21 +308,23 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	}
 
 	for _, name := range symbol.Func.FuncData {
-		if _, ok := linker.symMap[name]; !ok {
-			if _, ok := linker.objsymbolMap[name]; ok {
-				if _, err = linker.addSymbol(name); err != nil {
-					return err
-				}
-			} else if len(name) == 0 {
-				//nothing todo
-			} else {
-				return errors.New("unknown gcobj:" + name)
-			}
-		}
-		if sym, ok := linker.symMap[name]; ok {
-			Func.FuncData = append(Func.FuncData, (uintptr)(sym.Offset))
-		} else {
+		if name == EmptyString {
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
+		} else {
+			if _, ok := linker.symMap[name]; !ok {
+				if _, ok := linker.objsymbolMap[name]; ok {
+					if _, err = linker.addSymbol(name); err != nil {
+						return err
+					}
+				} else {
+					return errors.New("unknown gcobj:" + name)
+				}
+			}
+			if sym, ok := linker.symMap[name]; ok {
+				Func.FuncData = append(Func.FuncData, (uintptr)(sym.Offset))
+			} else {
+				Func.FuncData = append(Func.FuncData, (uintptr)(0))
+			}
 		}
 	}
 
