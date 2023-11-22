@@ -25,43 +25,43 @@ const (
 )
 
 func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
+	// on linux/amd64, mmap force return < 32bit address, don't need add extra instructions
+	if linker.Arch.Name == sys.ArchAMD64.Name && runtime.GOOS == "linux" {
+		return
+	}
 	// Pessimistically pad the function text with extra bytes for any relocations which might add extra
 	// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
 	// the PCData, PCLine, PCFile, PCSP etc.
-
-	// on linux/amd64, mmap force return < 32bit address, don't need add extra instructions
-	if !(linker.Arch.Name == sys.ArchAMD64.Name && runtime.GOOS == "linux") {
-		for i, reloc := range objsym.Reloc {
-			epilogue := &(objsym.Reloc[i].Epilogue)
-			epilogue.Offset = len(linker.code) - symbol.Offset
-			switch reloc.Type {
-			case reloctype.R_ADDRARM64:
-				epilogue.Size = maxExtraCodeSize_ADDRARM64
-			case reloctype.R_CALLARM64:
-				epilogue.Size = maxExtraCodeSize_CALLARM64
-			case reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
-				epilogue.Size = maxExtraCodeSize_ARM64_PCREL_LDST
-			case reloctype.R_CALL:
-				epilogue.Size = maxExtraCodeSize_CALL
-			case reloctype.R_PCREL:
-				opCodes := objsym.Data[reloc.Offset-2 : reloc.Offset+reloc.Size]
-				switch opCodes[0] {
-				case x86amd64MOVcode:
-					epilogue.Size = maxExtraCodeSize_PCRELxMOV
-				case x86amd64CMPLcode:
-					epilogue.Size = maxExtraCodeSize_PCRELxCMPL
-				default:
-					switch opCodes[1] {
-					case x86amd64CALLcode:
-						epilogue.Size = maxExtraCodeSize_PCRELxCALL
-					case x86amd64JMPcode:
-						epilogue.Size = maxExtraCodeSize_PCRELxJMP
-					}
+	for i, reloc := range objsym.Reloc {
+		epilogue := &(objsym.Reloc[i].Epilogue)
+		epilogue.Offset = len(linker.code) - symbol.Offset
+		switch reloc.Type {
+		case reloctype.R_ADDRARM64:
+			epilogue.Size = maxExtraCodeSize_ADDRARM64
+		case reloctype.R_CALLARM64:
+			epilogue.Size = maxExtraCodeSize_CALLARM64
+		case reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
+			epilogue.Size = maxExtraCodeSize_ARM64_PCREL_LDST
+		case reloctype.R_CALL:
+			epilogue.Size = maxExtraCodeSize_CALL
+		case reloctype.R_PCREL:
+			opCodes := objsym.Data[reloc.Offset-2 : reloc.Offset+reloc.Size]
+			switch opCodes[0] {
+			case x86amd64MOVcode:
+				epilogue.Size = maxExtraCodeSize_PCRELxMOV
+			case x86amd64CMPLcode:
+				epilogue.Size = maxExtraCodeSize_PCRELxCMPL
+			default:
+				switch opCodes[1] {
+				case x86amd64CALLcode:
+					epilogue.Size = maxExtraCodeSize_PCRELxCALL
+				case x86amd64JMPcode:
+					epilogue.Size = maxExtraCodeSize_PCRELxJMP
 				}
 			}
-			if epilogue.Size > 0 {
-				linker.code = append(linker.code, createArchNops(linker.Arch, epilogue.Size)...)
-			}
+		}
+		if epilogue.Size > 0 {
+			linker.code = append(linker.code, createArchNops(linker.Arch, epilogue.Size)...)
 		}
 	}
 }

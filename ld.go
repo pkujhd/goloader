@@ -102,14 +102,12 @@ func (linker *Linker) addSymbols() error {
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
 	for _, objSym := range linker.objsymbolMap {
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
-			_, err := linker.addSymbol(objSym.Name)
-			if err != nil {
+			if _, err := linker.addSymbol(objSym.Name); err != nil {
 				return err
 			}
 		}
 		if objSym.Kind == symkind.SNOPTRDATA {
-			_, err := linker.addSymbol(objSym.Name)
-			if err != nil {
+			if _, err := linker.addSymbol(objSym.Name); err != nil {
 				return err
 			}
 		}
@@ -118,9 +116,7 @@ func (linker *Linker) addSymbols() error {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
-				//nothing todo
-			} else {
+			if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
 				offset += len(linker.data)
 			}
 		case symkind.SBSS:
@@ -215,11 +211,10 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			if reloc.Type == reloctype.R_CALLIND {
 				reloc.Sym.Offset = 0
 			}
-			_, exist := linker.symMap[reloc.Sym.Name]
-			if strings.HasPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix) {
-				if exist {
-					reloc.Sym = linker.symMap[reloc.Sym.Name]
-				} else {
+			if _, ok := linker.symMap[reloc.Sym.Name]; ok {
+				reloc.Sym = linker.symMap[reloc.Sym.Name]
+			} else {
+				if strings.HasPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix) {
 					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix), ".")
 					reloc.Sym.Kind = symkind.SNOPTRDATA
 					reloc.Sym.Offset = len(linker.noptrdata)
@@ -232,14 +227,10 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					linker.noptrdata = append(linker.noptrdata, ZeroByte)
 					bytearrayAlign(&linker.noptrbss, PtrSize)
 				}
-			}
-			if ispreprocesssymbol(reloc.Sym.Name) {
-				bytes := make([]byte, UInt64Size)
-				if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.Sym.Name, bytes); err != nil {
-					return nil, err
-				} else {
-					if exist {
-						reloc.Sym = linker.symMap[reloc.Sym.Name]
+				if ispreprocesssymbol(reloc.Sym.Name) {
+					bytes := make([]byte, UInt64Size)
+					if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.Sym.Name, bytes); err != nil {
+						return nil, err
 					} else {
 						reloc.Sym.Kind = symkind.SNOPTRDATA
 						reloc.Sym.Offset = len(linker.noptrdata)
@@ -247,9 +238,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 						bytearrayAlign(&linker.noptrbss, PtrSize)
 					}
 				}
-			}
-			if !exist && loc.Size > 0 {
-				linker.symMap[reloc.Sym.Name] = reloc.Sym
+				if reloc.Sym.Name != EmptyString {
+					linker.symMap[reloc.Sym.Name] = reloc.Sym
+				}
 			}
 		}
 		symbol.Reloc = append(symbol.Reloc, reloc)
