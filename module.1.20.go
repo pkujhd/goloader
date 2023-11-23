@@ -7,6 +7,8 @@ import (
 	"unsafe"
 )
 
+const magic uint32 = 0xFFFFFFF1
+
 // pcHeader holds data used by the pclntab lookups.
 type pcHeader struct {
 	magic          uint32  // 0xFFFFFFF1

@@ -12,6 +12,7 @@ const (
 	UInt64Size         = int(unsafe.Sizeof(uint64(0)))
 	_FuncSize          = int(unsafe.Offsetof(_func{}.nfuncdata)) + int(unsafe.Sizeof(_func{}.nfuncdata))
 	FindFuncBucketSize = int(unsafe.Sizeof(findfuncbucket{}))
+	PCHeaderSize       = int(unsafe.Sizeof(pcHeader{}))
 	InvalidHandleValue = ^uintptr(0)
 	InvalidOffset      = int(-1)
 	PageSize           = 1 << 12 //4096

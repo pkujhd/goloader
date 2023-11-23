@@ -76,11 +76,15 @@ func initLinker() *Linker {
 		nameMap:      make(map[string]int),
 		stringMap:    make(map[string]*string),
 	}
-	head := make([]byte, unsafe.Sizeof(pcHeader{}))
-	copy(head, obj.ModuleHeadx86)
-	linker.pclntable = append(linker.pclntable, head...)
-	linker.pclntable[len(obj.ModuleHeadx86)-1] = PtrSize
+	linker.pclntable = make([]byte, PCHeaderSize)
 	return linker
+}
+
+func (linker *Linker) initPcHeader() {
+	pcheader := (*pcHeader)(unsafe.Pointer(&linker.pclntable[0]))
+	pcheader.magic = magic
+	pcheader.minLC = uint8(linker.Arch.MinLC)
+	pcheader.ptrSize = uint8(linker.Arch.PtrSize)
 }
 
 func (linker *Linker) addFiles(files []string) {
@@ -238,7 +242,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 						bytearrayAlign(&linker.noptrbss, PtrSize)
 					}
 				}
-				if reloc.Sym.Name != EmptyString {
+				if reloc.Sym.Name != EmptyString && reloc.Size > 0 {
 					linker.symMap[reloc.Sym.Name] = reloc.Sym
 				}
 			}

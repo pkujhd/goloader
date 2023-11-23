@@ -1,7 +1,6 @@
 package goloader
 
 import (
-	"cmd/objfile/sys"
 	"fmt"
 	"os"
 	"strings"
@@ -34,11 +33,6 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 	} else {
 		linker.Arch = getArch(pkg.Arch)
 	}
-	switch linker.Arch.Name {
-	case sys.ArchARM.Name, sys.ArchARM64.Name:
-		copy(linker.pclntable, obj.ModuleHeadarm)
-		linker.pclntable[len(obj.ModuleHeadarm)-1] = PtrSize
-	}
 
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
@@ -70,6 +64,7 @@ func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
 		return nil, err
 	}
 	linker.addFiles(pkg.CUFiles)
+	linker.initPcHeader()
 	if err := linker.addSymbols(); err != nil {
 		return nil, err
 	}
@@ -92,6 +87,7 @@ func ReadObjs(files []string, pkgPath []string) (*Linker, error) {
 		linker.addFiles(pkg.CUFiles)
 		cuOffset += len(pkg.CUFiles)
 	}
+	linker.initPcHeader()
 	if err := linker.addSymbols(); err != nil {
 		return nil, err
 	}

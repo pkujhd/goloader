@@ -3,6 +3,8 @@
 
 package goloader
 
+const magic uint32 = 0xFFFFFFFB
+
 // pcHeader holds data used by the pclntab lookups.
 type pcHeader struct {
 	magic      uint32 // 0xFFFFFFFB
