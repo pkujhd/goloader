@@ -38,13 +38,13 @@ type _func struct {
 	nfuncdata uint8   // must be last, must end on a uint32-aligned boundary
 }
 
-func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
+func initfunc(symbol *obj.ObjSymbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
 		entryoff:    uint32(0),
 		nameoff:     int32(nameOff),
 		args:        int32(symbol.Func.Args),
 		deferreturn: uint32(0),
-		pcsp:        uint32(spOff),
+		pcsp:        uint32(pcspOff),
 		pcfile:      uint32(pcfileOff),
 		pcln:        uint32(pclnOff),
 		npcdata:     uint32(len(symbol.Func.PCData)),

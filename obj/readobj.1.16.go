@@ -14,7 +14,7 @@ import (
 )
 
 func (pkg *Pkg) Symbols() error {
-	a, err := archive.Parse(pkg.F, false)
+	a, err := archive.Parse(pkg.File, false)
 	if err != nil {
 		return err
 	}
@@ -24,7 +24,7 @@ func (pkg *Pkg) Symbols() error {
 			//nothing todo
 		case archive.EntryGoObj:
 			b := make([]byte, e.Obj.Size)
-			_, err := pkg.F.ReadAt(b, e.Obj.Offset)
+			_, err := pkg.File.ReadAt(b, e.Obj.Offset)
 			if err != nil {
 				return err
 			}
@@ -45,7 +45,7 @@ func (pkg *Pkg) Symbols() error {
 				pkg.addSym(r, uint32(i), &refNames)
 			}
 		default:
-			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.F.Name(), e.Name)
+			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.File.Name(), e.Name)
 		}
 	}
 	for _, sym := range pkg.Syms {

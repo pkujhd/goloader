@@ -8,7 +8,7 @@ type Pkg struct {
 	Syms    map[string]*ObjSymbol
 	Arch    string
 	PkgPath string
-	F       *os.File
+	File    *os.File
 	CUFiles []string
 }
 

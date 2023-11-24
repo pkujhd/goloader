@@ -23,12 +23,12 @@ func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
 }
 
 func (pkg *Pkg) Symbols() error {
-	obj, err := goobj.Parse(pkg.F, pkg.PkgPath)
+	obj, err := goobj.Parse(pkg.File, pkg.PkgPath)
 	if err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
 	pkg.Arch = obj.Arch
-	fd := readAtSeeker{ReadSeeker: pkg.F}
+	fd := readAtSeeker{ReadSeeker: pkg.File}
 	for _, sym := range obj.Syms {
 		symbol := &ObjSymbol{}
 		symbol.Name = sym.Name

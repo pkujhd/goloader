@@ -18,7 +18,7 @@ func findFileTab(filename string, namemap map[string]int, filetab []uint32) int3
 	return -1
 }
 
-func dumpPCData(b []byte, prefix string) {
+func dumpPCValue(b []byte, prefix string) {
 	fmt.Println(prefix, b)
 	var pc uintptr
 	val := int32(-1)
@@ -34,7 +34,7 @@ func dumpPCData(b []byte, prefix string) {
 	}
 }
 
-func writePCData(p []byte, val int64, pc uint64) []byte {
+func writePCValue(p []byte, val int64, pc uint64) []byte {
 	buf := make([]byte, 32)
 	n := binary.PutVarint(buf, val)
 	p = append(p, buf[:n]...)
@@ -58,7 +58,7 @@ func rewritePCFile(symbol *obj.ObjSymbol, linker *Linker) {
 			break
 		}
 		nval := findFileTab(symbol.Func.File[val], linker.nameMap, linker.filetab)
-		pcfile = writePCData(pcfile, int64(nval-lastval), uint64(pc-lastpc))
+		pcfile = writePCValue(pcfile, int64(nval-lastval), uint64(pc-lastpc))
 		lastpc = pc
 		lastval = nval
 		p, ok = step(p, &pc, &val, false)
@@ -97,14 +97,14 @@ func updateLastPCValue(pcVals *[]byte, nval int32, npc, pcQuantum uintptr) {
 		var ok bool
 		p, ok = step(p, &pc, &val, pc == 0)
 		if len(p) == 1 && p[0] == 0 && val == nval {
-			npcVals = writePCData(npcVals, int64(nval-lastval), uint64((npc-lastpc)/pcQuantum))
+			npcVals = writePCValue(npcVals, int64(nval-lastval), uint64((npc-lastpc)/pcQuantum))
 			break
 		}
 		if !ok || len(p) == 0 {
-			npcVals = writePCData(npcVals, int64(nval-lastval), uint64((npc-lastpc)/pcQuantum))
+			npcVals = writePCValue(npcVals, int64(nval-lastval), uint64((npc-lastpc)/pcQuantum))
 			break
 		}
-		npcVals = writePCData(npcVals, int64(val-lastval), uint64((pc-lastpc)/pcQuantum))
+		npcVals = writePCValue(npcVals, int64(val-lastval), uint64((pc-lastpc)/pcQuantum))
 		lastpc = pc
 		lastval = val
 	}

@@ -10,6 +10,20 @@ import (
 	"github.com/pkujhd/goloader/mmap"
 )
 
+func isOverflowInt32(offset int) bool {
+	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+		return true
+	}
+	return false
+}
+
+func isOverflowInt24(offset int) bool {
+	if offset > 0x7FFFFF || offset < -0x800000 {
+		return true
+	}
+	return false
+}
+
 //go:linkname add runtime.add
 func add(p unsafe.Pointer, x uintptr) unsafe.Pointer
 

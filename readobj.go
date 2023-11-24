@@ -10,7 +10,7 @@ import (
 )
 
 func Parse(f *os.File, pkgpath *string) ([]string, error) {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: *pkgpath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: f, PkgPath: *pkgpath}
 	symbols := make([]string, 0)
 	if err := pkg.Symbols(); err != nil {
 		return symbols, err
@@ -51,7 +51,7 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 		}
 	}
 	for _, sym := range pkg.Syms {
-		linker.objsymbolMap[sym.Name] = sym
+		linker.objSymbolMap[sym.Name] = sym
 	}
 	linker.initFuncs = append(linker.initFuncs, getInitFuncName(pkg.PkgPath))
 	return nil
@@ -59,7 +59,7 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 
 func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
 	linker := initLinker()
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: *pkgpath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: f, PkgPath: *pkgpath}
 	if err := readObj(&pkg, linker, 0); err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func ReadObjs(files []string, pkgPath []string) (*Linker, error) {
 			return nil, err
 		}
 		defer f.Close()
-		pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), F: f, PkgPath: pkgPath[i]}
+		pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: f, PkgPath: pkgPath[i]}
 		if err := readObj(&pkg, linker, cuOffset); err != nil {
 			return nil, err
 		}

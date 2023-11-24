@@ -19,12 +19,12 @@ type _func struct {
 	nfuncdata int32
 }
 
-func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff, cuOff int) _func {
+func initfunc(symbol *obj.ObjSymbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
 		entry:     uintptr(0),
 		nameoff:   int32(nameOff),
 		args:      int32(symbol.Func.Args),
-		pcsp:      int32(spOff),
+		pcsp:      int32(pcspOff),
 		pcfile:    int32(pcfileOff),
 		pcln:      int32(pclnOff),
 		npcdata:   int32(len(symbol.Func.PCData)),

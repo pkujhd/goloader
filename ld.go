@@ -20,21 +20,30 @@ import (
 
 // ourself defined struct
 // code segment
+type codeSeg struct {
+	codeByte []byte
+	codeBase int
+	length   int
+	maxLen   int
+	codeOff  int
+}
+
+// data segment
+type dataSeg struct {
+	dataByte     []byte
+	dataBase     int
+	length       int
+	maxLen       int
+	dataLen      int
+	noptrdataLen int
+	bssLen       int
+	noptrbssLen  int
+	dataOff      int
+}
+
 type segment struct {
-	codeByte      []byte
-	dataByte      []byte
-	codeBase      int
-	dataBase      int
-	sumDataLen    int
-	dataLen       int
-	noptrdataLen  int
-	bssLen        int
-	noptrbssLen   int
-	codeLen       int
-	maxCodeLength int
-	maxDataLength int
-	codeOff       int
-	dataOff       int
+	codeSeg
+	dataSeg
 }
 
 type Linker struct {
@@ -44,7 +53,7 @@ type Linker struct {
 	bss          []byte
 	noptrbss     []byte
 	symMap       map[string]*obj.Sym
-	objsymbolMap map[string]*obj.ObjSymbol
+	objSymbolMap map[string]*obj.ObjSymbol
 	nameMap      map[string]int
 	stringMap    map[string]*string
 	filetab      []uint32
@@ -72,7 +81,7 @@ var (
 func initLinker() *Linker {
 	linker := &Linker{
 		symMap:       make(map[string]*obj.Sym),
-		objsymbolMap: make(map[string]*obj.ObjSymbol),
+		objSymbolMap: make(map[string]*obj.ObjSymbol),
 		nameMap:      make(map[string]int),
 		stringMap:    make(map[string]*string),
 	}
@@ -104,7 +113,7 @@ func (linker *Linker) addFiles(files []string) {
 func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
 	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
-	for _, objSym := range linker.objsymbolMap {
+	for _, objSym := range linker.objSymbolMap {
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
 			if _, err := linker.addSymbol(objSym.Name); err != nil {
 				return err
@@ -142,7 +151,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	if symbol, ok := linker.symMap[name]; ok {
 		return symbol, nil
 	}
-	objsym := linker.objsymbolMap[name]
+	objsym := linker.objSymbolMap[name]
 	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind}
 	linker.symMap[symbol.Name] = symbol
 
@@ -156,7 +165,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		}
 		bytearrayAlignNops(linker.Arch, &linker.code, funcalign.GetFuncAlign(linker.Arch))
 		symbol.Func = &obj.Func{}
-		if err := linker.readFuncData(linker.objsymbolMap[name], symbol.Offset); err != nil {
+		if err := linker.readFuncData(linker.objSymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
 		}
 	case symkind.SDATA:
@@ -193,12 +202,12 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		if reloc.Epilogue.Offset != 0 {
 			reloc.Epilogue.Offset += symbol.Offset
 		}
-		if _, ok := linker.objsymbolMap[reloc.Sym.Name]; ok {
+		if _, ok := linker.objSymbolMap[reloc.Sym.Name]; ok {
 			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name)
 			if err != nil {
 				return nil, err
 			}
-			if len(linker.objsymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
+			if len(linker.objSymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
 				//goloader add IntSize bytes on linker.noptrdata[0]
 				if reloc.Size <= IntSize {
@@ -252,7 +261,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 
 	if objsym.Type != EmptyString {
 		if _, ok := linker.symMap[objsym.Type]; !ok {
-			if _, ok := linker.objsymbolMap[objsym.Type]; !ok {
+			if _, ok := linker.objSymbolMap[objsym.Type]; !ok {
 				linker.symMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
 			}
 		}
@@ -307,7 +316,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
 		} else {
 			if _, ok := linker.symMap[name]; !ok {
-				if _, ok := linker.objsymbolMap[name]; ok {
+				if _, ok := linker.objSymbolMap[name]; ok {
 					if _, err = linker.addSymbol(name); err != nil {
 						return err
 					}
@@ -478,38 +487,44 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 		Syms:   make(map[string]uintptr),
 		module: &moduledata{typemap: nil},
 	}
-	codeModule.codeLen = len(linker.code)
-	codeModule.dataLen = len(linker.data)
-	codeModule.noptrdataLen = len(linker.noptrdata)
-	codeModule.bssLen = len(linker.bss)
-	codeModule.noptrbssLen = len(linker.noptrbss)
-	codeModule.sumDataLen = codeModule.dataLen + codeModule.noptrdataLen + codeModule.bssLen + codeModule.noptrbssLen
-	codeModule.maxCodeLength = alignof((codeModule.codeLen)*2, PageSize)
-	codeModule.maxDataLength = alignof((codeModule.sumDataLen)*2, PageSize)
-	codeByte, err := Mmap(codeModule.maxCodeLength)
+
+	//init code segment
+	codeSeg := &codeModule.segment.codeSeg
+	codeSeg.length = len(linker.code)
+	codeSeg.maxLen = alignof((codeSeg.length)*2, PageSize)
+	codeByte, err := Mmap(codeSeg.maxLen)
 	if err != nil {
 		return nil, err
 	}
-	dataByte, err := MmapData(codeModule.maxDataLength)
+	codeSeg.codeByte = codeByte
+	codeSeg.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
+	copy(codeSeg.codeByte, linker.code)
+	codeSeg.codeOff = codeSeg.length
+
+	//init data segment
+	dataSeg := &codeModule.segment.dataSeg
+	dataSeg.dataLen = len(linker.data)
+	dataSeg.noptrdataLen = len(linker.noptrdata)
+	dataSeg.bssLen = len(linker.bss)
+	dataSeg.noptrbssLen = len(linker.noptrbss)
+	dataSeg.length = dataSeg.dataLen + dataSeg.noptrdataLen + dataSeg.bssLen + dataSeg.noptrbssLen
+	dataSeg.maxLen = alignof((dataSeg.length)*2, PageSize)
+	dataSeg.dataOff = 0
+	dataByte, err := MmapData(dataSeg.maxLen)
 	if err != nil {
+		Munmap(dataSeg.dataByte)
 		return nil, err
 	}
-
-	codeModule.codeByte = codeByte
-	codeModule.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	copy(codeModule.codeByte, linker.code)
-	codeModule.codeOff = codeModule.codeLen
-
-	codeModule.dataByte = dataByte
-	codeModule.dataBase = int((*sliceHeader)(unsafe.Pointer(&dataByte)).Data)
-	copy(codeModule.dataByte[codeModule.dataOff:], linker.data)
-	codeModule.dataOff = codeModule.dataLen
-	copy(codeModule.dataByte[codeModule.dataOff:], linker.noptrdata)
-	codeModule.dataOff += codeModule.noptrdataLen
-	copy(codeModule.dataByte[codeModule.dataOff:], linker.bss)
-	codeModule.dataOff += codeModule.bssLen
-	copy(codeModule.dataByte[codeModule.dataOff:], linker.noptrbss)
-	codeModule.dataOff += codeModule.noptrbssLen
+	dataSeg.dataByte = dataByte
+	dataSeg.dataBase = int((*sliceHeader)(unsafe.Pointer(&dataByte)).Data)
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.data)
+	dataSeg.dataOff = dataSeg.dataLen
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.noptrdata)
+	dataSeg.dataOff += dataSeg.noptrdataLen
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.bss)
+	dataSeg.dataOff += dataSeg.bssLen
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.noptrbss)
+	dataSeg.dataOff += dataSeg.noptrbssLen
 
 	codeModule.stringMap = linker.stringMap
 
@@ -517,7 +532,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
 		if err = linker.relocate(codeModule, symbolMap, symPtr); err == nil {
 			if err = linker.buildModule(codeModule, symbolMap); err == nil {
-				MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeModule.maxCodeLength)
+				MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeSeg.maxLen)
 				if err = linker.doInitialize(symPtr, symbolMap); err == nil {
 					return codeModule, err
 				}

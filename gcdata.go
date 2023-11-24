@@ -17,10 +17,10 @@ const (
 func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
 	segment := &codeModule.segment
 	//if symbol is in loader, ignore generate gc data
-	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.sumDataLen) {
+	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.dataSeg.length) {
 		return nil
 	}
-	objsym := linker.objsymbolMap[sym.Name]
+	objsym := linker.objSymbolMap[sym.Name]
 	typeName := objsym.Type
 	if len(typeName) == 0 && objsym.Size > 0 {
 		// This is likely a global var with no type information encoded, so can't be GC'd (ignore it)

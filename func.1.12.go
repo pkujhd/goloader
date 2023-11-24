@@ -5,8 +5,9 @@ package goloader
 
 import (
 	"cmd/objfile/objabi"
-	"github.com/pkujhd/goloader/obj"
 	"strings"
+
+	"github.com/pkujhd/goloader/obj"
 )
 
 // A funcID identifies particular functions that need to be treated
@@ -36,13 +37,13 @@ type _func struct {
 	nfuncdata uint8   // must be last
 }
 
-func initfunc(symbol *obj.ObjSymbol, nameOff, spOff, pcfileOff, pclnOff int, cuOff int) _func {
+func initfunc(symbol *obj.ObjSymbol, nameOff, pcspOff, pcfileOff, pclnOff int, cuOff int) _func {
 	fdata := _func{
 		entry:       uintptr(0),
 		nameoff:     int32(nameOff),
 		args:        int32(symbol.Func.Args),
 		deferreturn: uint32(0),
-		pcsp:        int32(spOff),
+		pcsp:        int32(pcspOff),
 		pcfile:      int32(pcfileOff),
 		pcln:        int32(pclnOff),
 		npcdata:     int32(len(symbol.Func.PCData)),

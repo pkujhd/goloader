@@ -153,7 +153,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) {
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
-	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+	if isOverflowInt32(offset) {
 		segment.dataOff = alignof(segment.dataOff, PtrSize)
 		epilogueOffset := loc.Epilogue.Offset
 		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
@@ -172,7 +172,7 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
 	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
-	if offset > 0x7FFFFFFF || offset < -0x80000000 {
+	if isOverflowInt32(offset) {
 		epilogueOffset := loc.Epilogue.Offset
 		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
 		bytes := relocByte[loc.Offset-2:]
@@ -248,7 +248,7 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segme
 		add = int(signext24(int64(loc.Add&0xFFFFFF)) * 4)
 	}
 	offset := (int(addr) + add - (segment.codeBase + loc.Offset)) / 4
-	if offset > 0x7FFFFF || offset < -0x800000 {
+	if isOverflowInt24(offset) {
 		epilogueOffset := loc.Epilogue.Offset
 		off := uint32(epilogueOffset-loc.Offset) / 4
 		if loc.Type == reloctype.R_CALLARM {
@@ -318,7 +318,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					//nothing todo
 				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF:
 					offset := int(addr) - addrBase + loc.Add
-					if offset > 0x7FFFFFFF || offset < -0x80000000 {
+					if isOverflowInt32(offset) {
 						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", sym.Name, reloctype.RelocTypeString(loc.Type), offset)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
@@ -327,7 +327,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						addrBase = segment.codeBase
 					}
 					offset := int(addr) - addrBase + loc.Add
-					if offset > 0x7FFFFFFF || offset < -0x80000000 {
+					if isOverflowInt32(offset) {
 						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", sym.Name, reloctype.RelocTypeString(loc.Type), offset)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
