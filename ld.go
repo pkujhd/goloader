@@ -860,20 +860,28 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 
 	// see:^src/cmd/link/internal/ld/pcln.go findfunctab
 	funcbucket := []findfuncbucket{}
-	for k, _func := range linker._func {
-		funcname := gostringnocopy(&linker.funcnametab[_func.nameoff])
-		x := linker.symMap[funcname].Offset
-		b := x / pcbucketsize
-		i := x % pcbucketsize / (pcbucketsize / nsub)
-		for lb := b - len(funcbucket); lb >= 0; lb-- {
-			funcbucket = append(funcbucket, findfuncbucket{
-				idx: uint32(k)})
+	for k := 0; k < len(linker._func); k++ {
+		lEntry := int(getfuncentry(linker._func[k], module.text) - module.text)
+		lb := lEntry / pcbucketsize
+		li := lEntry % pcbucketsize / (pcbucketsize / nsub)
+
+		entry := int(module.maxpc - module.text)
+		if k < len(linker._func)-1 {
+			entry = int(getfuncentry(linker._func[k+1], module.text) - module.text)
 		}
-		if funcbucket[b].subbuckets[i] == 0 && b != 0 && i != 0 {
-			if k-int(funcbucket[b].idx) >= pcbucketsize/minfunc {
-				return fmt.Errorf("over %d func in one funcbuckets", k-int(funcbucket[b].idx))
+		b := entry / pcbucketsize
+		i := entry % pcbucketsize / (pcbucketsize / nsub)
+
+		for m := b - len(funcbucket); m >= 0; m-- {
+			funcbucket = append(funcbucket, findfuncbucket{idx: uint32(k)})
+		}
+		if lb < b {
+			i = nsub - 1
+		}
+		for n := li + 1; n <= i; n++ {
+			if funcbucket[lb].subbuckets[n] == 0 {
+				funcbucket[lb].subbuckets[n] = byte(k - int(funcbucket[lb].idx))
 			}
-			funcbucket[b].subbuckets[i] = byte(k - int(funcbucket[b].idx))
 		}
 	}
 	length := len(funcbucket) * FindFuncBucketSize
