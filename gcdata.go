@@ -32,20 +32,20 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 	}
 	if ptr, ok := symbolMap[typeName]; ok {
 		typ := (*_type)(adduintptr(ptr, 0))
-		nptr := int64(typ.ptrdata) / int64(linker.Arch.PtrSize)
+		nptr := int64(typ.ptrdata) / int64(linker.arch.PtrSize)
 		if typ.kind&KindGCProg == 0 {
 			var mask []byte
 			append2Slice(&mask, uintptr(unsafe.Pointer(typ.gcdata)), int(nptr+7)/8)
 			for i := int64(0); i < nptr; i++ {
 				if (mask[i/8]>>uint(i%8))&1 != 0 {
-					w.Ptr(sval/int64(linker.Arch.PtrSize) + i)
+					w.Ptr(sval/int64(linker.arch.PtrSize) + i)
 				}
 			}
 
 		} else {
 			var prog []byte
 			append2Slice(&prog, uintptr(unsafe.Pointer(typ.gcdata)), Uint32Size+int((*(*uint32)(unsafe.Pointer(typ.gcdata)))))
-			w.ZeroUntil(sval / int64(linker.Arch.PtrSize))
+			w.ZeroUntil(sval / int64(linker.arch.PtrSize))
 			w.Append(prog[4:], nptr)
 		}
 	} else {
@@ -83,7 +83,7 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 			return err
 		}
 	}
-	w.ZeroUntil(int64(module.edata-module.data) / int64(linker.Arch.PtrSize))
+	w.ZeroUntil(int64(module.edata-module.data) / int64(linker.arch.PtrSize))
 	w.End()
 	module.gcdata = (*sliceHeader)(unsafe.Pointer(&codeModule.gcdata)).Data
 	module.gcdatamask = progToPointerMask((*byte)(adduintptr(module.gcdata, 0)), module.edata-module.data)
@@ -99,7 +99,7 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 			return err
 		}
 	}
-	w.ZeroUntil(int64(module.ebss-module.bss) / int64(linker.Arch.PtrSize))
+	w.ZeroUntil(int64(module.ebss-module.bss) / int64(linker.arch.PtrSize))
 	w.End()
 	module.gcbss = (*sliceHeader)(unsafe.Pointer(&codeModule.gcbss)).Data
 	module.gcbssmask = progToPointerMask((*byte)(adduintptr(module.gcbss, 0)), module.ebss-module.bss)

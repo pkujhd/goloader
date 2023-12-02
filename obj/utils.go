@@ -1,6 +1,6 @@
 package obj
 
-func findFileTab(filename string, namemap map[string]int, filetab []uint32) int32 {
+func FindFileTab(filename string, namemap map[string]int, filetab []uint32) int32 {
 	tab := namemap[filename]
 	for index, value := range filetab {
 		if uint32(tab) == value {

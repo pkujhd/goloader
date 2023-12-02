@@ -20,7 +20,7 @@ func InitInlinedCall(inl InlTreeNode, funcid uint8, namemap map[string]int, file
 	return InlinedCall{
 		parent:   int16(inl.Parent),
 		funcID:   funcID(funcid),
-		file:     findFileTab(inl.File, namemap, filetab),
+		file:     FindFileTab(inl.File, namemap, filetab),
 		line:     int32(inl.Line),
 		func_:    int32(namemap[inl.Func]),
 		parentPc: int32(inl.ParentPC)}

@@ -14,7 +14,7 @@ type InlinedCall struct {
 func InitInlinedCall(inl InlTreeNode, funcid uint8, namemap map[string]int, filetab []uint32) InlinedCall {
 	return InlinedCall{
 		parent: int32(inl.Parent),
-		file:   findFileTab(inl.File, namemap, filetab),
+		file:   FindFileTab(inl.File, namemap, filetab),
 		line:   int32(inl.Line),
 		func_:  int32(namemap[inl.Func])}
 }

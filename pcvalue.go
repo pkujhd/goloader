@@ -8,16 +8,6 @@ import (
 	"github.com/pkujhd/goloader/obj"
 )
 
-func findFileTab(filename string, namemap map[string]int, filetab []uint32) int32 {
-	tab := namemap[filename]
-	for index, value := range filetab {
-		if uint32(tab) == value {
-			return int32(index)
-		}
-	}
-	return -1
-}
-
 func dumpPCValue(b []byte, prefix string) {
 	fmt.Println(prefix, b)
 	var pc uintptr
@@ -57,7 +47,7 @@ func rewritePCFile(symbol *obj.ObjSymbol, linker *Linker) {
 		if !ok || len(p) <= 0 {
 			break
 		}
-		nval := findFileTab(symbol.Func.File[val], linker.nameMap, linker.filetab)
+		nval := obj.FindFileTab(symbol.Func.File[val], linker.nameMap, linker.filetab)
 		pcfile = writePCValue(pcfile, int64(nval-lastval), uint64(pc-lastpc))
 		lastpc = pc
 		lastval = nval
@@ -119,7 +109,7 @@ func patchPCValues(linker *Linker, pcVals *[]byte, reloc obj.Reloc) {
 		return
 	}
 	var pcQuantum uintptr = 1
-	if linker.Arch.Family == sys.ARM64 {
+	if linker.arch.Family == sys.ARM64 {
 		pcQuantum = 4
 	}
 	val, startPC := pcValue(*pcVals, uintptr(reloc.Offset))

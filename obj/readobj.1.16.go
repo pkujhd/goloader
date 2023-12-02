@@ -8,6 +8,7 @@ import (
 	"cmd/objfile/goobj"
 	"cmd/objfile/objabi"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/pkujhd/goloader/constants"
@@ -43,6 +44,11 @@ func (pkg *Pkg) Symbols() error {
 			nsym := r.NSym() + r.NHashed64def() + r.NHasheddef() + r.NNonpkgdef()
 			for i := 0; i < nsym; i++ {
 				pkg.addSym(r, uint32(i), &refNames)
+			}
+			for _, importPkg := range r.Autolib() {
+				path := importPkg.Pkg
+				path = path[:len(path)-len(filepath.Ext(path))]
+				pkg.ImportPkgs = append(pkg.ImportPkgs, path)
 			}
 		default:
 			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.File.Name(), e.Name)

@@ -46,30 +46,38 @@ type segment struct {
 	dataSeg
 }
 
+type gcData struct {
+	gcdata []byte
+	gcbss  []byte
+}
+
+type CodeModule struct {
+	segment
+	gcData
+	Syms      map[string]uintptr
+	stringMap map[string]*string
+	module    *moduledata
+}
+
+type linkerData struct {
+	code      []byte
+	data      []byte
+	noptrdata []byte
+	bss       []byte
+	noptrbss  []byte
+}
+
 type Linker struct {
-	code         []byte
-	data         []byte
-	noptrdata    []byte
-	bss          []byte
-	noptrbss     []byte
+	linkerData
 	symMap       map[string]*obj.Sym
 	objSymbolMap map[string]*obj.ObjSymbol
 	nameMap      map[string]int
 	stringMap    map[string]*string
 	filetab      []uint32
 	pclntable    []byte
-	_func        []*_func
-	initFuncs    []string
-	Arch         *sys.Arch
-}
-
-type CodeModule struct {
-	segment
-	Syms      map[string]uintptr
-	stringMap map[string]*string
-	module    *moduledata
-	gcdata    []byte
-	gcbss     []byte
+	_funcs       []*_func
+	pkgs         []*obj.Pkg
+	arch         *sys.Arch
 }
 
 var (
@@ -92,8 +100,8 @@ func initLinker() *Linker {
 func (linker *Linker) initPcHeader() {
 	pcheader := (*pcHeader)(unsafe.Pointer(&linker.pclntable[0]))
 	pcheader.magic = magic
-	pcheader.minLC = uint8(linker.Arch.MinLC)
-	pcheader.ptrSize = uint8(linker.Arch.PtrSize)
+	pcheader.minLC = uint8(linker.arch.MinLC)
+	pcheader.ptrSize = uint8(linker.arch.PtrSize)
 }
 
 func (linker *Linker) addFiles(files []string) {
@@ -161,9 +169,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		linker.code = append(linker.code, objsym.Data...)
 		expandFunc(linker, objsym, symbol)
 		if len(linker.code)-symbol.Offset < minfunc {
-			linker.code = append(linker.code, createArchNops(linker.Arch, minfunc-(len(linker.code)-symbol.Offset))...)
+			linker.code = append(linker.code, createArchNops(linker.arch, minfunc-(len(linker.code)-symbol.Offset))...)
 		}
-		bytearrayAlignNops(linker.Arch, &linker.code, funcalign.GetFuncAlign(linker.Arch))
+		bytearrayAlignNops(linker.arch, &linker.code, funcalign.GetFuncAlign(linker.arch))
 		symbol.Func = &obj.Func{}
 		if err := linker.readFuncData(linker.objSymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
@@ -242,7 +250,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				}
 				if ispreprocesssymbol(reloc.Sym.Name) {
 					bytes := make([]byte, UInt64Size)
-					if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.Sym.Name, bytes); err != nil {
+					if err := preprocesssymbol(linker.arch.ByteOrder, reloc.Sym.Name, bytes); err != nil {
 						return nil, err
 					} else {
 						reloc.Sym.Kind = symkind.SNOPTRDATA
@@ -300,7 +308,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
 
 	_func := initfunc(symbol, nameOff, pcspOff, pcfileOff, pclnOff, int(symbol.Func.CUOffset))
-	linker._func = append(linker._func, &_func)
+	linker._funcs = append(linker._funcs, &_func)
 	Func := linker.symMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
 		if len(pcdata) == 0 {
@@ -349,7 +357,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = ptr
 			} else if addr, ok := symPtr[strings.TrimSuffix(name, GOTPCRELSuffix)]; ok && strings.HasSuffix(name, GOTPCRELSuffix) {
 				symbolMap[name] = uintptr(segment.dataBase) + uintptr(segment.dataOff)
-				putAddressAddOffset(linker.Arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
+				putAddressAddOffset(linker.arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
 			} else {
 				symbolMap[name] = InvalidHandleValue
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
@@ -429,10 +437,10 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	initmodule(codeModule.module, linker)
 
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
-	for index, _func := range linker._func {
+	for index, _func := range linker._funcs {
 		funcname := getfuncname(_func, module)
 		module.ftab = append(module.ftab, initfunctab(symbolMap[funcname], uintptr(len(module.pclntable)), module.text))
-		if err = linker.addFuncTab(module, linker._func[index], symbolMap); err != nil {
+		if err = linker.addFuncTab(module, linker._funcs[index], symbolMap); err != nil {
 			return err
 		}
 	}
@@ -440,7 +448,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 
 	//see:^src/cmd/link/internal/ld/pcln.go findfunctab
 	funcbucket := []findfuncbucket{}
-	for k, _func := range linker._func {
+	for k, _func := range linker._funcs {
 		funcname := getfuncname(_func, module)
 		x := linker.symMap[funcname].Offset
 		b := x / pcbucketsize

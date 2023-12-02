@@ -18,7 +18,8 @@ func getInitFuncName(packagename string) string {
 }
 
 func (linker *Linker) doInitialize(symPtr, symbolMap map[string]uintptr) error {
-	for _, name := range linker.initFuncs {
+	for _, pkg := range linker.pkgs {
+		name := getInitFuncName(pkg.PkgPath)
 		if funcPtr, ok := symbolMap[name]; ok {
 			funcPtrContainer := (uintptr)(unsafe.Pointer(&funcPtr))
 			runFunc := *(*func())(unsafe.Pointer(&funcPtrContainer))

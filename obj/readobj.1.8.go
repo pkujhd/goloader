@@ -7,6 +7,7 @@ import (
 	"cmd/objfile/goobj"
 	"fmt"
 	"io"
+	"path/filepath"
 )
 
 type readAtSeeker struct {
@@ -85,6 +86,10 @@ func (pkg *Pkg) Symbols() error {
 			}
 		}
 		pkg.Syms[sym.Name] = symbol
+	}
+	for _, path := range obj.Imports {
+		path = path[:len(path)-len(filepath.Ext(path))]
+		pkg.ImportPkgs = append(pkg.ImportPkgs, path)
 	}
 	return nil
 }

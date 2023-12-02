@@ -5,11 +5,12 @@ import (
 )
 
 type Pkg struct {
-	Syms    map[string]*ObjSymbol
-	Arch    string
-	PkgPath string
-	File    *os.File
-	CUFiles []string
+	Syms       map[string]*ObjSymbol
+	Arch       string
+	PkgPath    string
+	File       *os.File
+	ImportPkgs []string
+	CUFiles    []string
 }
 
 type FuncInfo struct {
