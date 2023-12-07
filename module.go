@@ -8,7 +8,10 @@ import (
 var firstmoduledata moduledata
 
 //go:linkname pinnedTypemaps runtime.pinnedTypemaps
-var pinnedTypemaps []map[typeOff]*_type
+var pinnedTypemaps []unsafe.Pointer
+
+// Avoids "go:info.runtime.pinnedTypemaps: relocation target go:info.[]map[github.com/eh-steve/goloader.typeOff]*github.com/eh-steve/goloader._type not defined"
+var pinnedTypemapsTyped = (*[]map[typeOff]*_type)(unsafe.Pointer(&pinnedTypemaps))
 
 // findfunctab is an array of these structures.
 // Each bucket represents 4096 bytes of the text segment.

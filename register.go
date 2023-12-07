@@ -146,6 +146,15 @@ func regSymbol(symPtr map[string]uintptr, pkgSet map[string]struct{}, path strin
 		}
 	}
 
+	for pkg := range pkgSet {
+		if _, ok := symPtr[pkg+_InitTaskSuffix]; !ok {
+			// If we haven't seen a real inittask in the host symtab but we have symbols from that package,
+			// the inittask was probably eliminated (due to being a no-op) so avoid rebuilding that package
+			// by providing a nil ptr as the inittask, and check it later before doInit()
+			symPtr[pkg+_InitTaskSuffix] = 0
+		}
+	}
+
 	tlsG, x86Found := symPtr["runtime.tlsg"]
 	tls_G, arm64Found := symPtr["runtime.tls_g"]
 

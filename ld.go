@@ -1118,9 +1118,12 @@ func (linker *Linker) UnresolvedExternalSymbols(symbolMap map[string]uintptr, ig
 					if u := t.uncommon(); u != nil && linker.isTypeReachable(symName) {
 						for _, method := range u.methods() {
 							if method.tfn == -1 || method.ifn == -1 {
-								// If any methods are unreachable, we should treat this type as unresolved, since we don't know what might call these methods, so we should force a rebuild
-								firstModuleTypeHasUnreachableMethods = true
-								break
+								// This first module method is unreachable, so check if JIT code calls this method,
+								// and if it does, then mark the whole type as an unresolved symbol
+								if linker.isSymbolReachable(fullyQualifiedMethodName(t, method)) {
+									firstModuleTypeHasUnreachableMethods = true
+									break
+								}
 							}
 						}
 					}

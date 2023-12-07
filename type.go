@@ -82,13 +82,18 @@ func (t *_type) Elem() *_type               { return fromRType(_Elem(t)) }
 func resolveFullyQualifiedSymbolName(t *_type) string {
 	typ := AsRType(t)
 	// go.shape is a special builtin package whose name shouldn't be escaped
-	pkgPath := unescapeGoShapePkg(objabi.PathToPrefix(typ.PkgPath()))
-	name := typ.Name()
+	pkgPath := unescapeGoShapePkg(objabi.PathToPrefix(t.PkgPath()))
+
+	name := nameFromTypeString(t)
+	var maybeStar string
+	if t.Kind() == reflect.Ptr {
+		maybeStar = "*"
+	}
 	if pkgPath != "" && name != "" {
 		if strings.HasPrefix(pkgPath, "go.shape") { // go.shape Name()s don't necessarily match the String()
 			return typ.String()
 		}
-		return pkgPath + "." + name
+		return maybeStar + pkgPath + "." + name
 	}
 	switch t.Kind() {
 	case reflect.Ptr:
@@ -183,6 +188,39 @@ func resolveFullyQualifiedSymbolName(t *_type) string {
 		panic("unexpected builtin type: " + typ.String())
 	}
 	return ""
+}
+
+func nameFromTypeString(t *_type) string {
+	typ := AsRType(t)
+	s := typ.String()
+	i := len(s) - 1
+	sqBrackets := 0
+	for i >= 0 && (s[i] != '.' || sqBrackets != 0) {
+		switch s[i] {
+		case ']':
+			sqBrackets++
+		case '[':
+			sqBrackets--
+		}
+		i--
+	}
+	return s[i+1:]
+}
+
+func fullyQualifiedMethodName(t *_type, method method) string {
+	methodName := t.nameOff(method.name).name()
+
+	// t.PkgPath() will always return a path, whereas AsRType(t).PkgPath() will only return if flag TNamed is set
+	pkgPath := unescapeGoShapePkg(objabi.PathToPrefix(t.PkgPath()))
+	name := nameFromTypeString(t)
+	if name == "" {
+		panic("method on type with no name")
+	}
+	if t.Kind() == reflect.Pointer {
+		return pkgPath + ".(*" + name + ")." + methodName
+	}
+	return pkgPath + "." + name + "." + methodName
+
 }
 
 func unescapeGoShapePkg(pkgPath string) string {

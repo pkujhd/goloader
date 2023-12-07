@@ -42,7 +42,7 @@ func (linker *Linker) doInitialize(codeModule *CodeModule, symbolMap map[string]
 		return slices.Index(autolibOrder, strings.TrimSuffix(linker.initFuncs[i], _InitTaskSuffix)) < slices.Index(autolibOrder, strings.TrimSuffix(linker.initFuncs[j], _InitTaskSuffix))
 	})
 	for _, name := range linker.initFuncs {
-		if taskPtr, ok := symbolMap[name]; ok {
+		if taskPtr, ok := symbolMap[name]; ok && taskPtr != 0 { // taskPtr may be nil if the inittask wasn't seen in the host symtab (probably a no-op and therefore eliminated)
 			shouldSkipDedup := false
 			for _, pkgPath := range linker.options.SkipTypeDeduplicationForPackages {
 				if strings.HasPrefix(name, pkgPath) {

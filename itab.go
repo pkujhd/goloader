@@ -199,7 +199,7 @@ func (cm *CodeModule) patchTypeMethodOffsets(t *_type, u, prevU *uncommonType, p
 							for _, tl := range firstmoduledata.typelinks {
 								firstmoduledata.typemap[typeOff(tl)] = (*_type)(unsafe.Pointer(firstmoduledata.types + uintptr(tl)))
 							}
-							pinnedTypemaps = append(pinnedTypemaps, firstmoduledata.typemap)
+							*pinnedTypemapsTyped = append(*pinnedTypemapsTyped, firstmoduledata.typemap)
 						}
 						firstmoduledata.typemap[firstModuleTypemapCounter] = methodType
 						firstModuleTypemapEntries[methodType] = firstModuleTypemapCounter
