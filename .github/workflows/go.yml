@@ -46,4 +46,4 @@ jobs:
     - name: Test
       shell: sh
       run:
-        cd $GOPATH/src/github.com/eh-steve/goloader/jit && export ${{ matrix.cgo-enabled }} ${{ matrix.dynlink }} && go test -c . && ./jit.test -test.v
+        cd $GOPATH/src/github.com/eh-steve/goloader/jit && export ${{ matrix.cgo-enabled }} ${{ matrix.dynlink }} && go test -a -c . && ./jit.test -test.v
