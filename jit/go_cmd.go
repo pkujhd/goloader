@@ -111,25 +111,37 @@ type PackageError struct {
 	Err         string   // the error itself
 }
 
-func GoModDownload(goCmd, workDir string, args ...string) error {
+func GoModDownload(goCmd, workDir string, verbose bool, args ...string) error {
 	dlCmd := exec.Command(goCmd, append([]string{"mod", "download"}, args...)...)
+	if verbose {
+		dlCmd.Stdout = os.Stdout
+		dlCmd.Stderr = os.Stderr
+	}
 	dlCmd.Dir = workDir
-	output, err := dlCmd.CombinedOutput()
+	err := dlCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to go mod download %s: %s", args, output)
+		return fmt.Errorf("failed to go mod download %s", args)
 	}
 
 	tidyCmd := exec.Command(goCmd, "mod", "tidy")
-	output, err = tidyCmd.CombinedOutput()
+	if verbose {
+		tidyCmd.Stdout = os.Stdout
+		tidyCmd.Stderr = os.Stderr
+	}
+	err = tidyCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to go mod tidy: %s", output)
+		return fmt.Errorf("failed to go mod tidy: %s", err)
 	}
 	return nil
 }
 
-func GoGet(goCmd, packagePath, workDir string) error {
+func GoGet(goCmd, packagePath, workDir string, verbose bool) error {
 	goGetCmd := exec.Command(goCmd, "get", packagePath)
 	goGetCmd.Dir = workDir
+	if verbose {
+		goGetCmd.Stderr = os.Stderr
+		goGetCmd.Stdout = os.Stdout
+	}
 	output, err := goGetCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to go get %s: %s", packagePath, output)
@@ -158,17 +170,20 @@ func GoListStd(goCmd string) map[string]struct{} {
 	return stdLibPkgs
 }
 
-func GoList(goCmd, absPath, workDir string) (*Package, error) {
+func GoList(goCmd, absPath, workDir string, verbose bool) (*Package, error) {
 	golistCmd := exec.Command(goCmd, "list", "-json", absPath)
 	golistCmd.Dir = workDir
-	output, err := golistCmd.StdoutPipe()
+	stdoutReader, stdoutWriter := io.Pipe()
 	stdErrBuf := &bytes.Buffer{}
-	golistCmd.Stderr = io.MultiWriter(os.Stderr, stdErrBuf)
-	if err != nil {
-		panic(err)
+	if verbose {
+		golistCmd.Stdout = io.MultiWriter(os.Stdout, stdoutWriter)
+		golistCmd.Stderr = io.MultiWriter(os.Stderr, stdErrBuf)
+	} else {
+		golistCmd.Stdout = stdoutWriter
+		golistCmd.Stderr = stdErrBuf
 	}
-	listDec := json.NewDecoder(output)
-	err = golistCmd.Start()
+	listDec := json.NewDecoder(stdoutReader)
+	err := golistCmd.Start()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start 'go list -json %s': %w\nstderr:\n%s", absPath, err, stdErrBuf.String())
 	}

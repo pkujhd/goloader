@@ -488,21 +488,21 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
-	pkg, err := GoList(config.GoBinary, absPath, workDir)
+	pkg, err := GoList(config.GoBinary, absPath, workDir, config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pkg.DepsErrors) > 0 {
-		err = GoModDownload(config.GoBinary, workDir)
+		err = GoModDownload(config.GoBinary, workDir, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
-		err = GoGet(config.GoBinary, workDir, workDir)
+		err = GoGet(config.GoBinary, workDir, workDir, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
-		pkg, err = GoList(config.GoBinary, absPath, "")
+		pkg, err = GoList(config.GoBinary, absPath, "", config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
@@ -596,13 +596,13 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
-	pkg, err := GoList(config.GoBinary, tmpFilePath, "")
+	pkg, err := GoList(config.GoBinary, tmpFilePath, "", config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pkg.DepsErrors) > 0 {
-		err = GoModDownload(config.GoBinary, buildDir)
+		err = GoModDownload(config.GoBinary, buildDir, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
@@ -611,11 +611,11 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 			return nil, fmt.Errorf("could not get absolute path of directory containing file %s: %w", tmpFilePath, err)
 		}
 
-		err = GoGet(config.GoBinary, absPackagePath, "")
+		err = GoGet(config.GoBinary, absPackagePath, "", config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
-		pkg, err = GoList(config.GoBinary, tmpFilePath, "")
+		pkg, err = GoList(config.GoBinary, tmpFilePath, "", config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
@@ -666,7 +666,7 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
 	// Execute list from within the package folder so that go list resolves the module correctly from that path
-	pkg, err := GoList(config.GoBinary, absPath, absPath)
+	pkg, err := GoList(config.GoBinary, absPath, absPath, config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
@@ -676,15 +676,15 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 	}
 
 	if len(pkg.DepsErrors) > 0 {
-		err = GoModDownload(config.GoBinary, absPath)
+		err = GoModDownload(config.GoBinary, absPath, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
-		err = GoGet(config.GoBinary, absPath, absPath)
+		err = GoGet(config.GoBinary, absPath, absPath, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
-		pkg, err = GoList(config.GoBinary, absPath, "")
+		pkg, err = GoList(config.GoBinary, absPath, "", config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
@@ -774,12 +774,12 @@ func BuildGoPackageRemote(config BuildConfig, goPackage string, version string) 
 		versionSuffix = "@" + version
 	}
 
-	err = GoGet(config.GoBinary, goPackage+versionSuffix, workDir)
+	err = GoGet(config.GoBinary, goPackage+versionSuffix, workDir, config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
 
-	pkg, err := GoList(config.GoBinary, goPackage, workDir)
+	pkg, err := GoList(config.GoBinary, goPackage, workDir, config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
@@ -789,15 +789,15 @@ func BuildGoPackageRemote(config BuildConfig, goPackage string, version string) 
 	}
 
 	if len(pkg.DepsErrors) > 0 {
-		err = GoModDownload(config.GoBinary, workDir, pkg.Module.Path)
+		err = GoModDownload(config.GoBinary, workDir, config.DebugLog, pkg.Module.Path)
 		if err != nil {
 			return nil, err
 		}
-		err = GoGet(config.GoBinary, goPackage, workDir)
+		err = GoGet(config.GoBinary, goPackage, workDir, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
-		pkg, err = GoList(config.GoBinary, goPackage, "")
+		pkg, err = GoList(config.GoBinary, goPackage, "", config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
