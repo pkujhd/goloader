@@ -84,9 +84,12 @@ func resolveFullyQualifiedSymbolName(t *_type) string {
 	// go.shape is a special builtin package whose name shouldn't be escaped
 	pkgPath := unescapeGoShapePkg(objabi.PathToPrefix(t.PkgPath()))
 
-	name := nameFromTypeString(t)
+	name := typ.Name()
+	if name == "" {
+		name = nameFromTypeString(t)
+	}
 	var maybeStar string
-	if t.Kind() == reflect.Ptr {
+	if typ.String()[0] == '*' {
 		maybeStar = "*"
 	}
 	if pkgPath != "" && name != "" {

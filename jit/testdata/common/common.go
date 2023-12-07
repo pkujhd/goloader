@@ -15,12 +15,15 @@ func Dec() {
 	Val += 1
 }
 
+type Pointer *struct{}
+
 type SomeStruct struct {
-	Val1  interface{}
-	Val2  map[string]interface{}
-	Val3  []error
-	Val4  opentracing.Span
-	Mutex *sync.Mutex
+	Val1    interface{}
+	Val2    map[string]interface{}
+	Val3    []error
+	Val4    opentracing.Span
+	Mutex   *sync.Mutex
+	Pointer Pointer
 }
 
 type SomeInterface interface {
