@@ -65,7 +65,7 @@ func main() {
 	str := make([]string, 0)
 	goloader.RegTypes(symPtr, http.ListenAndServe, http.Dir("/"),
 		http.Handler(http.FileServer(http.Dir("/"))), http.FileServer, http.HandleFunc,
-		&http.Request{}, &http.Server{})
+		&http.Request{}, &http.Server{}, (&http.ServeMux{}).Handle)
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
 	goloader.RegTypes(symPtr, fmt.Sprint, str)
 

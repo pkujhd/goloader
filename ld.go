@@ -271,6 +271,8 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		if _, ok := linker.symMap[objsym.Type]; !ok {
 			if _, ok := linker.objSymbolMap[objsym.Type]; !ok {
 				linker.symMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
+			} else {
+				linker.addSymbol(objsym.Type)
 			}
 		}
 	}
