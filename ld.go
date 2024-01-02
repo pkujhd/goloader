@@ -127,8 +127,11 @@ func (linker *Linker) addSymbols() error {
 				return err
 			}
 		}
-		if objSym.Kind == symkind.SNOPTRDATA {
-			if _, err := linker.addSymbol(objSym.Name); err != nil {
+	}
+	for _, pkg := range linker.pkgs {
+		initFuncName := getInitFuncName(pkg.PkgPath)
+		if _, ok := linker.objSymbolMap[initFuncName]; ok {
+			if _, err := linker.addSymbol(initFuncName); err != nil {
 				return err
 			}
 		}
