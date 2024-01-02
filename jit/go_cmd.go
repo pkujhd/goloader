@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -173,30 +172,21 @@ func GoListStd(goCmd string) map[string]struct{} {
 func GoList(goCmd, absPath, workDir string, verbose bool) (*Package, error) {
 	golistCmd := exec.Command(goCmd, "list", "-json", absPath)
 	golistCmd.Dir = workDir
-	stdoutReader, stdoutWriter := io.Pipe()
-	stdErrBuf := &bytes.Buffer{}
-	if verbose {
-		golistCmd.Stdout = stdoutWriter
-		golistCmd.Stderr = io.MultiWriter(os.Stderr, stdErrBuf)
-	} else {
-		golistCmd.Stdout = stdoutWriter
-		golistCmd.Stderr = stdErrBuf
-	}
-	listDec := json.NewDecoder(stdoutReader)
-	err := golistCmd.Start()
-	if err != nil {
-		return nil, fmt.Errorf("failed to start 'go list -json %s': %w\nstderr:\n%s", absPath, err, stdErrBuf.String())
-	}
+
+	stdoutBuf, stdErrBuf := &bytes.Buffer{}, &bytes.Buffer{}
+
+	golistCmd.Stdout = stdoutBuf
+	golistCmd.Stderr = stdErrBuf
 	pkg := Package{}
-	err = listDec.Decode(&pkg)
+
+	err := golistCmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run 'go list -json %s': %w\nstderr:\n%s", absPath, err, stdErrBuf.String())
+	}
+	err = json.Unmarshal(stdoutBuf.Bytes(), &pkg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode response of 'go list -json %s': %w\nstderr:\n%s", absPath, err, stdErrBuf.String())
 	}
-	err = golistCmd.Wait()
-	if err != nil {
-		return nil, fmt.Errorf("failed to wait for 'go list -json %s': %w\nstderr:\n%s", absPath, err, stdErrBuf.String())
-	}
-
 	if len(pkg.GoFiles)+len(pkg.CgoFiles) == 0 {
 		return nil, fmt.Errorf("no Go files found in directory %s", absPath)
 	}

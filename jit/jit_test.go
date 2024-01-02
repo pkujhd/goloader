@@ -1478,6 +1478,7 @@ func TestK8s(t *testing.T) {
 	}
 
 	conf := baseConfig
+	conf.DebugLog = true
 	conf.UnsafeBlindlyUseFirstmoduleTypes = true
 	data := testData{
 		files: []string{"./testdata/test_k8s/test.go"},
