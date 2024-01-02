@@ -16,14 +16,14 @@ import (
 	"unsafe"
 )
 
-func CanAttemptConversion(oldValue, newValue interface{}) bool {
+func CanAttemptConversion(oldValue interface{}, newType reflect.Type) bool {
 	oldT := efaceOf(&oldValue)._type
-	newT := efaceOf(&newValue)._type
+	newT := fromRType(newType)
 	seen := map[_typePair]struct{}{}
 	return typesEqual(oldT, newT, seen)
 }
 
-func ConvertTypesAcrossModules(oldModule, newModule *CodeModule, oldValue, newValue interface{}) (res interface{}, err error) {
+func ConvertTypesAcrossModules(oldModule, newModule *CodeModule, oldValue interface{}, newType reflect.Type) (res interface{}, err error) {
 	defer func() {
 		if v := recover(); v != nil {
 			err = fmt.Errorf("unexpected panic (this is a bug): %v\n stack trace: %s", v, debug.Stack())
@@ -35,15 +35,14 @@ func ConvertTypesAcrossModules(oldModule, newModule *CodeModule, oldValue, newVa
 	// So we need to recurse over the entire structure, and find any itabs and replace them with the equivalent from the new module
 
 	oldT := efaceOf(&oldValue)._type
-	newT := efaceOf(&newValue)._type
+	newT := fromRType(newType)
 	seen := map[_typePair]struct{}{}
 	if !typesEqual(oldT, newT, seen) {
-		return nil, fmt.Errorf("old type %T and new type %T are not equal", oldValue, newValue)
+		return nil, fmt.Errorf("old type %T and new type %s are not equal", oldValue, newType)
 	}
 
 	// Need to take data in old value and copy into new value one field at a time, but check that
 	// the type is either shared (first module) or translated from the old to the new modules
-	newV := Indirect(ValueOf(&newValue)).Elem()
 	oldV := Indirect(ValueOf(&oldValue)).Elem()
 
 	cycleDetector := map[uintptr]*Value{}
@@ -51,9 +50,9 @@ func ConvertTypesAcrossModules(oldModule, newModule *CodeModule, oldValue, newVa
 	buildModuleTypeHash(activeModules()[0], typeHash)
 	buildModuleTypeHash(newModule.module, typeHash)
 
-	cvt(oldModule, newModule, Value{oldV}, newV.Type(), nil, cycleDetector, typeHash)
+	cvt(oldModule, newModule, Value{oldV}, AsType(newT), nil, cycleDetector, typeHash)
 
-	return oldV.ConvertWithInterface(newV.Type()).Interface(), err
+	return oldV.ConvertWithInterface(AsType(newT)).Interface(), err
 }
 
 func toType(t Type) *_type {

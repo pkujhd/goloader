@@ -1053,7 +1053,7 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 				t.Fatalf("expected current to be the same as input: %d  %d", current, input)
 			}
 
-			newThing2, err := goloader.ConvertTypesAcrossModules(module1, module2, thing1, thing2)
+			newThing2, err := goloader.ConvertTypesAcrossModules(module1, module2, thing1, reflect.TypeOf(thing2))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1072,7 +1072,7 @@ func TestConvertOldAndNewTypes(t *testing.T) {
 			ifaceCurrentComplex12 := ifaceOut12.Val2["complex"].(map[interface{}]interface{})
 			_ = thingIface1.Method2(nil)
 
-			newThingIface2, err := goloader.ConvertTypesAcrossModules(module1, module2, thingIface1, thingIface2)
+			newThingIface2, err := goloader.ConvertTypesAcrossModules(module1, module2, thingIface1, reflect.TypeOf(thingIface2))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1192,7 +1192,7 @@ func TestStatefulHttpServer(t *testing.T) {
 			makeHandler2 := symbols2["MakeServer"].(func() http.Handler)
 			handler2 := makeHandler2()
 
-			newHandler, err := goloader.ConvertTypesAcrossModules(module, module2, handler, handler2)
+			newHandler, err := goloader.ConvertTypesAcrossModules(module, module2, handler, reflect.TypeOf(handler2))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1287,7 +1287,7 @@ func TestCloneConnection(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			newDialer2, err := goloader.ConvertTypesAcrossModules(module1, module2, dialer1, dialer2)
+			newDialer2, err := goloader.ConvertTypesAcrossModules(module1, module2, dialer1, reflect.TypeOf(dialer2))
 			if err != nil {
 				t.Fatal(err)
 			}
