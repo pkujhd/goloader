@@ -176,7 +176,7 @@ func GoList(goCmd, absPath, workDir string, verbose bool) (*Package, error) {
 	stdoutReader, stdoutWriter := io.Pipe()
 	stdErrBuf := &bytes.Buffer{}
 	if verbose {
-		golistCmd.Stdout = io.MultiWriter(os.Stdout, stdoutWriter)
+		golistCmd.Stdout = stdoutWriter
 		golistCmd.Stderr = io.MultiWriter(os.Stderr, stdErrBuf)
 	} else {
 		golistCmd.Stdout = stdoutWriter
