@@ -488,20 +488,36 @@ func BuildGoFiles(config BuildConfig, pathToGoFile string, extraFiles ...string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
+
+	if config.DebugLog {
+		log.Printf("Executing 'go list -json -x %s'\n", absPath)
+	}
+
 	pkg, err := GoList(config.GoBinary, absPath, workDir, config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pkg.DepsErrors) > 0 {
+		if config.DebugLog {
+			log.Printf("Executing 'go mod download -x'\n")
+		}
+
 		err = GoModDownload(config.GoBinary, workDir, config.DebugLog)
 		if err != nil {
 			return nil, err
+		}
+		if config.DebugLog {
+			log.Printf("Executing 'go get -x %s'\n", workDir)
 		}
 		err = GoGet(config.GoBinary, workDir, workDir, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
+		if config.DebugLog {
+			log.Printf("Executing 'go list -json -x %s' (again)\n", absPath)
+		}
+
 		pkg, err = GoList(config.GoBinary, absPath, "", config.DebugLog)
 		if err != nil {
 			return nil, err
@@ -573,9 +589,10 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 		}
 		config.TmpDir = absPathBuildDir
 	}
-	buildDir, err := os.MkdirTemp(config.TmpDir, "jit_*")
+	buildDir := filepath.Join(config.TmpDir, fmt.Sprintf("jit_%s", hexHash))
+	err := os.MkdirAll(buildDir, os.ModePerm)
 	if err != nil {
-		return nil, fmt.Errorf("could not create new tmp directory: %w", err)
+		return nil, fmt.Errorf("could not create new tmp directory %s: %w", buildDir, err)
 	}
 
 	if !config.KeepTempFiles {
@@ -596,12 +613,21 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
+
+	if config.DebugLog {
+		log.Printf("Executing 'go list -json -x %s'\n", tmpFilePath)
+	}
+
 	pkg, err := GoList(config.GoBinary, tmpFilePath, "", config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pkg.DepsErrors) > 0 {
+		if config.DebugLog {
+			log.Printf("Executing 'go mod download -x'\n")
+		}
+
 		err = GoModDownload(config.GoBinary, buildDir, config.DebugLog)
 		if err != nil {
 			return nil, err
@@ -611,9 +637,17 @@ func BuildGoText(config BuildConfig, goText string) (*LoadableUnit, error) {
 			return nil, fmt.Errorf("could not get absolute path of directory containing file %s: %w", tmpFilePath, err)
 		}
 
+		if config.DebugLog {
+			log.Printf("Executing 'go get -x %s'\n", absPackagePath)
+		}
+
 		err = GoGet(config.GoBinary, absPackagePath, "", config.DebugLog)
 		if err != nil {
 			return nil, err
+		}
+
+		if config.DebugLog {
+			log.Printf("Executing 'go list -json -x %s' (again)\n", tmpFilePath)
 		}
 		pkg, err = GoList(config.GoBinary, tmpFilePath, "", config.DebugLog)
 		if err != nil {
@@ -665,6 +699,10 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to patch gc: %w", err)
 	}
+
+	if config.DebugLog {
+		log.Printf("Executing 'go list -json -x %s'\n", absPath)
+	}
 	// Execute list from within the package folder so that go list resolves the module correctly from that path
 	pkg, err := GoList(config.GoBinary, absPath, absPath, config.DebugLog)
 	if err != nil {
@@ -676,13 +714,24 @@ func BuildGoPackage(config BuildConfig, pathToGoPackage string) (*LoadableUnit, 
 	}
 
 	if len(pkg.DepsErrors) > 0 {
+		if config.DebugLog {
+			log.Printf("Executing 'go mod download -x'\n")
+		}
 		err = GoModDownload(config.GoBinary, absPath, config.DebugLog)
 		if err != nil {
 			return nil, err
 		}
+
+		if config.DebugLog {
+			log.Printf("Executing 'go get -x %s'\n", absPath)
+		}
 		err = GoGet(config.GoBinary, absPath, absPath, config.DebugLog)
 		if err != nil {
 			return nil, err
+		}
+
+		if config.DebugLog {
+			log.Printf("Executing 'go list -json -x %s' (again)\n", absPath)
 		}
 		pkg, err = GoList(config.GoBinary, absPath, "", config.DebugLog)
 		if err != nil {
@@ -774,11 +823,17 @@ func BuildGoPackageRemote(config BuildConfig, goPackage string, version string) 
 		versionSuffix = "@" + version
 	}
 
+	if config.DebugLog {
+		log.Printf("Executing 'go get -x %s'\n", goPackage+versionSuffix)
+	}
 	err = GoGet(config.GoBinary, goPackage+versionSuffix, workDir, config.DebugLog)
 	if err != nil {
 		return nil, err
 	}
 
+	if config.DebugLog {
+		log.Printf("Executing 'go list -json -x %s'\n", goPackage)
+	}
 	pkg, err := GoList(config.GoBinary, goPackage, workDir, config.DebugLog)
 	if err != nil {
 		return nil, err
@@ -789,13 +844,22 @@ func BuildGoPackageRemote(config BuildConfig, goPackage string, version string) 
 	}
 
 	if len(pkg.DepsErrors) > 0 {
+		if config.DebugLog {
+			log.Printf("Executing 'go mod download -x'\n")
+		}
 		err = GoModDownload(config.GoBinary, workDir, config.DebugLog, pkg.Module.Path)
 		if err != nil {
 			return nil, err
 		}
+		if config.DebugLog {
+			log.Printf("Executing 'go get -x %s'\n", goPackage)
+		}
 		err = GoGet(config.GoBinary, goPackage, workDir, config.DebugLog)
 		if err != nil {
 			return nil, err
+		}
+		if config.DebugLog {
+			log.Printf("Executing 'go list -json -x %s' (again)\n", goPackage)
 		}
 		pkg, err = GoList(config.GoBinary, goPackage, "", config.DebugLog)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -111,6 +112,9 @@ type PackageError struct {
 }
 
 func GoModDownload(goCmd, workDir string, verbose bool, args ...string) error {
+	if verbose {
+		args = append([]string{"-x"}, args...)
+	}
 	dlCmd := exec.Command(goCmd, append([]string{"mod", "download"}, args...)...)
 	if verbose {
 		dlCmd.Stdout = os.Stdout
@@ -135,7 +139,11 @@ func GoModDownload(goCmd, workDir string, verbose bool, args ...string) error {
 }
 
 func GoGet(goCmd, packagePath, workDir string, verbose bool) error {
-	goGetCmd := exec.Command(goCmd, "get", packagePath)
+	var args = []string{"get"}
+	if verbose {
+		args = append(args, "-x")
+	}
+	goGetCmd := exec.Command(goCmd, append(args, packagePath)...)
 	goGetCmd.Dir = workDir
 	if verbose {
 		goGetCmd.Stderr = os.Stderr
@@ -170,13 +178,22 @@ func GoListStd(goCmd string) map[string]struct{} {
 }
 
 func GoList(goCmd, absPath, workDir string, verbose bool) (*Package, error) {
-	golistCmd := exec.Command(goCmd, "list", "-json", absPath)
+	args := []string{"list", "-json"}
+	if verbose {
+		args = append(args, "-x")
+	}
+	args = append(args, absPath)
+	golistCmd := exec.Command(goCmd, args...)
 	golistCmd.Dir = workDir
 
 	stdoutBuf, stdErrBuf := &bytes.Buffer{}, &bytes.Buffer{}
 
+	if verbose {
+		golistCmd.Stderr = io.MultiWriter(stdErrBuf, os.Stderr)
+	} else {
+		golistCmd.Stderr = stdErrBuf
+	}
 	golistCmd.Stdout = stdoutBuf
-	golistCmd.Stderr = stdErrBuf
 	pkg := Package{}
 
 	err := golistCmd.Run()
