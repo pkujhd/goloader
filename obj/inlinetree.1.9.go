@@ -5,9 +5,6 @@ package obj
 
 import (
 	"cmd/objfile/goobj"
-	"strings"
-
-	"github.com/pkujhd/goloader/constants"
 )
 
 func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
@@ -19,7 +16,7 @@ func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtS
 			Func:     inl.Func.Name,
 			ParentPC: 0,
 		}
-		inline.Func = strings.Replace(inline.Func, constants.EmptyPkgPath, pkgpath, -1)
+		inline.Func = ReplacePkgPath(inline.Func, pkgpath)
 		Func.InlTree = append(Func.InlTree, inline)
 	}
 	Func.PCInline, err = fd.BytesAt(objFunc.PCInline.Offset, objFunc.PCInline.Size)

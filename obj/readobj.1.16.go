@@ -9,9 +9,6 @@ import (
 	"cmd/objfile/objabi"
 	"fmt"
 	"path/filepath"
-	"strings"
-
-	"github.com/pkujhd/goloader/constants"
 )
 
 func (pkg *Pkg) Symbols() error {
@@ -52,11 +49,6 @@ func (pkg *Pkg) Symbols() error {
 			}
 		default:
 			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.File.Name(), e.Name)
-		}
-	}
-	for _, sym := range pkg.Syms {
-		if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
-			sym.Name = strings.Replace(sym.Name, constants.EmptyPkgPath, pkg.PkgPath, -1)
 		}
 	}
 	return nil
@@ -120,7 +112,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 			}
 			for _, inl := range funcInfo.InlTree {
 				funcname, _ := resolveSymRef(inl.Func, r, refNames)
-				funcname = strings.Replace(funcname, constants.EmptyPkgPath, pkg.PkgPath, -1)
+				funcname = ReplacePkgPath(funcname, pkg.PkgPath)
 				inlNode := InlTreeNode{
 					Parent:   int64(inl.Parent),
 					File:     r.File(int(inl.File)),

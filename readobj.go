@@ -3,9 +3,7 @@ package goloader
 import (
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -36,21 +34,18 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
-			if !strings.HasPrefix(sym.Reloc[index].SymName, constants.TypeStringPrefix) {
-				sym.Reloc[index].SymName = strings.Replace(loc.SymName, constants.EmptyPkgPath, pkg.PkgPath, -1)
-			}
+			sym.Reloc[index].SymName = obj.ReplacePkgPath(loc.SymName, pkg.PkgPath)
 		}
 		if sym.Type != EmptyString {
-			sym.Type = strings.Replace(sym.Type, constants.EmptyPkgPath, pkg.PkgPath, -1)
+			sym.Type = obj.ReplacePkgPath(sym.Type, pkg.PkgPath)
 		}
 		if sym.Func != nil {
 			for index, FuncData := range sym.Func.FuncData {
-				sym.Func.FuncData[index] = strings.Replace(FuncData, constants.EmptyPkgPath, pkg.PkgPath, -1)
+				sym.Func.FuncData[index] = obj.ReplacePkgPath(FuncData, pkg.PkgPath)
 			}
 			sym.Func.CUOffset += int32(cuOffset)
 		}
-	}
-	for _, sym := range pkg.Syms {
+		sym.Name = obj.ReplacePkgPath(sym.Name, pkg.PkgPath)
 		linker.ObjSymbolMap[sym.Name] = sym
 	}
 	linker.Packages = append(linker.Packages, pkg)

@@ -1,5 +1,11 @@
 package obj
 
+import (
+	"strings"
+
+	"github.com/pkujhd/goloader/constants"
+)
+
 func FindFileTab(filename string, namemap map[string]int, filetab []uint32) int32 {
 	tab := namemap[filename]
 	for index, value := range filetab {
@@ -14,4 +20,11 @@ func grow(bytes *[]byte, size int) {
 	if len(*bytes) < size {
 		*bytes = append(*bytes, make([]byte, size-len(*bytes))...)
 	}
+}
+
+func ReplacePkgPath(name, pkgpath string) string {
+	if !strings.HasPrefix(name, constants.TypeStringPrefix) {
+		name = strings.Replace(name, constants.EmptyPkgPath, pkgpath, -1)
+	}
+	return name
 }
