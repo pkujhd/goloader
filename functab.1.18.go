@@ -31,5 +31,5 @@ func addfuncdata(module *moduledata, Func *obj.Func, _func *_func) {
 			funcdata = append(funcdata, ^uint32(0))
 		}
 	}
-	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), Uint32Size*int(_func.nfuncdata))
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), Uint32Size*int(_func.Nfuncdata))
 }

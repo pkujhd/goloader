@@ -10,7 +10,7 @@ const (
 	Uint32Size         = int(unsafe.Sizeof(uint32(0)))
 	IntSize            = int(unsafe.Sizeof(int(0)))
 	UInt64Size         = int(unsafe.Sizeof(uint64(0)))
-	_FuncSize          = int(unsafe.Offsetof(_func{}.nfuncdata)) + int(unsafe.Sizeof(_func{}.nfuncdata))
+	_FuncSize          = int(unsafe.Offsetof(_func{}.Nfuncdata)) + int(unsafe.Sizeof(_func{}.Nfuncdata))
 	FindFuncBucketSize = int(unsafe.Sizeof(findfuncbucket{}))
 	PCHeaderSize       = int(unsafe.Sizeof(pcHeader{}))
 	InvalidHandleValue = ^uintptr(0)

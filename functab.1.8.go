@@ -32,5 +32,5 @@ func addfuncdata(module *moduledata, Func *obj.Func, _func *_func) {
 		}
 	}
 	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
-	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), PtrSize*int(_func.nfuncdata))
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), PtrSize*int(_func.Nfuncdata))
 }

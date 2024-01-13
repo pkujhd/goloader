@@ -22,54 +22,54 @@ type funcID uint8
 // Keep in sync with linker (../cmd/link/internal/ld/pcln.go:/pclntab)
 // and with package debug/gosym and with symtab.go in package runtime.
 type _func struct {
-	entry   uintptr // start pc
-	nameoff int32   // function name
+	Entry   uintptr // start pc
+	Nameoff int32   // function name
 
-	args        int32  // in/out args size
-	deferreturn uint32 // offset of start of a deferreturn call instruction from entry, if any.
+	Args        int32  // in/out args size
+	Deferreturn uint32 // offset of start of a deferreturn call instruction from entry, if any.
 
-	pcsp      int32
-	pcfile    int32
-	pcln      int32
-	npcdata   int32
-	funcID    funcID  // set for certain special runtime functions
+	Pcsp      int32
+	Pcfile    int32
+	Pcln      int32
+	Npcdata   int32
+	FuncID    funcID  // set for certain special runtime functions
 	_         [2]int8 // unused
-	nfuncdata uint8   // must be last
+	Nfuncdata uint8   // must be last
 }
 
 func initfunc(symbol *obj.ObjSymbol, nameOff, pcspOff, pcfileOff, pclnOff int, cuOff int) _func {
 	fdata := _func{
-		entry:       uintptr(0),
-		nameoff:     int32(nameOff),
-		args:        int32(symbol.Func.Args),
-		deferreturn: uint32(0),
-		pcsp:        int32(pcspOff),
-		pcfile:      int32(pcfileOff),
-		pcln:        int32(pclnOff),
-		npcdata:     int32(len(symbol.Func.PCData)),
-		funcID:      funcID(objabi.GetFuncID(symbol.Name, strings.TrimPrefix(symbol.Func.File[0], FileSymPrefix))),
-		nfuncdata:   uint8(len(symbol.Func.FuncData)),
+		Entry:       uintptr(0),
+		Nameoff:     int32(nameOff),
+		Args:        int32(symbol.Func.Args),
+		Deferreturn: uint32(0),
+		Pcsp:        int32(pcspOff),
+		Pcfile:      int32(pcfileOff),
+		Pcln:        int32(pclnOff),
+		Npcdata:     int32(len(symbol.Func.PCData)),
+		FuncID:      funcID(objabi.GetFuncID(symbol.Name, strings.TrimPrefix(symbol.Func.File[0], FileSymPrefix))),
+		Nfuncdata:   uint8(len(symbol.Func.FuncData)),
 	}
 	return fdata
 }
 
 func setfuncentry(f *_func, entry uintptr, text uintptr) {
-	f.entry = entry
+	f.Entry = entry
 }
 
 func getfuncentry(f *_func, text uintptr) uintptr {
-	return f.entry
+	return f.Entry
 }
 
 func getfuncname(f *_func, md *moduledata) string {
-	if f.nameoff <= 0 || f.nameoff >= int32(len(md.pclntable)) {
+	if f.Nameoff <= 0 || f.Nameoff >= int32(len(md.pclntable)) {
 		return EmptyString
 	}
-	return gostringnocopy(&(md.pclntable[f.nameoff]))
+	return gostringnocopy(&(md.pclntable[f.Nameoff]))
 }
 
 func getfuncID(f *_func) uint8 {
-	return uint8(f.funcID)
+	return uint8(f.FuncID)
 }
 
 func adaptePCFile(linker *Linker, symbol *obj.ObjSymbol) {

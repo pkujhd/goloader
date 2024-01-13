@@ -6,46 +6,46 @@ package goloader
 import "github.com/pkujhd/goloader/obj"
 
 type _func struct {
-	entry   uintptr // start pc
-	nameoff int32   // function name
+	Entry   uintptr // start pc
+	Nameoff int32   // function name
 
-	args int32 // in/out args size
+	Args int32 // in/out args size
 	_    int32 // previously legacy frame size; kept for layout compatibility
 
-	pcsp      int32
-	pcfile    int32
-	pcln      int32
-	npcdata   int32
-	nfuncdata int32
+	Pcsp      int32
+	Pcfile    int32
+	Pcln      int32
+	Npcdata   int32
+	Nfuncdata int32
 }
 
 func initfunc(symbol *obj.ObjSymbol, nameOff, pcspOff, pcfileOff, pclnOff, cuOff int) _func {
 	fdata := _func{
-		entry:     uintptr(0),
-		nameoff:   int32(nameOff),
-		args:      int32(symbol.Func.Args),
-		pcsp:      int32(pcspOff),
-		pcfile:    int32(pcfileOff),
-		pcln:      int32(pclnOff),
-		npcdata:   int32(len(symbol.Func.PCData)),
-		nfuncdata: int32(len(symbol.Func.FuncData)),
+		Entry:     uintptr(0),
+		Nameoff:   int32(nameOff),
+		Args:      int32(symbol.Func.Args),
+		Pcsp:      int32(pcspOff),
+		Pcfile:    int32(pcfileOff),
+		Pcln:      int32(pclnOff),
+		Npcdata:   int32(len(symbol.Func.PCData)),
+		Nfuncdata: int32(len(symbol.Func.FuncData)),
 	}
 	return fdata
 }
 
 func setfuncentry(f *_func, entry uintptr, text uintptr) {
-	f.entry = entry
+	f.Entry = entry
 }
 
 func getfuncentry(f *_func, text uintptr) uintptr {
-	return f.entry
+	return f.Entry
 }
 
 func getfuncname(f *_func, md *moduledata) string {
-	if f.nameoff <= 0 || f.nameoff >= int32(len(md.pclntable)) {
+	if f.Nameoff <= 0 || f.Nameoff >= int32(len(md.pclntable)) {
 		return EmptyString
 	}
-	return gostringnocopy(&(md.pclntable[f.nameoff]))
+	return gostringnocopy(&(md.pclntable[f.Nameoff]))
 }
 
 func getfuncID(f *_func) uint8 {

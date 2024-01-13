@@ -12,9 +12,9 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 	Func := symbol.Func
 	sym := linker.SymMap[funcname]
 	if Func != nil && len(Func.InlTree) != 0 {
-		for _func.npcdata <= dataindex.PCDATA_InlTreeIndex {
+		for _func.Npcdata <= dataindex.PCDATA_InlTreeIndex {
 			sym.Func.PCData = append(sym.Func.PCData, uint32(0))
-			_func.npcdata++
+			_func.Npcdata++
 		}
 		sym.Func.PCData[dataindex.PCDATA_InlTreeIndex] = uint32(len(linker.Pclntable))
 
@@ -45,9 +45,9 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 		offset := len(linker.Noptrdata)
 		linker.Noptrdata = append(linker.Noptrdata, bytes...)
 		bytearrayAlign(&linker.Noptrdata, PtrSize)
-		for _func.nfuncdata <= dataindex.FUNCDATA_InlTree {
+		for _func.Nfuncdata <= dataindex.FUNCDATA_InlTree {
 			sym.Func.FuncData = append(sym.Func.FuncData, uintptr(0))
-			_func.nfuncdata++
+			_func.Nfuncdata++
 		}
 		sym.Func.FuncData[dataindex.FUNCDATA_InlTree] = (uintptr)(offset)
 	}

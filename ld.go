@@ -407,11 +407,11 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(_func)), _FuncSize)
 
-	if _func.npcdata > 0 {
-		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(Func.PCData[0]))), Uint32Size*int(_func.npcdata))
+	if _func.Npcdata > 0 {
+		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(Func.PCData[0]))), Uint32Size*int(_func.Npcdata))
 	}
 
-	if _func.nfuncdata > 0 {
+	if _func.Nfuncdata > 0 {
 		addfuncdata(module, Func, _func)
 	}
 
