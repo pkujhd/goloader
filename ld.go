@@ -15,6 +15,7 @@ import (
 	"github.com/pkujhd/goloader/objabi/funcalign"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
+	"github.com/pkujhd/goloader/objabi/tls"
 	"github.com/pkujhd/goloader/stackobject"
 )
 
@@ -368,28 +369,25 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
-			//nothing todo
+			if _, ok := symbolMap[TLSNAME]; !ok {
+				symbolMap[TLSNAME] = tls.GetTLSOffset(linker.arch, PtrSize)
+			}
 		} else if sym.Kind == symkind.STEXT {
-			symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.codeBase)
+			symbolMap[name] = uintptr(sym.Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
-		} else if strings.HasPrefix(sym.Name, constants.ItabPrefix) {
-			if ptr, ok := symPtr[sym.Name]; ok {
-				symbolMap[name] = ptr
-			}
+		} else if strings.HasPrefix(name, constants.TypeStringPrefix) {
+			symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
+		} else if name == getInitFuncName(DefaultPkgPath) ||
+			strings.HasPrefix(name, constants.TypePrefix) {
+			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
+		} else if _, ok := symPtr[name]; ok {
+			symbolMap[name] = symPtr[name]
 		} else {
-			if strings.HasPrefix(name, constants.TypeStringPrefix) {
-				symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
-			} else if strings.HasPrefix(name, constants.TypePrefix) {
-				if _, ok := linker.symMap[name]; ok {
-					symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-				} else {
-					symbolMap[name] = symPtr[name]
-				}
-			} else if _, ok := symPtr[name]; ok {
-				symbolMap[name] = symPtr[name]
-			} else {
-				symbolMap[name] = uintptr(linker.symMap[name].Offset + segment.dataBase)
-			}
+			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
+		}
+		//fill itablinks
+		if strings.HasPrefix(name, constants.ItabPrefix) {
+			codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(symbolMap[name], 0)))
 		}
 	}
 	return symbolMap, err

@@ -4,13 +4,10 @@ import (
 	"cmd/objfile/sys"
 	"fmt"
 	"runtime"
-	"strings"
 
-	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
-	"github.com/pkujhd/goloader/objabi/tls"
 )
 
 const (
@@ -288,17 +285,10 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
-			if addr == 0 && strings.HasPrefix(sym.Name, constants.ItabPrefix) {
-				addr = uintptr(segment.dataBase + loc.Sym.Offset)
-				symbolMap[loc.Sym.Name] = addr
-				codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(uintptr(segment.dataBase), loc.Sym.Offset)))
-			}
+
 			if addr != InvalidHandleValue {
 				switch loc.Type {
 				case reloctype.R_TLS_LE:
-					if _, ok := symbolMap[TLSNAME]; !ok {
-						symbolMap[TLSNAME] = tls.GetTLSOffset(linker.arch, PtrSize)
-					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
 				case reloctype.R_CALL, reloctype.R_CALL | reloctype.R_WEAK:
 					linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
