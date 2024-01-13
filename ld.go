@@ -68,16 +68,17 @@ type LinkerData struct {
 
 type Linker struct {
 	LinkerData
-	SymMap       map[string]*obj.Sym
-	ObjSymbolMap map[string]*obj.ObjSymbol
-	NameMap      map[string]int
-	StringMap    map[string]*string
-	Filetab      []uint32
-	Pclntable    []byte
-	Funcs        []*_func
-	Packages     []*obj.Pkg
-	Arch         *sys.Arch
-	CUOffset     int32
+	SymMap        map[string]*obj.Sym
+	ObjSymbolMap  map[string]*obj.ObjSymbol
+	NameMap       map[string]int
+	StringMap     map[string]*string
+	Filetab       []uint32
+	Pclntable     []byte
+	Funcs         []*_func
+	Packages      []*obj.Pkg
+	Arch          *sys.Arch
+	CUOffset      int32
+	AdaptedOffset bool
 }
 
 var (
@@ -88,11 +89,12 @@ var (
 // initialize Linker
 func initLinker() *Linker {
 	linker := &Linker{
-		SymMap:       make(map[string]*obj.Sym),
-		ObjSymbolMap: make(map[string]*obj.ObjSymbol),
-		NameMap:      make(map[string]int),
-		StringMap:    make(map[string]*string),
-		CUOffset:     0,
+		SymMap:        make(map[string]*obj.Sym),
+		ObjSymbolMap:  make(map[string]*obj.ObjSymbol),
+		NameMap:       make(map[string]int),
+		StringMap:     make(map[string]*string),
+		CUOffset:      0,
+		AdaptedOffset: false,
 	}
 	linker.Pclntable = make([]byte, PCHeaderSize)
 	return linker
@@ -138,26 +140,32 @@ func (linker *Linker) addSymbols() error {
 			}
 		}
 	}
-	for _, sym := range linker.SymMap {
-		offset := 0
-		switch sym.Kind {
-		case symkind.SNOPTRDATA, symkind.SRODATA:
-			if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
-				offset += len(linker.Data)
-			}
-		case symkind.SBSS:
-			offset += len(linker.Data) + len(linker.Noptrdata)
-		case symkind.SNOPTRBSS:
-			offset += len(linker.Data) + len(linker.Noptrdata) + len(linker.Bss)
-		}
-		sym.Offset += offset
-		if offset != 0 {
-			for index := range sym.Reloc {
-				sym.Reloc[index].Offset += offset
-			}
-		}
-	}
 	return nil
+}
+
+func (linker *Linker) adaptSymbolOffset() {
+	if linker.AdaptedOffset == false {
+		for _, sym := range linker.SymMap {
+			offset := 0
+			switch sym.Kind {
+			case symkind.SNOPTRDATA, symkind.SRODATA:
+				if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
+					offset += len(linker.Data)
+				}
+			case symkind.SBSS:
+				offset += len(linker.Data) + len(linker.Noptrdata)
+			case symkind.SNOPTRBSS:
+				offset += len(linker.Data) + len(linker.Noptrdata) + len(linker.Bss)
+			}
+			sym.Offset += offset
+			if offset != 0 {
+				for index := range sym.Reloc {
+					sym.Reloc[index].Offset += offset
+				}
+			}
+		}
+		linker.AdaptedOffset = true
+	}
 }
 
 func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
@@ -535,6 +543,8 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	dataSeg.dataOff += dataSeg.noptrbssLen
 
 	codeModule.stringMap = linker.StringMap
+
+	linker.adaptSymbolOffset()
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
