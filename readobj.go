@@ -28,10 +28,10 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 	if err := pkg.Symbols(); err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
-	if linker.arch != nil && linker.arch.Name != pkg.Arch {
-		return fmt.Errorf("read obj error: Arch %s != Arch %s", linker.arch.Name, pkg.Arch)
+	if linker.Arch != nil && linker.Arch.Name != pkg.Arch {
+		return fmt.Errorf("read obj error: Arch %s != Arch %s", linker.Arch.Name, pkg.Arch)
 	} else {
-		linker.arch = getArch(pkg.Arch)
+		linker.Arch = getArch(pkg.Arch)
 	}
 
 	for _, sym := range pkg.Syms {
@@ -51,9 +51,9 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 		}
 	}
 	for _, sym := range pkg.Syms {
-		linker.objSymbolMap[sym.Name] = sym
+		linker.ObjSymbolMap[sym.Name] = sym
 	}
-	linker.pkgs = append(linker.pkgs, pkg)
+	linker.Packages = append(linker.Packages, pkg)
 	return nil
 }
 

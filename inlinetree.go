@@ -10,13 +10,13 @@ import (
 func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err error) {
 	funcname := symbol.Name
 	Func := symbol.Func
-	sym := linker.symMap[funcname]
+	sym := linker.SymMap[funcname]
 	if Func != nil && len(Func.InlTree) != 0 {
 		for _func.npcdata <= dataindex.PCDATA_InlTreeIndex {
 			sym.Func.PCData = append(sym.Func.PCData, uint32(0))
 			_func.npcdata++
 		}
-		sym.Func.PCData[dataindex.PCDATA_InlTreeIndex] = uint32(len(linker.pclntable))
+		sym.Func.PCData[dataindex.PCDATA_InlTreeIndex] = uint32(len(linker.Pclntable))
 
 		for _, reloc := range symbol.Reloc {
 			if reloc.Epilogue.Size > 0 {
@@ -24,27 +24,27 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 			}
 		}
 
-		linker.pclntable = append(linker.pclntable, symbol.Func.PCInline...)
+		linker.Pclntable = append(linker.Pclntable, symbol.Func.PCInline...)
 		for _, inl := range symbol.Func.InlTree {
-			if _, ok := linker.nameMap[inl.Func]; !ok {
-				linker.nameMap[inl.Func] = len(linker.pclntable)
-				linker.pclntable = append(linker.pclntable, []byte(inl.Func)...)
-				linker.pclntable = append(linker.pclntable, ZeroByte)
+			if _, ok := linker.NameMap[inl.Func]; !ok {
+				linker.NameMap[inl.Func] = len(linker.Pclntable)
+				linker.Pclntable = append(linker.Pclntable, []byte(inl.Func)...)
+				linker.Pclntable = append(linker.Pclntable, ZeroByte)
 			}
 		}
 
 		bytes := make([]byte, len(Func.InlTree)*obj.InlinedCallSize)
 		for k, inl := range Func.InlTree {
 			funcID := uint8(0)
-			if _, ok := linker.objSymbolMap[inl.Func]; ok {
-				funcID = linker.objSymbolMap[inl.Func].Func.FuncID
+			if _, ok := linker.ObjSymbolMap[inl.Func]; ok {
+				funcID = linker.ObjSymbolMap[inl.Func].Func.FuncID
 			}
-			inlinedcall := obj.InitInlinedCall(inl, funcID, linker.nameMap, linker.filetab)
+			inlinedcall := obj.InitInlinedCall(inl, funcID, linker.NameMap, linker.Filetab)
 			copy2Slice(bytes[k*obj.InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedcall)), obj.InlinedCallSize)
 		}
-		offset := len(linker.noptrdata)
-		linker.noptrdata = append(linker.noptrdata, bytes...)
-		bytearrayAlign(&linker.noptrdata, PtrSize)
+		offset := len(linker.Noptrdata)
+		linker.Noptrdata = append(linker.Noptrdata, bytes...)
+		bytearrayAlign(&linker.Noptrdata, PtrSize)
 		for _func.nfuncdata <= dataindex.FUNCDATA_InlTree {
 			sym.Func.FuncData = append(sym.Func.FuncData, uintptr(0))
 			_func.nfuncdata++

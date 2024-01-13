@@ -23,7 +23,7 @@ const (
 
 func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 	// on linux/amd64, mmap force return < 32bit address, don't need add extra instructions
-	if linker.arch.Name == sys.ArchAMD64.Name && runtime.GOOS == "linux" {
+	if linker.Arch.Name == sys.ArchAMD64.Name && runtime.GOOS == "linux" {
 		return
 	}
 	// Pessimistically pad the function text with extra bytes for any relocations which might add extra
@@ -31,7 +31,7 @@ func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 	// the PCData, PCLine, PCFile, PCSP etc.
 	for i, reloc := range objsym.Reloc {
 		epilogue := &(objsym.Reloc[i].Epilogue)
-		epilogue.Offset = len(linker.code) - symbol.Offset
+		epilogue.Offset = len(linker.Code) - symbol.Offset
 		switch reloc.Type {
 		case reloctype.R_ADDRARM64:
 			epilogue.Size = maxExtraCodeSize_ADDRARM64
@@ -58,13 +58,13 @@ func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 			}
 		}
 		if epilogue.Size > 0 {
-			linker.code = append(linker.code, createArchNops(linker.arch, epilogue.Size)...)
+			linker.Code = append(linker.Code, createArchNops(linker.Arch, epilogue.Size)...)
 		}
 	}
 }
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
-	byteorder := linker.arch.ByteOrder
+	byteorder := linker.Arch.ByteOrder
 	offset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
 	//overflow
 	if offset >= 1<<32 || offset < -1<<32 {
@@ -148,7 +148,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 }
 
 func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) {
-	byteorder := linker.arch.ByteOrder
+	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if isOverflowInt32(offset) {
 		segment.dataOff = alignof(segment.dataOff, PtrSize)
@@ -167,7 +167,7 @@ func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment
 }
 
 func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
-	byteorder := linker.arch.ByteOrder
+	byteorder := linker.Arch.ByteOrder
 	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
 	if isOverflowInt32(offset) {
 		epilogueOffset := loc.Epilogue.Offset
@@ -239,7 +239,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 }
 
 func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segment) {
-	byteorder := linker.arch.ByteOrder
+	byteorder := linker.Arch.ByteOrder
 	add := loc.Add
 	if loc.Type == reloctype.R_CALLARM {
 		add = int(signext24(int64(loc.Add&0xFFFFFF)) * 4)
@@ -274,8 +274,8 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segme
 
 func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[string]uintptr) (err error) {
 	segment := &codeModule.segment
-	byteorder := linker.arch.ByteOrder
-	for _, symbol := range linker.symMap {
+	byteorder := linker.Arch.ByteOrder
+	for _, symbol := range linker.SymMap {
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.Sym.Name]
 			sym := loc.Sym

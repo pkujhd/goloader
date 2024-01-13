@@ -86,7 +86,7 @@ func initmodule(module *moduledata, linker *Linker) {
 	module.pcHeader.nfiles = (uint)(len(module.filetab))
 	module.funcnametab = module.pclntable
 	module.pctab = module.pclntable
-	module.cutab = linker.filetab
+	module.cutab = linker.Filetab
 	module.filetab = module.pclntable
 	module.hasmain = 0
 	module.bad = false

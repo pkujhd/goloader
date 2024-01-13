@@ -47,7 +47,7 @@ func rewritePCFile(symbol *obj.ObjSymbol, linker *Linker) {
 		if !ok || len(p) <= 0 {
 			break
 		}
-		nval := obj.FindFileTab(symbol.Func.File[val], linker.nameMap, linker.filetab)
+		nval := obj.FindFileTab(symbol.Func.File[val], linker.NameMap, linker.Filetab)
 		pcfile = writePCValue(pcfile, int64(nval-lastval), uint64(pc-lastpc))
 		lastpc = pc
 		lastval = nval
@@ -109,7 +109,7 @@ func patchPCValues(linker *Linker, pcVals *[]byte, reloc obj.Reloc) {
 		return
 	}
 	var pcQuantum uintptr = 1
-	if linker.arch.Family == sys.ARM64 {
+	if linker.Arch.Family == sys.ARM64 {
 		pcQuantum = 4
 	}
 	val, startPC := pcValue(*pcVals, uintptr(reloc.Offset))

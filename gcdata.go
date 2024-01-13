@@ -20,7 +20,7 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.dataSeg.length) {
 		return nil
 	}
-	objsym := linker.objSymbolMap[sym.Name]
+	objsym := linker.ObjSymbolMap[sym.Name]
 	typeName := objsym.Type
 	if len(typeName) == 0 && objsym.Size > 0 {
 		// This is likely a global var with no type information encoded, so can't be GC'd (ignore it)
@@ -32,20 +32,20 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 	}
 	if ptr, ok := symbolMap[typeName]; ok {
 		typ := (*_type)(adduintptr(ptr, 0))
-		nptr := int64(typ.ptrdata) / int64(linker.arch.PtrSize)
+		nptr := int64(typ.ptrdata) / int64(linker.Arch.PtrSize)
 		if typ.kind&KindGCProg == 0 {
 			var mask []byte
 			append2Slice(&mask, uintptr(unsafe.Pointer(typ.gcdata)), int(nptr+7)/8)
 			for i := int64(0); i < nptr; i++ {
 				if (mask[i/8]>>uint(i%8))&1 != 0 {
-					w.Ptr(sval/int64(linker.arch.PtrSize) + i)
+					w.Ptr(sval/int64(linker.Arch.PtrSize) + i)
 				}
 			}
 
 		} else {
 			var prog []byte
 			append2Slice(&prog, uintptr(unsafe.Pointer(typ.gcdata)), Uint32Size+int((*(*uint32)(unsafe.Pointer(typ.gcdata)))))
-			w.ZeroUntil(sval / int64(linker.arch.PtrSize))
+			w.ZeroUntil(sval / int64(linker.Arch.PtrSize))
 			w.Append(prog[4:], nptr)
 		}
 	} else {
@@ -77,13 +77,13 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 	w.Init(func(x byte) {
 		codeModule.gcdata = append(codeModule.gcdata, x)
 	})
-	for _, sym := range sortSym(linker.symMap, symkind.SDATA) {
+	for _, sym := range sortSym(linker.SymMap, symkind.SDATA) {
 		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
 		}
 	}
-	w.ZeroUntil(int64(module.edata-module.data) / int64(linker.arch.PtrSize))
+	w.ZeroUntil(int64(module.edata-module.data) / int64(linker.Arch.PtrSize))
 	w.End()
 	module.gcdata = (*sliceHeader)(unsafe.Pointer(&codeModule.gcdata)).Data
 	module.gcdatamask = progToPointerMask((*byte)(adduintptr(module.gcdata, 0)), module.edata-module.data)
@@ -93,13 +93,13 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 		codeModule.gcbss = append(codeModule.gcbss, x)
 	})
 
-	for _, sym := range sortSym(linker.symMap, symkind.SBSS) {
+	for _, sym := range sortSym(linker.SymMap, symkind.SBSS) {
 		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
 		}
 	}
-	w.ZeroUntil(int64(module.ebss-module.bss) / int64(linker.arch.PtrSize))
+	w.ZeroUntil(int64(module.ebss-module.bss) / int64(linker.Arch.PtrSize))
 	w.End()
 	module.gcbss = (*sliceHeader)(unsafe.Pointer(&codeModule.gcbss)).Data
 	module.gcbssmask = progToPointerMask((*byte)(adduintptr(module.gcbss, 0)), module.ebss-module.bss)

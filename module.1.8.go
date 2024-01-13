@@ -53,5 +53,5 @@ type moduledata struct {
 }
 
 func initmodule(module *moduledata, linker *Linker) {
-	module.filetab = linker.filetab
+	module.filetab = linker.Filetab
 }

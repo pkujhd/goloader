@@ -28,10 +28,10 @@ func getInitFuncName(packagename string) string {
 func doInit1(t unsafe.Pointer) // t should be a *runtime.initTask
 
 func (linker *Linker) doInitialize(symPtr, symbolMap map[string]uintptr) error {
-	for _, pkg := range linker.pkgs {
+	for _, pkg := range linker.Packages {
 		name := getInitFuncName(pkg.PkgPath)
 		if ptr, ok := symbolMap[name]; ok {
-			for _, loc := range linker.symMap[name].Reloc {
+			for _, loc := range linker.SymMap[name].Reloc {
 				if loc.Type == reloctype.R_INITORDER {
 					if locPtr, ok := symPtr[loc.Sym.Name]; ok {
 						doInit1(adduintptr(locPtr, 0))

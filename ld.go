@@ -60,25 +60,25 @@ type CodeModule struct {
 	module    *moduledata
 }
 
-type linkerData struct {
-	code      []byte
-	data      []byte
-	noptrdata []byte
-	bss       []byte
-	noptrbss  []byte
+type LinkerData struct {
+	Code      []byte
+	Data      []byte
+	Noptrdata []byte
+	Bss       []byte
+	Noptrbss  []byte
 }
 
 type Linker struct {
-	linkerData
-	symMap       map[string]*obj.Sym
-	objSymbolMap map[string]*obj.ObjSymbol
-	nameMap      map[string]int
-	stringMap    map[string]*string
-	filetab      []uint32
-	pclntable    []byte
-	_funcs       []*_func
-	pkgs         []*obj.Pkg
-	arch         *sys.Arch
+	LinkerData
+	SymMap       map[string]*obj.Sym
+	ObjSymbolMap map[string]*obj.ObjSymbol
+	NameMap      map[string]int
+	StringMap    map[string]*string
+	Filetab      []uint32
+	Pclntable    []byte
+	Funcs        []*_func
+	Packages     []*obj.Pkg
+	Arch         *sys.Arch
 }
 
 var (
@@ -89,65 +89,65 @@ var (
 // initialize Linker
 func initLinker() *Linker {
 	linker := &Linker{
-		symMap:       make(map[string]*obj.Sym),
-		objSymbolMap: make(map[string]*obj.ObjSymbol),
-		nameMap:      make(map[string]int),
-		stringMap:    make(map[string]*string),
+		SymMap:       make(map[string]*obj.Sym),
+		ObjSymbolMap: make(map[string]*obj.ObjSymbol),
+		NameMap:      make(map[string]int),
+		StringMap:    make(map[string]*string),
 	}
-	linker.pclntable = make([]byte, PCHeaderSize)
+	linker.Pclntable = make([]byte, PCHeaderSize)
 	return linker
 }
 
 func (linker *Linker) initPcHeader() {
-	pcheader := (*pcHeader)(unsafe.Pointer(&linker.pclntable[0]))
+	pcheader := (*pcHeader)(unsafe.Pointer(&linker.Pclntable[0]))
 	pcheader.magic = magic
-	pcheader.minLC = uint8(linker.arch.MinLC)
-	pcheader.ptrSize = uint8(linker.arch.PtrSize)
+	pcheader.minLC = uint8(linker.Arch.MinLC)
+	pcheader.ptrSize = uint8(linker.Arch.PtrSize)
 }
 
 func (linker *Linker) addFiles(files []string) {
 	for _, fileName := range files {
-		if offset, ok := linker.nameMap[fileName]; !ok {
-			linker.filetab = append(linker.filetab, (uint32)(len(linker.pclntable)))
-			linker.nameMap[fileName] = len(linker.pclntable)
+		if offset, ok := linker.NameMap[fileName]; !ok {
+			linker.Filetab = append(linker.Filetab, (uint32)(len(linker.Pclntable)))
+			linker.NameMap[fileName] = len(linker.Pclntable)
 			fileName = strings.TrimPrefix(fileName, FileSymPrefix)
-			linker.pclntable = append(linker.pclntable, []byte(fileName)...)
-			linker.pclntable = append(linker.pclntable, ZeroByte)
+			linker.Pclntable = append(linker.Pclntable, []byte(fileName)...)
+			linker.Pclntable = append(linker.Pclntable, ZeroByte)
 		} else {
-			linker.filetab = append(linker.filetab, uint32(offset))
+			linker.Filetab = append(linker.Filetab, uint32(offset))
 		}
 	}
 }
 
 func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
-	linker.noptrdata = append(linker.noptrdata, make([]byte, IntSize)...)
-	for _, objSym := range linker.objSymbolMap {
+	linker.Noptrdata = append(linker.Noptrdata, make([]byte, IntSize)...)
+	for _, objSym := range linker.ObjSymbolMap {
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
 			if _, err := linker.addSymbol(objSym.Name); err != nil {
 				return err
 			}
 		}
 	}
-	for _, pkg := range linker.pkgs {
+	for _, pkg := range linker.Packages {
 		initFuncName := getInitFuncName(pkg.PkgPath)
-		if _, ok := linker.objSymbolMap[initFuncName]; ok {
+		if _, ok := linker.ObjSymbolMap[initFuncName]; ok {
 			if _, err := linker.addSymbol(initFuncName); err != nil {
 				return err
 			}
 		}
 	}
-	for _, sym := range linker.symMap {
+	for _, sym := range linker.SymMap {
 		offset := 0
 		switch sym.Kind {
 		case symkind.SNOPTRDATA, symkind.SRODATA:
 			if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
-				offset += len(linker.data)
+				offset += len(linker.Data)
 			}
 		case symkind.SBSS:
-			offset += len(linker.data) + len(linker.noptrdata)
+			offset += len(linker.Data) + len(linker.Noptrdata)
 		case symkind.SNOPTRBSS:
-			offset += len(linker.data) + len(linker.noptrdata) + len(linker.bss)
+			offset += len(linker.Data) + len(linker.Noptrdata) + len(linker.Bss)
 		}
 		sym.Offset += offset
 		if offset != 0 {
@@ -160,50 +160,50 @@ func (linker *Linker) addSymbols() error {
 }
 
 func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
-	if symbol, ok := linker.symMap[name]; ok {
+	if symbol, ok := linker.SymMap[name]; ok {
 		return symbol, nil
 	}
-	objsym := linker.objSymbolMap[name]
+	objsym := linker.ObjSymbolMap[name]
 	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind}
-	linker.symMap[symbol.Name] = symbol
+	linker.SymMap[symbol.Name] = symbol
 
 	switch symbol.Kind {
 	case symkind.STEXT:
-		symbol.Offset = len(linker.code)
-		linker.code = append(linker.code, objsym.Data...)
+		symbol.Offset = len(linker.Code)
+		linker.Code = append(linker.Code, objsym.Data...)
 		expandFunc(linker, objsym, symbol)
-		if len(linker.code)-symbol.Offset < minfunc {
-			linker.code = append(linker.code, createArchNops(linker.arch, minfunc-(len(linker.code)-symbol.Offset))...)
+		if len(linker.Code)-symbol.Offset < minfunc {
+			linker.Code = append(linker.Code, createArchNops(linker.Arch, minfunc-(len(linker.Code)-symbol.Offset))...)
 		}
-		bytearrayAlignNops(linker.arch, &linker.code, funcalign.GetFuncAlign(linker.arch))
+		bytearrayAlignNops(linker.Arch, &linker.Code, funcalign.GetFuncAlign(linker.Arch))
 		symbol.Func = &obj.Func{}
-		if err := linker.readFuncData(linker.objSymbolMap[name], symbol.Offset); err != nil {
+		if err := linker.readFuncData(linker.ObjSymbolMap[name], symbol.Offset); err != nil {
 			return nil, err
 		}
 	case symkind.SDATA:
-		symbol.Offset = len(linker.data)
-		linker.data = append(linker.data, objsym.Data...)
-		bytearrayAlign(&linker.data, PtrSize)
+		symbol.Offset = len(linker.Data)
+		linker.Data = append(linker.Data, objsym.Data...)
+		bytearrayAlign(&linker.Data, PtrSize)
 	case symkind.SNOPTRDATA, symkind.SRODATA:
 		//because golang string assignment is pointer assignment, so store go.string constants in heap.
 		if strings.HasPrefix(symbol.Name, constants.TypeStringPrefix) {
 			data := make([]byte, len(objsym.Data))
 			copy(data, objsym.Data)
 			stringVal := string(data)
-			linker.stringMap[symbol.Name] = &stringVal
+			linker.StringMap[symbol.Name] = &stringVal
 		} else {
-			symbol.Offset = len(linker.noptrdata)
-			linker.noptrdata = append(linker.noptrdata, objsym.Data...)
-			bytearrayAlign(&linker.noptrdata, PtrSize)
+			symbol.Offset = len(linker.Noptrdata)
+			linker.Noptrdata = append(linker.Noptrdata, objsym.Data...)
+			bytearrayAlign(&linker.Noptrdata, PtrSize)
 		}
 	case symkind.SBSS:
-		symbol.Offset = len(linker.bss)
-		linker.bss = append(linker.bss, objsym.Data...)
-		bytearrayAlign(&linker.bss, PtrSize)
+		symbol.Offset = len(linker.Bss)
+		linker.Bss = append(linker.Bss, objsym.Data...)
+		bytearrayAlign(&linker.Bss, PtrSize)
 	case symkind.SNOPTRBSS:
-		symbol.Offset = len(linker.noptrbss)
-		linker.noptrbss = append(linker.noptrbss, objsym.Data...)
-		bytearrayAlign(&linker.noptrbss, PtrSize)
+		symbol.Offset = len(linker.Noptrbss)
+		linker.Noptrbss = append(linker.Noptrbss, objsym.Data...)
+		bytearrayAlign(&linker.Noptrbss, PtrSize)
 	default:
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
@@ -214,14 +214,14 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		if reloc.Epilogue.Offset != 0 {
 			reloc.Epilogue.Offset += symbol.Offset
 		}
-		if _, ok := linker.objSymbolMap[reloc.Sym.Name]; ok {
+		if _, ok := linker.ObjSymbolMap[reloc.Sym.Name]; ok {
 			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name)
 			if err != nil {
 				return nil, err
 			}
-			if len(linker.objSymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
+			if len(linker.ObjSymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
-				//goloader add IntSize bytes on linker.noptrdata[0]
+				//goloader add IntSize bytes on linker.Noptrdata[0]
 				if reloc.Size <= IntSize {
 					reloc.Sym.Offset = 0
 				} else {
@@ -236,35 +236,35 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			if reloc.Type == reloctype.R_CALLIND {
 				reloc.Sym.Offset = 0
 			}
-			if _, ok := linker.symMap[reloc.Sym.Name]; ok {
-				reloc.Sym = linker.symMap[reloc.Sym.Name]
+			if _, ok := linker.SymMap[reloc.Sym.Name]; ok {
+				reloc.Sym = linker.SymMap[reloc.Sym.Name]
 			} else {
 				if strings.HasPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix) {
 					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix), ".")
 					reloc.Sym.Kind = symkind.SNOPTRDATA
-					reloc.Sym.Offset = len(linker.noptrdata)
+					reloc.Sym.Offset = len(linker.Noptrdata)
 					//name memory layout
 					//name { tagLen(byte), len(uint16), str*}
 					nameLen := []byte{0, 0, 0}
 					binary.BigEndian.PutUint16(nameLen[1:], uint16(len(path)))
-					linker.noptrdata = append(linker.noptrdata, nameLen...)
-					linker.noptrdata = append(linker.noptrdata, path...)
-					linker.noptrdata = append(linker.noptrdata, ZeroByte)
-					bytearrayAlign(&linker.noptrbss, PtrSize)
+					linker.Noptrdata = append(linker.Noptrdata, nameLen...)
+					linker.Noptrdata = append(linker.Noptrdata, path...)
+					linker.Noptrdata = append(linker.Noptrdata, ZeroByte)
+					bytearrayAlign(&linker.Noptrbss, PtrSize)
 				}
 				if ispreprocesssymbol(reloc.Sym.Name) {
 					bytes := make([]byte, UInt64Size)
-					if err := preprocesssymbol(linker.arch.ByteOrder, reloc.Sym.Name, bytes); err != nil {
+					if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.Sym.Name, bytes); err != nil {
 						return nil, err
 					} else {
 						reloc.Sym.Kind = symkind.SNOPTRDATA
-						reloc.Sym.Offset = len(linker.noptrdata)
-						linker.noptrdata = append(linker.noptrdata, bytes...)
-						bytearrayAlign(&linker.noptrbss, PtrSize)
+						reloc.Sym.Offset = len(linker.Noptrdata)
+						linker.Noptrdata = append(linker.Noptrdata, bytes...)
+						bytearrayAlign(&linker.Noptrbss, PtrSize)
 					}
 				}
 				if reloc.Sym.Name != EmptyString && reloc.Size > 0 {
-					linker.symMap[reloc.Sym.Name] = reloc.Sym
+					linker.SymMap[reloc.Sym.Name] = reloc.Sym
 				}
 			}
 		}
@@ -272,9 +272,9 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 	}
 
 	if objsym.Type != EmptyString {
-		if _, ok := linker.symMap[objsym.Type]; !ok {
-			if _, ok := linker.objSymbolMap[objsym.Type]; !ok {
-				linker.symMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
+		if _, ok := linker.SymMap[objsym.Type]; !ok {
+			if _, ok := linker.ObjSymbolMap[objsym.Type]; !ok {
+				linker.SymMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
 			} else {
 				linker.addSymbol(objsym.Type)
 			}
@@ -284,11 +284,11 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 }
 
 func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err error) {
-	nameOff := len(linker.pclntable)
-	if offset, ok := linker.nameMap[symbol.Name]; !ok {
-		linker.nameMap[symbol.Name] = len(linker.pclntable)
-		linker.pclntable = append(linker.pclntable, []byte(symbol.Name)...)
-		linker.pclntable = append(linker.pclntable, ZeroByte)
+	nameOff := len(linker.Pclntable)
+	if offset, ok := linker.NameMap[symbol.Name]; !ok {
+		linker.NameMap[symbol.Name] = len(linker.Pclntable)
+		linker.Pclntable = append(linker.Pclntable, []byte(symbol.Name)...)
+		linker.Pclntable = append(linker.Pclntable, ZeroByte)
 	} else {
 		nameOff = offset
 	}
@@ -304,24 +304,24 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 			}
 		}
 	}
-	pcspOff := len(linker.pclntable)
-	linker.pclntable = append(linker.pclntable, symbol.Func.PCSP...)
+	pcspOff := len(linker.Pclntable)
+	linker.Pclntable = append(linker.Pclntable, symbol.Func.PCSP...)
 
-	pcfileOff := len(linker.pclntable)
-	linker.pclntable = append(linker.pclntable, symbol.Func.PCFile...)
+	pcfileOff := len(linker.Pclntable)
+	linker.Pclntable = append(linker.Pclntable, symbol.Func.PCFile...)
 
-	pclnOff := len(linker.pclntable)
-	linker.pclntable = append(linker.pclntable, symbol.Func.PCLine...)
+	pclnOff := len(linker.Pclntable)
+	linker.Pclntable = append(linker.Pclntable, symbol.Func.PCLine...)
 
 	_func := initfunc(symbol, nameOff, pcspOff, pcfileOff, pclnOff, int(symbol.Func.CUOffset))
-	linker._funcs = append(linker._funcs, &_func)
-	Func := linker.symMap[symbol.Name].Func
+	linker.Funcs = append(linker.Funcs, &_func)
+	Func := linker.SymMap[symbol.Name].Func
 	for _, pcdata := range symbol.Func.PCData {
 		if len(pcdata) == 0 {
 			Func.PCData = append(Func.PCData, 0)
 		} else {
-			Func.PCData = append(Func.PCData, uint32(len(linker.pclntable)))
-			linker.pclntable = append(linker.pclntable, pcdata...)
+			Func.PCData = append(Func.PCData, uint32(len(linker.Pclntable)))
+			linker.Pclntable = append(linker.Pclntable, pcdata...)
 		}
 	}
 
@@ -329,8 +329,8 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 		if name == EmptyString {
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
 		} else {
-			if _, ok := linker.symMap[name]; !ok {
-				if _, ok := linker.objSymbolMap[name]; ok {
+			if _, ok := linker.SymMap[name]; !ok {
+				if _, ok := linker.ObjSymbolMap[name]; ok {
 					if _, err = linker.addSymbol(name); err != nil {
 						return err
 					}
@@ -338,7 +338,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 					return errors.New("unknown gcobj:" + name)
 				}
 			}
-			if sym, ok := linker.symMap[name]; ok {
+			if sym, ok := linker.SymMap[name]; ok {
 				Func.FuncData = append(Func.FuncData, (uintptr)(sym.Offset))
 			} else {
 				Func.FuncData = append(Func.FuncData, (uintptr)(0))
@@ -350,33 +350,33 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 		return err
 	}
 
-	grow(&linker.pclntable, alignof(len(linker.pclntable), PtrSize))
+	grow(&linker.Pclntable, alignof(len(linker.Pclntable), PtrSize))
 	return
 }
 
 func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeModule) (symbolMap map[string]uintptr, err error) {
 	symbolMap = make(map[string]uintptr)
 	segment := &codeModule.segment
-	for name, sym := range linker.symMap {
+	for name, sym := range linker.SymMap {
 		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
 			} else if addr, ok := symPtr[strings.TrimSuffix(name, GOTPCRELSuffix)]; ok && strings.HasSuffix(name, GOTPCRELSuffix) {
 				symbolMap[name] = uintptr(segment.dataBase) + uintptr(segment.dataOff)
-				putAddressAddOffset(linker.arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
+				putAddressAddOffset(linker.Arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
 			} else {
 				symbolMap[name] = InvalidHandleValue
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
 			}
 		} else if sym.Name == TLSNAME {
 			if _, ok := symbolMap[TLSNAME]; !ok {
-				symbolMap[TLSNAME] = tls.GetTLSOffset(linker.arch, PtrSize)
+				symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 			}
 		} else if sym.Kind == symkind.STEXT {
 			symbolMap[name] = uintptr(sym.Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
 		} else if strings.HasPrefix(name, constants.TypeStringPrefix) {
-			symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.stringMap[name])).Data
+			symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.StringMap[name])).Data
 		} else if name == getInitFuncName(DefaultPkgPath) ||
 			strings.HasPrefix(name, constants.TypePrefix) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
@@ -396,9 +396,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map[string]uintptr) (err error) {
 	funcname := getfuncname(_func, module)
 	setfuncentry(_func, symbolMap[funcname], module.text)
-	Func := linker.symMap[funcname].Func
+	Func := linker.SymMap[funcname].Func
 
-	if err = stackobject.AddStackObject(funcname, linker.symMap, symbolMap, module.noptrdata); err != nil {
+	if err = stackobject.AddStackObject(funcname, linker.SymMap, symbolMap, module.noptrdata); err != nil {
 		return err
 	}
 	if err = linker.addDeferReturn(_func, module); err != nil {
@@ -421,7 +421,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	module := codeModule.module
-	module.pclntable = append(module.pclntable, linker.pclntable...)
+	module.pclntable = append(module.pclntable, linker.Pclntable...)
 	module.minpc = uintptr(segment.codeBase)
 	module.maxpc = uintptr(segment.codeBase + segment.codeOff)
 	module.text = uintptr(segment.codeBase)
@@ -440,10 +440,10 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	initmodule(codeModule.module, linker)
 
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
-	for index, _func := range linker._funcs {
+	for index, _func := range linker.Funcs {
 		funcname := getfuncname(_func, module)
 		module.ftab = append(module.ftab, initfunctab(symbolMap[funcname], uintptr(len(module.pclntable)), module.text))
-		if err = linker.addFuncTab(module, linker._funcs[index], symbolMap); err != nil {
+		if err = linker.addFuncTab(module, linker.Funcs[index], symbolMap); err != nil {
 			return err
 		}
 	}
@@ -451,14 +451,14 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 
 	// see:^src/cmd/link/internal/ld/pcln.go findfunctab
 	funcbucket := []findfuncbucket{}
-	for k := 0; k < len(linker._funcs); k++ {
-		lEntry := int(getfuncentry(linker._funcs[k], module.text) - module.text)
+	for k := 0; k < len(linker.Funcs); k++ {
+		lEntry := int(getfuncentry(linker.Funcs[k], module.text) - module.text)
 		lb := lEntry / pcbucketsize
 		li := lEntry % pcbucketsize / (pcbucketsize / nsub)
 
 		entry := int(module.maxpc - module.text)
-		if k < len(linker._funcs)-1 {
-			entry = int(getfuncentry(linker._funcs[k+1], module.text) - module.text)
+		if k < len(linker.Funcs)-1 {
+			entry = int(getfuncentry(linker.Funcs[k+1], module.text) - module.text)
 		}
 		b := entry / pcbucketsize
 		i := entry % pcbucketsize / (pcbucketsize / nsub)
@@ -509,7 +509,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 
 	//init code segment
 	codeSeg := &codeModule.segment.codeSeg
-	codeSeg.length = len(linker.code)
+	codeSeg.length = len(linker.Code)
 	codeSeg.maxLen = alignof((codeSeg.length)*2, PageSize)
 	codeByte, err := Mmap(codeSeg.maxLen)
 	if err != nil {
@@ -517,15 +517,15 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	}
 	codeSeg.codeByte = codeByte
 	codeSeg.codeBase = int((*sliceHeader)(unsafe.Pointer(&codeByte)).Data)
-	copy(codeSeg.codeByte, linker.code)
+	copy(codeSeg.codeByte, linker.Code)
 	codeSeg.codeOff = codeSeg.length
 
 	//init data segment
 	dataSeg := &codeModule.segment.dataSeg
-	dataSeg.dataLen = len(linker.data)
-	dataSeg.noptrdataLen = len(linker.noptrdata)
-	dataSeg.bssLen = len(linker.bss)
-	dataSeg.noptrbssLen = len(linker.noptrbss)
+	dataSeg.dataLen = len(linker.Data)
+	dataSeg.noptrdataLen = len(linker.Noptrdata)
+	dataSeg.bssLen = len(linker.Bss)
+	dataSeg.noptrbssLen = len(linker.Noptrbss)
 	dataSeg.length = dataSeg.dataLen + dataSeg.noptrdataLen + dataSeg.bssLen + dataSeg.noptrbssLen
 	dataSeg.maxLen = alignof((dataSeg.length)*2, PageSize)
 	dataSeg.dataOff = 0
@@ -536,16 +536,16 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	}
 	dataSeg.dataByte = dataByte
 	dataSeg.dataBase = int((*sliceHeader)(unsafe.Pointer(&dataByte)).Data)
-	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.data)
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.Data)
 	dataSeg.dataOff = dataSeg.dataLen
-	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.noptrdata)
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.Noptrdata)
 	dataSeg.dataOff += dataSeg.noptrdataLen
-	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.bss)
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.Bss)
 	dataSeg.dataOff += dataSeg.bssLen
-	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.noptrbss)
+	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.Noptrbss)
 	dataSeg.dataOff += dataSeg.noptrbssLen
 
-	codeModule.stringMap = linker.stringMap
+	codeModule.stringMap = linker.StringMap
 
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
