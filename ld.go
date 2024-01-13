@@ -550,6 +550,25 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	return nil, err
 }
 
+func UnresolvedSymbols(linker *Linker, symPtr map[string]uintptr) []string {
+	unresolvedSymbols := make([]string, 0)
+	for name, sym := range linker.SymMap {
+		if sym.Offset == InvalidOffset {
+			if _, ok := symPtr[sym.Name]; !ok {
+				nName := strings.TrimSuffix(name, GOTPCRELSuffix)
+				if name != nName {
+					if _, ok := symPtr[nName]; !ok {
+						unresolvedSymbols = append(unresolvedSymbols, nName)
+					}
+				} else {
+					unresolvedSymbols = append(unresolvedSymbols, name)
+				}
+			}
+		}
+	}
+	return unresolvedSymbols
+}
+
 func (cm *CodeModule) Unload() {
 	removeitabs(cm.module)
 	runtime.GC()
