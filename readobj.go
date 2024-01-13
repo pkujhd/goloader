@@ -78,3 +78,37 @@ func ReadObjs(files []string, pkgPaths []string) (*Linker, error) {
 	}
 	return linker, nil
 }
+
+func (linker *Linker) ReadDependPkg(file, pkgPath string, symbolNames []string) error {
+	if linker.AdaptedOffset {
+		return fmt.Errorf("already adapted symbol offset, don't add new symbols")
+	}
+	//only add unresolved symbol in ObjSymbolMap. use temporary map store read symbols
+	objSymbolMap := linker.ObjSymbolMap
+	linker.ObjSymbolMap = make(map[string]*obj.ObjSymbol)
+	if err := linker.readObj(file, pkgPath); err != nil {
+		return err
+	}
+	initFuncName := getInitFuncName(pkgPath)
+	if _, ok := linker.ObjSymbolMap[initFuncName]; ok {
+		if _, err := linker.addSymbol(initFuncName); err != nil {
+			return err
+		}
+	}
+	for _, name := range symbolNames {
+		if _, ok := linker.ObjSymbolMap[name]; ok {
+			delete(linker.SymMap, name)
+			_, err := linker.addSymbol(name)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	for name, sym := range linker.ObjSymbolMap {
+		if _, ok := linker.SymMap[name]; ok {
+			objSymbolMap[name] = sym
+		}
+	}
+	linker.ObjSymbolMap = objSymbolMap
+	return nil
+}
