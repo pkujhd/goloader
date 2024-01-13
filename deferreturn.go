@@ -16,7 +16,7 @@ func (linker *Linker) addDeferReturn(_func *_func, module *moduledata) (err erro
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
 		sym := linker.SymMap[funcname]
 		for _, r := range sym.Reloc {
-			if r.Sym.Name == RuntimeDeferReturn {
+			if r.SymName == RuntimeDeferReturn {
 				//../cmd/link/internal/ld/pcln.go:pclntab
 				switch linker.Arch.Name {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:

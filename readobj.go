@@ -36,8 +36,8 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 
 	for _, sym := range pkg.Syms {
 		for index, loc := range sym.Reloc {
-			if !strings.HasPrefix(sym.Reloc[index].Sym.Name, constants.TypeStringPrefix) {
-				sym.Reloc[index].Sym.Name = strings.Replace(loc.Sym.Name, constants.EmptyPkgPath, pkg.PkgPath, -1)
+			if !strings.HasPrefix(sym.Reloc[index].SymName, constants.TypeStringPrefix) {
+				sym.Reloc[index].SymName = strings.Replace(loc.SymName, constants.EmptyPkgPath, pkg.PkgPath, -1)
 			}
 		}
 		if sym.Type != EmptyString {

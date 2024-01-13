@@ -33,9 +33,9 @@ func (linker *Linker) doInitialize(symPtr, symbolMap map[string]uintptr) error {
 		if ptr, ok := symbolMap[name]; ok {
 			for _, loc := range linker.SymMap[name].Reloc {
 				if loc.Type == reloctype.R_INITORDER {
-					if locPtr, ok := symPtr[loc.Sym.Name]; ok {
+					if locPtr, ok := symPtr[loc.SymName]; ok {
 						doInit1(adduintptr(locPtr, 0))
-					} else if locPtr, ok := symbolMap[loc.Sym.Name]; ok {
+					} else if locPtr, ok := symbolMap[loc.SymName]; ok {
 						doInit1(adduintptr(locPtr, 0))
 					}
 				}

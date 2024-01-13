@@ -44,11 +44,11 @@ func (pkg *Pkg) Symbols() error {
 		grow(&symbol.Data, (int)(symbol.Size))
 		for _, loc := range sym.Reloc {
 			reloc := Reloc{
-				Offset: int(loc.Offset),
-				Sym:    &Sym{Name: loc.Sym.Name, Offset: InvalidOffset},
-				Type:   int(loc.Type),
-				Size:   int(loc.Size),
-				Add:    int(loc.Add)}
+				Offset:  int(loc.Offset),
+				SymName: loc.Sym.Name,
+				Type:    int(loc.Type),
+				Size:    int(loc.Size),
+				Add:     int(loc.Add)}
 			symbol.Reloc = append(symbol.Reloc, reloc)
 		}
 		if sym.Func != nil {

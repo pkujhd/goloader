@@ -65,11 +65,11 @@ type Sym struct {
 
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Reloc struct
 type Reloc struct {
-	Offset int
-	Sym    *Sym
-	Size   int
-	Type   int
-	Add    int
+	Offset  int
+	SymName string
+	Size    int
+	Type    int
+	Add     int
 	Epilogue
 }
 

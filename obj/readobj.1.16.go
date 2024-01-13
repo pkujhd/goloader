@@ -160,7 +160,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 		symbol.Reloc[k].Size = int(relocs[k].Siz())
 		symbol.Reloc[k].Type = int(relocs[k].Type())
 		name, index := resolveSymRef(relocs[k].Sym(), r, refNames)
-		symbol.Reloc[k].Sym = &Sym{Name: name, Offset: InvalidOffset}
+		symbol.Reloc[k].SymName = name
 		if _, ok := pkg.Syms[name]; !ok && index != InvalidIndex {
 			pkg.addSym(r, index, refNames)
 		}

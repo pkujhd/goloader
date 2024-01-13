@@ -43,7 +43,7 @@ func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[s
 			name := EmptyString
 			stkobjName := funcname + StkobjSuffix
 			if symbol := symMap[stkobjName]; symbol != nil {
-				name = symbol.Reloc[i].Sym.Name
+				name = symbol.Reloc[i].SymName
 			}
 			if ptr, ok := symbolMap[name]; ok {
 				setStackObjectPtr(&((*objects)[i]), adduintptr(ptr, 0), noptrdata)

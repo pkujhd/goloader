@@ -189,7 +189,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		} else if bytes[1] == x86amd64JMPcode {
 			opcode = bytes[1]
 		} else {
-			return fmt.Errorf("do not support x86 opcode: %x for symbol %s (offset %d)!\n", relocByte[loc.Offset-2:loc.Offset], loc.Sym.Name, offset)
+			return fmt.Errorf("do not support x86 opcode: %x for symbol %s (offset %d)!\n", relocByte[loc.Offset-2:loc.Offset], loc.SymName, offset)
 		}
 		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 		switch opcode {
@@ -222,7 +222,7 @@ func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segmen
 		case x86amd64LEAcode:
 			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr)+uint64(loc.Add))
 		default:
-			return fmt.Errorf("unexpected x86 opcode %x: %x for symbol %s (offset %d)!\n", opcode, relocByte[loc.Offset-2:loc.Offset], loc.Sym.Name, offset)
+			return fmt.Errorf("unexpected x86 opcode %x: %x for symbol %s (offset %d)!\n", opcode, relocByte[loc.Offset-2:loc.Offset], loc.SymName, offset)
 		}
 
 		switch opcode {
@@ -277,8 +277,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 	byteorder := linker.Arch.ByteOrder
 	for _, symbol := range linker.SymMap {
 		for _, loc := range symbol.Reloc {
-			addr := symbolMap[loc.Sym.Name]
-			sym := loc.Sym
+			addr := symbolMap[loc.SymName]
 			relocByte := segment.dataByte
 			addrBase := segment.dataBase
 			if symbol.Kind == symkind.STEXT {
@@ -298,7 +297,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					linker.relocteCALLARM(addr, loc, segment)
 				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 					if symbol.Kind != symkind.STEXT {
-						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", sym.Name)
+						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", loc.SymName)
 					}
 					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
 				case reloctype.R_ADDR, reloctype.R_WEAKADDR:
@@ -309,16 +308,16 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF:
 					offset := int(addr) - addrBase + loc.Add
 					if isOverflowInt32(offset) {
-						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", sym.Name, reloctype.RelocTypeString(loc.Type), offset)
+						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_METHODOFF:
-					if loc.Sym.Kind == symkind.STEXT {
+					if linker.SymMap[loc.SymName].Kind == symkind.STEXT {
 						addrBase = segment.codeBase
 					}
 					offset := int(addr) - addrBase + loc.Add
 					if isOverflowInt32(offset) {
-						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", sym.Name, reloctype.RelocTypeString(loc.Type), offset)
+						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_GOTPCREL, reloctype.R_ARM64_GOTPCREL:
@@ -332,7 +331,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					reloctype.R_INITORDER:
 					//nothing todo
 				default:
-					err = fmt.Errorf("unknown reloc type:%s sym:%s", reloctype.RelocTypeString(loc.Type), sym.Name)
+					err = fmt.Errorf("unknown reloc type:%s sym:%s", reloctype.RelocTypeString(loc.Type), loc.SymName)
 				}
 			}
 			if err != nil {

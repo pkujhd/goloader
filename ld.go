@@ -214,35 +214,31 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		if reloc.Epilogue.Offset != 0 {
 			reloc.Epilogue.Offset += symbol.Offset
 		}
-		if _, ok := linker.ObjSymbolMap[reloc.Sym.Name]; ok {
-			reloc.Sym, err = linker.addSymbol(reloc.Sym.Name)
+		if _, ok := linker.ObjSymbolMap[reloc.SymName]; ok {
+			relocSym, err := linker.addSymbol(reloc.SymName)
 			if err != nil {
 				return nil, err
 			}
-			if len(linker.ObjSymbolMap[reloc.Sym.Name].Data) == 0 && reloc.Size > 0 {
+			if len(linker.ObjSymbolMap[reloc.SymName].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
 				//goloader add IntSize bytes on linker.Noptrdata[0]
 				if reloc.Size <= IntSize {
-					reloc.Sym.Offset = 0
+					relocSym.Offset = 0
 				} else {
-					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d\n", reloc.Sym.Name, reloc.Size, IntSize)
+					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d\n", relocSym.Name, reloc.Size, IntSize)
 				}
 			}
 		} else {
 			if reloc.Type == reloctype.R_TLS_LE {
-				reloc.Sym.Name = TLSNAME
-				reloc.Sym.Offset = loc.Offset
+				reloc.SymName = TLSNAME
+				linker.SymMap[TLSNAME] = &obj.Sym{Name: TLSNAME, Offset: 0}
 			}
-			if reloc.Type == reloctype.R_CALLIND {
-				reloc.Sym.Offset = 0
-			}
-			if _, ok := linker.SymMap[reloc.Sym.Name]; ok {
-				reloc.Sym = linker.SymMap[reloc.Sym.Name]
-			} else {
-				if strings.HasPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix) {
-					path := strings.Trim(strings.TrimPrefix(reloc.Sym.Name, constants.TypeImportPathPrefix), ".")
-					reloc.Sym.Kind = symkind.SNOPTRDATA
-					reloc.Sym.Offset = len(linker.Noptrdata)
+			if _, ok := linker.SymMap[reloc.SymName]; !ok {
+				relocSym := &obj.Sym{Name: reloc.SymName, Offset: InvalidOffset}
+				if strings.HasPrefix(reloc.SymName, constants.TypeImportPathPrefix) {
+					path := strings.Trim(strings.TrimPrefix(reloc.SymName, constants.TypeImportPathPrefix), ".")
+					relocSym.Kind = symkind.SNOPTRDATA
+					relocSym.Offset = len(linker.Noptrdata)
 					//name memory layout
 					//name { tagLen(byte), len(uint16), str*}
 					nameLen := []byte{0, 0, 0}
@@ -252,19 +248,19 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 					linker.Noptrdata = append(linker.Noptrdata, ZeroByte)
 					bytearrayAlign(&linker.Noptrbss, PtrSize)
 				}
-				if ispreprocesssymbol(reloc.Sym.Name) {
+				if ispreprocesssymbol(reloc.SymName) {
 					bytes := make([]byte, UInt64Size)
-					if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.Sym.Name, bytes); err != nil {
+					if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.SymName, bytes); err != nil {
 						return nil, err
 					} else {
-						reloc.Sym.Kind = symkind.SNOPTRDATA
-						reloc.Sym.Offset = len(linker.Noptrdata)
+						relocSym.Kind = symkind.SNOPTRDATA
+						relocSym.Offset = len(linker.Noptrdata)
 						linker.Noptrdata = append(linker.Noptrdata, bytes...)
 						bytearrayAlign(&linker.Noptrbss, PtrSize)
 					}
 				}
-				if reloc.Sym.Name != EmptyString && reloc.Size > 0 {
-					linker.SymMap[reloc.Sym.Name] = reloc.Sym
+				if reloc.SymName != EmptyString && reloc.Size > 0 {
+					linker.SymMap[reloc.SymName] = relocSym
 				}
 			}
 		}
