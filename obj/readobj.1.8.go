@@ -47,7 +47,7 @@ func (pkg *Pkg) Symbols() error {
 		if err != nil {
 			return fmt.Errorf("read error: %v", err)
 		}
-		grow(&symbol.Data, (int)(symbol.Size))
+		Grow(&symbol.Data, (int)(symbol.Size))
 		for _, loc := range sym.Reloc {
 			reloc := Reloc{
 				Offset:  int(loc.Offset),

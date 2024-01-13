@@ -16,15 +16,19 @@ func FindFileTab(filename string, namemap map[string]int, filetab []uint32) int3
 	return -1
 }
 
-func grow(bytes *[]byte, size int) {
+//go:inline
+func Grow(bytes *[]byte, size int) {
 	if len(*bytes) < size {
 		*bytes = append(*bytes, make([]byte, size-len(*bytes))...)
 	}
 }
 
+//go:inline
 func ReplacePkgPath(name, pkgpath string) string {
 	if !strings.HasPrefix(name, constants.TypeStringPrefix) {
 		name = strings.Replace(name, constants.EmptyPkgPath, pkgpath, -1)
+		//golang 1.13 - 1.19 go build -gcflags="-p xxx" xxx.go ineffective
+		name = strings.Replace(name, constants.CommandLinePkgPath, pkgpath, -1)
 	}
 	return name
 }

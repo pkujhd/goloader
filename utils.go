@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/pkujhd/goloader/mmap"
+	"github.com/pkujhd/goloader/obj"
 )
 
 func isOverflowInt32(offset int) bool {
@@ -136,10 +137,9 @@ func loadp(ptr unsafe.Pointer) unsafe.Pointer {
 	return *(*unsafe.Pointer)(ptr)
 }
 
+//go:inline
 func grow(bytes *[]byte, size int) {
-	if len(*bytes) < size {
-		*bytes = append(*bytes, make([]byte, size-len(*bytes))...)
-	}
+	obj.Grow(bytes, size)
 }
 
 func getArch(archName string) *sys.Arch {

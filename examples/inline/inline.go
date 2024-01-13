@@ -1,4 +1,4 @@
-package main
+package inline
 
 func throw() {
 	panic("panic call function")

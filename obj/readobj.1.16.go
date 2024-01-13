@@ -96,7 +96,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, refNames *map[goobj.SymRef
 	}
 	if symbol.Size > 0 {
 		symbol.Data = r.Data(index)
-		grow(&symbol.Data, (int)(symbol.Size))
+		Grow(&symbol.Data, (int)(symbol.Size))
 	} else {
 		symbol.Data = make([]byte, 0)
 	}
