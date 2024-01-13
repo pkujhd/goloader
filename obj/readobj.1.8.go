@@ -7,6 +7,7 @@ import (
 	"cmd/objfile/goobj"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 )
 
@@ -24,12 +25,17 @@ func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
 }
 
 func (pkg *Pkg) Symbols() error {
-	obj, err := goobj.Parse(pkg.File, pkg.PkgPath)
+	file, err := os.Open(pkg.File)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	obj, err := goobj.Parse(file, pkg.PkgPath)
 	if err != nil {
 		return fmt.Errorf("read error: %v", err)
 	}
 	pkg.Arch = obj.Arch
-	fd := readAtSeeker{ReadSeeker: pkg.File}
+	fd := readAtSeeker{ReadSeeker: file}
 	for _, sym := range obj.Syms {
 		symbol := &ObjSymbol{}
 		symbol.Name = sym.Name

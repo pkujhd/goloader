@@ -44,7 +44,7 @@ func main() {
 	flag.Parse()
 
 	if *parseFile != "" {
-		parse(parseFile, pkgpath)
+		parse(*parseFile, *pkgpath)
 		return
 	}
 
@@ -109,21 +109,15 @@ func main() {
 
 }
 
-func parse(file, pkgpath *string) {
-	if *file == "" {
+func parse(file, pkgpath string) {
+	if file == "" {
 		flag.PrintDefaults()
 		return
 	}
-	f, err := os.Open(*file)
-	if err != nil {
-		fmt.Printf("%# v\n", err)
-		return
-	}
-	obj, err := goloader.Parse(f, pkgpath)
+	obj, err := goloader.Parse(file, pkgpath)
 	fmt.Printf("%# v\n", obj)
-	f.Close()
 	if err != nil {
-		fmt.Printf("error reading %s: %v\n", *file, err)
+		fmt.Printf("error reading %s: %v\n", file, err)
 		return
 	}
 }

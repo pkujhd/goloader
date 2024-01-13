@@ -2,24 +2,24 @@ package goloader
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/pkujhd/goloader/obj"
 )
 
-func Parse(f *os.File, pkgpath *string) ([]string, error) {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: f, PkgPath: *pkgpath}
-	symbols := make([]string, 0)
+func Parse(file, pkgpath string) ([]string, error) {
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: file, PkgPath: pkgpath}
 	if err := pkg.Symbols(); err != nil {
-		return symbols, err
+		return nil, err
 	}
+	symbols := make([]string, 0)
 	for _, sym := range pkg.Syms {
 		symbols = append(symbols, sym.Name)
 	}
 	return symbols, nil
 }
 
-func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
+func (linker *Linker) readObj(file, pkgpath string) error {
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: file, PkgPath: pkgpath}
 	if pkg.PkgPath == EmptyString {
 		pkg.PkgPath = DefaultPkgPath
 	}
@@ -43,22 +43,21 @@ func readObj(pkg *obj.Pkg, linker *Linker, cuOffset int) error {
 			for index, FuncData := range sym.Func.FuncData {
 				sym.Func.FuncData[index] = obj.ReplacePkgPath(FuncData, pkg.PkgPath)
 			}
-			sym.Func.CUOffset += int32(cuOffset)
+			sym.Func.CUOffset += linker.CUOffset
 		}
 		sym.Name = obj.ReplacePkgPath(sym.Name, pkg.PkgPath)
 		linker.ObjSymbolMap[sym.Name] = sym
 	}
-	linker.Packages = append(linker.Packages, pkg)
+	linker.addFiles(pkg.CUFiles)
+	linker.Packages = append(linker.Packages, &pkg)
 	return nil
 }
 
-func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
+func ReadObj(file, pkgpath string) (*Linker, error) {
 	linker := initLinker()
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: f, PkgPath: *pkgpath}
-	if err := readObj(&pkg, linker, 0); err != nil {
+	if err := linker.readObj(file, pkgpath); err != nil {
 		return nil, err
 	}
-	linker.addFiles(pkg.CUFiles)
 	linker.initPcHeader()
 	if err := linker.addSymbols(); err != nil {
 		return nil, err
@@ -66,21 +65,12 @@ func ReadObj(f *os.File, pkgpath *string) (*Linker, error) {
 	return linker, nil
 }
 
-func ReadObjs(files []string, pkgPath []string) (*Linker, error) {
+func ReadObjs(files []string, pkgPaths []string) (*Linker, error) {
 	linker := initLinker()
-	cuOffset := 0
 	for i, file := range files {
-		f, err := os.Open(file)
-		if err != nil {
+		if err := linker.readObj(file, pkgPaths[i]); err != nil {
 			return nil, err
 		}
-		defer f.Close()
-		pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: f, PkgPath: pkgPath[i]}
-		if err := readObj(&pkg, linker, cuOffset); err != nil {
-			return nil, err
-		}
-		linker.addFiles(pkg.CUFiles)
-		cuOffset += len(pkg.CUFiles)
 	}
 	linker.initPcHeader()
 	if err := linker.addSymbols(); err != nil {

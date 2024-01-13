@@ -80,7 +80,7 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 	}
 }
 
-func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
+func RegSymbolWithPath(symPtr map[string]uintptr, path string) error {
 	return regSymbol(symPtr, path)
 }
 

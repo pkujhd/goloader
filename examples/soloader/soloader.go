@@ -16,7 +16,7 @@ import "C"
 //export loader
 func loader(name, run, selfpath string) {
 	symPtr := make(map[string]uintptr)
-	err := goloader.RegSymbolWithSo(symPtr, selfpath)
+	err := goloader.RegSymbolWithPath(symPtr, selfpath)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -30,10 +30,8 @@ func loader(name, run, selfpath string) {
 	goloader.RegTypes(symPtr, runtime.LockOSThread, &w, w.Wait)
 	goloader.RegTypes(symPtr, fmt.Sprint)
 
-	file, _ := os.Open(name)
-	pkgpath := ""
 	var linker *goloader.Linker
-	linker, err = goloader.ReadObj(file, &pkgpath)
+	linker, err = goloader.ReadObj(name, "")
 	if err != nil {
 		fmt.Println(err)
 		return

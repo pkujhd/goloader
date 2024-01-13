@@ -8,11 +8,17 @@ import (
 	"cmd/objfile/goobj"
 	"cmd/objfile/objabi"
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
 func (pkg *Pkg) Symbols() error {
-	a, err := archive.Parse(pkg.File, false)
+	file, err := os.Open(pkg.File)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	a, err := archive.Parse(file, false)
 	if err != nil {
 		return err
 	}
@@ -22,7 +28,7 @@ func (pkg *Pkg) Symbols() error {
 			//nothing todo
 		case archive.EntryGoObj:
 			b := make([]byte, e.Obj.Size)
-			_, err := pkg.File.ReadAt(b, e.Obj.Offset)
+			_, err := file.ReadAt(b, e.Obj.Offset)
 			if err != nil {
 				return err
 			}
@@ -48,7 +54,7 @@ func (pkg *Pkg) Symbols() error {
 				pkg.ImportPkgs = append(pkg.ImportPkgs, path)
 			}
 		default:
-			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", pkg.File.Name(), e.Name)
+			return fmt.Errorf("Parse open %s: unrecognized archive member %s\n", file.Name(), e.Name)
 		}
 	}
 	return nil

@@ -77,6 +77,7 @@ type Linker struct {
 	Funcs        []*_func
 	Packages     []*obj.Pkg
 	Arch         *sys.Arch
+	CUOffset     int32
 }
 
 var (
@@ -91,6 +92,7 @@ func initLinker() *Linker {
 		ObjSymbolMap: make(map[string]*obj.ObjSymbol),
 		NameMap:      make(map[string]int),
 		StringMap:    make(map[string]*string),
+		CUOffset:     0,
 	}
 	linker.Pclntable = make([]byte, PCHeaderSize)
 	return linker
@@ -104,6 +106,7 @@ func (linker *Linker) initPcHeader() {
 }
 
 func (linker *Linker) addFiles(files []string) {
+	linker.CUOffset += int32(len(files))
 	for _, fileName := range files {
 		if offset, ok := linker.NameMap[fileName]; !ok {
 			linker.Filetab = append(linker.Filetab, (uint32)(len(linker.Pclntable)))

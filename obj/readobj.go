@@ -1,14 +1,10 @@
 package obj
 
-import (
-	"os"
-)
-
 type Pkg struct {
 	Syms       map[string]*ObjSymbol
 	Arch       string
 	PkgPath    string
-	File       *os.File
+	File       string
 	ImportPkgs []string
 	CUFiles    []string
 }
