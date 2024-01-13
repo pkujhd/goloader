@@ -8,6 +8,7 @@ import (
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
+	"github.com/pkujhd/goloader/objabi/tls"
 )
 
 const (
@@ -275,6 +276,7 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segme
 func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	byteorder := linker.Arch.ByteOrder
+	tlsOffset := uint32(tls.GetTLSOffset(linker.Arch, linker.Arch.PtrSize))
 	for _, symbol := range linker.SymMap {
 		for _, loc := range symbol.Reloc {
 			addr := symbolMap[loc.SymName]
@@ -287,8 +289,8 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 
 			if addr != InvalidHandleValue {
 				switch loc.Type {
-				case reloctype.R_TLS_LE:
-					byteorder.PutUint32(relocByte[loc.Offset:], uint32(symbolMap[TLSNAME]))
+				case reloctype.R_TLS_LE, reloctype.R_TLS_IE:
+					byteorder.PutUint32(relocByte[loc.Offset:], tlsOffset)
 				case reloctype.R_CALL, reloctype.R_CALL | reloctype.R_WEAK:
 					linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
 				case reloctype.R_PCREL:

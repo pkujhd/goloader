@@ -29,6 +29,12 @@ const (
 	// "local exec" model for tls access (r.Sym is not set on intel platforms but is
 	// set to a TLS symbol -- runtime.tlsg -- in the linker when externally linking).
 	R_TLS_LE = (int)(obj.R_TLS_LE)
+	// R_TLS_IE, used 386, amd64, and ARM resolves to the PC-relative offset to a GOT
+	// slot containing the offset from the thread-local symbol from the thread local
+	// base and is used to implemented the "initial exec" model for tls access (r.Sym
+	// is not set on intel platforms but is set to a TLS symbol -- runtime.tlsg -- in
+	// the linker when externally linking).
+	R_TLS_IE = (int)(obj.R_TLS_IE)
 	// R_METHODOFF resolves to a 32-bit offset from the beginning of the section
 	// holding the data being relocated to the referenced symbol.
 	// It is a variant of R_ADDROFF used when linking from the uncommonType of a

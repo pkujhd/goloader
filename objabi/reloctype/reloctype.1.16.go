@@ -29,6 +29,12 @@ const (
 	// "local exec" model for tls access (r.Sym is not set on intel platforms but is
 	// set to a TLS symbol -- runtime.tlsg -- in the linker when externally linking).
 	R_TLS_LE = (int)(objabi.R_TLS_LE)
+	// R_TLS_IE, used 386, amd64, and ARM resolves to the PC-relative offset to a GOT
+	// slot containing the offset from the thread-local symbol from the thread local
+	// base and is used to implemented the "initial exec" model for tls access (r.Sym
+	// is not set on intel platforms but is set to a TLS symbol -- runtime.tlsg -- in
+	// the linker when externally linking).
+	R_TLS_IE = (int)(objabi.R_TLS_IE)
 	// R_USEIFACE marks a type is converted to an interface in the function this
 	// relocation is applied to. The target is a type descriptor.
 	// This is a marker relocation (0-sized), for the linker's reachabililty

@@ -24,10 +24,6 @@ const (
 	ZeroByte       = byte(0x00)
 )
 
-const (
-	TLSNAME = "(TLS)"
-)
-
 // runtime symbol
 const (
 	RuntimeDeferReturn = "runtime.deferreturn"

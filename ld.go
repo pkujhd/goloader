@@ -13,9 +13,7 @@ import (
 	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/funcalign"
-	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
-	"github.com/pkujhd/goloader/objabi/tls"
 	"github.com/pkujhd/goloader/stackobject"
 )
 
@@ -229,11 +227,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 				}
 			}
 		} else {
-			if reloc.Type == reloctype.R_TLS_LE {
-				reloc.SymName = TLSNAME
-				linker.SymMap[TLSNAME] = &obj.Sym{Name: TLSNAME, Offset: 0}
-			}
-			if _, ok := linker.SymMap[reloc.SymName]; !ok {
+			if _, ok := linker.SymMap[reloc.SymName]; !ok && reloc.SymName != EmptyString {
 				relocSym := &obj.Sym{Name: reloc.SymName, Offset: InvalidOffset}
 				if strings.HasPrefix(reloc.SymName, constants.TypeImportPathPrefix) {
 					path := strings.Trim(strings.TrimPrefix(reloc.SymName, constants.TypeImportPathPrefix), ".")
@@ -259,7 +253,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 						bytearrayAlign(&linker.Noptrbss, PtrSize)
 					}
 				}
-				if reloc.SymName != EmptyString && reloc.Size > 0 {
+				if reloc.Size > 0 {
 					linker.SymMap[reloc.SymName] = relocSym
 				}
 			}
@@ -363,10 +357,6 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			} else {
 				symbolMap[name] = InvalidHandleValue
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
-			}
-		} else if sym.Name == TLSNAME {
-			if _, ok := symbolMap[TLSNAME]; !ok {
-				symbolMap[TLSNAME] = tls.GetTLSOffset(linker.Arch, PtrSize)
 			}
 		} else if sym.Kind == symkind.STEXT {
 			symbolMap[name] = uintptr(sym.Offset + segment.codeBase)
