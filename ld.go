@@ -127,7 +127,7 @@ func (linker *Linker) addSymbols() error {
 	linker.Noptrdata = append(linker.Noptrdata, make([]byte, IntSize)...)
 	for _, objSym := range linker.ObjSymbolMap {
 		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
-			if _, err := linker.addSymbol(objSym.Name); err != nil {
+			if _, err := linker.addSymbol(objSym.Name, nil); err != nil {
 				return err
 			}
 		}
@@ -135,7 +135,7 @@ func (linker *Linker) addSymbols() error {
 	for _, pkg := range linker.Packages {
 		initFuncName := getInitFuncName(pkg.PkgPath)
 		if _, ok := linker.ObjSymbolMap[initFuncName]; ok {
-			if _, err := linker.addSymbol(initFuncName); err != nil {
+			if _, err := linker.addSymbol(initFuncName, nil); err != nil {
 				return err
 			}
 		}
@@ -168,14 +168,19 @@ func (linker *Linker) adaptSymbolOffset() {
 	}
 }
 
-func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
+func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol *obj.Sym, err error) {
 	if symbol, ok := linker.SymMap[name]; ok {
 		return symbol, nil
 	}
 	objsym := linker.ObjSymbolMap[name]
 	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind}
 	linker.SymMap[symbol.Name] = symbol
-
+	if symPtr != nil {
+		if _, ok := symPtr[name]; ok {
+			symbol.Offset = InvalidOffset
+			return symbol, nil
+		}
+	}
 	switch symbol.Kind {
 	case symkind.STEXT:
 		symbol.Offset = len(linker.Code)
@@ -186,7 +191,7 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 		}
 		bytearrayAlignNops(linker.Arch, &linker.Code, funcalign.GetFuncAlign(linker.Arch))
 		symbol.Func = &obj.Func{}
-		if err := linker.readFuncData(linker.ObjSymbolMap[name], symbol.Offset); err != nil {
+		if err := linker.readFuncData(linker.ObjSymbolMap[name], symbol.Offset, symPtr); err != nil {
 			return nil, err
 		}
 	case symkind.SDATA:
@@ -224,11 +229,11 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			reloc.Epilogue.Offset += symbol.Offset
 		}
 		if _, ok := linker.ObjSymbolMap[reloc.SymName]; ok {
-			relocSym, err := linker.addSymbol(reloc.SymName)
+			relocSym, err := linker.addSymbol(reloc.SymName, symPtr)
 			if err != nil {
 				return nil, err
 			}
-			if len(linker.ObjSymbolMap[reloc.SymName].Data) == 0 && reloc.Size > 0 {
+			if relocSym != nil && len(linker.ObjSymbolMap[reloc.SymName].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
 				//goloader add IntSize bytes on linker.Noptrdata[0]
 				if reloc.Size <= IntSize {
@@ -277,14 +282,14 @@ func (linker *Linker) addSymbol(name string) (symbol *obj.Sym, err error) {
 			if _, ok := linker.ObjSymbolMap[objsym.Type]; !ok {
 				linker.SymMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
 			} else {
-				linker.addSymbol(objsym.Type)
+				linker.addSymbol(objsym.Type, symPtr)
 			}
 		}
 	}
 	return symbol, nil
 }
 
-func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err error) {
+func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int, symPtr map[string]uintptr) (err error) {
 	nameOff := len(linker.Pclntable)
 	if offset, ok := linker.NameMap[symbol.Name]; !ok {
 		linker.NameMap[symbol.Name] = len(linker.Pclntable)
@@ -332,7 +337,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int) (err erro
 		} else {
 			if _, ok := linker.SymMap[name]; !ok {
 				if _, ok := linker.ObjSymbolMap[name]; ok {
-					if _, err = linker.addSymbol(name); err != nil {
+					if _, err = linker.addSymbol(name, symPtr); err != nil {
 						return err
 					}
 				} else {

@@ -79,7 +79,7 @@ func ReadObjs(files []string, pkgPaths []string) (*Linker, error) {
 	return linker, nil
 }
 
-func (linker *Linker) ReadDependPkg(file, pkgPath string, symbolNames []string) error {
+func (linker *Linker) ReadDependPkg(file, pkgPath string, symbolNames []string, symPtr map[string]uintptr) error {
 	if linker.AdaptedOffset {
 		return fmt.Errorf("already adapted symbol offset, don't add new symbols")
 	}
@@ -91,14 +91,14 @@ func (linker *Linker) ReadDependPkg(file, pkgPath string, symbolNames []string) 
 	}
 	initFuncName := getInitFuncName(pkgPath)
 	if _, ok := linker.ObjSymbolMap[initFuncName]; ok {
-		if _, err := linker.addSymbol(initFuncName); err != nil {
+		if _, err := linker.addSymbol(initFuncName, nil); err != nil {
 			return err
 		}
 	}
 	for _, name := range symbolNames {
 		if _, ok := linker.ObjSymbolMap[name]; ok {
 			delete(linker.SymMap, name)
-			_, err := linker.addSymbol(name)
+			_, err := linker.addSymbol(name, symPtr)
 			if err != nil {
 				return err
 			}
