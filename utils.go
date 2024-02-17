@@ -199,3 +199,12 @@ func preprocesssymbol(byteOrder binary.ByteOrder, name string, bytes []byte) err
 	}
 	return nil
 }
+
+func ptr2uint32slice(ptr uintptr, size int) *[]int32 {
+	s := sliceHeader{
+		Data: ptr,
+		Len:  size,
+		Cap:  size,
+	}
+	return (*[]int32)(unsafe.Pointer(&s))
+}

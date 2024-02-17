@@ -11,6 +11,13 @@ import (
 
 type tflag uint8
 
+const (
+	tflagUncommon      tflag = 1 << 0
+	tflagExtraStar     tflag = 1 << 1
+	tflagNamed         tflag = 1 << 2
+	tflagRegularMemory tflag = 1 << 3 // equal and hash can treat values of this type as a single region of t.size bytes
+)
+
 // See reflect/value.go emptyInterface
 type emptyInterface struct {
 	typ  *_type
@@ -51,6 +58,20 @@ type interfacetype struct {
 
 type name struct {
 	bytes *byte
+}
+
+type funcType struct {
+	_type
+	inCount  uint16
+	outCount uint16 // top bit is set if last input parameter is ...
+}
+
+type uncommonType struct {
+	pkgPath nameOff // import path; empty for built-in types like int, string
+	mcount  uint16  // number of methods
+	xcount  uint16  // number of exported methods
+	moff    uint32  // offset from this uncommontype to [mcount]method
+	_       uint32  // unused
 }
 
 //go:linkname _Kind reflect.(*rtype).Kind

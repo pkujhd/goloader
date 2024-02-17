@@ -16,7 +16,7 @@ import "C"
 //export loader
 func loader(name, run, selfpath string) {
 	symPtr := make(map[string]uintptr)
-	err := goloader.RegSymbolWithPath(symPtr, selfpath)
+	err := goloader.RegSymbolWithSo(symPtr, selfpath)
 	if err != nil {
 		fmt.Println(err)
 		return

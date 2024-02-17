@@ -80,7 +80,18 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 	}
 }
 
+func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
+	typelinksRegister(symPtr)
+	return regSymbol(symPtr, path)
+}
+
 func RegSymbolWithPath(symPtr map[string]uintptr, path string) error {
+	//register types and functions in exe file, the address of symbol not used for relocateaaa, just
+	//for builder check reachable
+	err := registerTypesInExe(symPtr, path)
+	if err != nil {
+		return err
+	}
 	return regSymbol(symPtr, path)
 }
 
@@ -89,6 +100,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 	if err != nil {
 		return err
 	}
+	typelinksRegister(symPtr)
 	return regSymbol(symPtr, path)
 }
 
@@ -99,7 +111,6 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 	}
 	defer f.Close()
 
-	typelinksRegister(symPtr)
 	syms, err := f.Symbols()
 	for _, sym := range syms {
 		if sym.Name == OsStdout {
