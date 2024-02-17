@@ -332,6 +332,8 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					reloctype.R_ADDRCUOFF,
 					reloctype.R_INITORDER:
 					//nothing todo
+				case reloctype.R_KEEP:
+					//nothing todo
 				default:
 					err = fmt.Errorf("unknown reloc type:%s sym:%s", reloctype.RelocTypeString(loc.Type), loc.SymName)
 				}

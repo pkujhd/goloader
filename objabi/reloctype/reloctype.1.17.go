@@ -53,6 +53,9 @@ const (
 	// *rtype, and may be set to zero by the linker if it determines the method
 	// text is unreachable by the linked program.
 	R_METHODOFF = (int)(objabi.R_METHODOFF)
+	// R_KEEP tells the linker to keep the referred-to symbol in the final binary
+	// if the symbol containing the R_KEEP relocation is in the final binary.
+	R_KEEP = (int)(objabi.R_KEEP)
 
 	R_GOTPCREL = (int)(objabi.R_GOTPCREL)
 
@@ -70,6 +73,7 @@ const (
 
 const (
 	//not used, only adapter golang higher version
+
 	R_INITORDER          = 0x10000000 - 9
 	R_ARM64_PCREL_LDST8  = 0x10000000 - 8
 	R_ARM64_PCREL_LDST16 = 0x10000000 - 7

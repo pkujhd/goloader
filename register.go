@@ -26,7 +26,7 @@ func typelinksRegister(symPtr map[string]uintptr) {
 		if int(f.funcoff) < len(md.pclntable) {
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
 			name := getfuncname(_func, &md)
-			if !strings.HasPrefix(name, constants.TypeDoubleDotPrefix) && name != EmptyString {
+			if name != EmptyString {
 				if _, ok := symPtr[name]; !ok {
 					symPtr[name] = getfuncentry(_func, md.text)
 				}
