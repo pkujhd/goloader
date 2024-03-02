@@ -157,10 +157,14 @@ func (linker *Linker) adaptSymbolOffset() {
 			case symkind.SNOPTRBSS:
 				offset += len(linker.Data) + len(linker.Noptrdata) + len(linker.Bss)
 			}
-			sym.Offset += offset
+			if sym.Offset != InvalidOffset {
+				sym.Offset += offset
+			}
 			if offset != 0 {
 				for index := range sym.Reloc {
-					sym.Reloc[index].Offset += offset
+					if sym.Reloc[index].Offset != InvalidOffset {
+						sym.Reloc[index].Offset += offset
+					}
 				}
 			}
 		}
