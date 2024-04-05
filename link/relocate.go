@@ -259,7 +259,7 @@ func (linker *Linker) relocatePCREL(symAddr uintptr, loc obj.Reloc, segment *seg
 	return nil
 }
 
-func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segment) {
+func (linker *Linker) relocateCALLARM(addr uintptr, loc obj.Reloc, segment *segment) {
 	byteOrder := linker.Arch.ByteOrder
 	add := loc.Add
 	if loc.Type == reloctype.R_CALLARM {
@@ -323,7 +323,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				case reloctype.R_PCREL:
 					err = linker.relocatePCREL(symAddr, loc, segment, relocByte, addrBase)
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALLARM64 | reloctype.R_WEAK:
-					linker.relocteCALLARM(symbolMap[loc.SymName], loc, segment)
+					linker.relocateCALLARM(symbolMap[loc.SymName], loc, segment)
 				case reloctype.R_ADDRARM64, reloctype.R_ARM64_GOTPCREL,
 					reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16,
 					reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
