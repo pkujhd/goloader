@@ -157,6 +157,9 @@ func resolveTypeName(typ *_type) string {
 	if pkgPath != EmptyString && name != EmptyString {
 		return pkgPath + "." + name
 	}
+	if name != EmptyString && typ.Kind() != reflect.UnsafePointer {
+		return name
+	}
 	//golang <= 1.16 map.bucket has a self-contained struct field
 	if strings.HasPrefix(typ.String(), "map.bucket[") {
 		return typ.String()
