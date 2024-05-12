@@ -21,7 +21,7 @@ const (
 	SBSS = int(objabi.SBSS)
 	// Statically data that is initially all 0s and does not contain pointers
 	SNOPTRBSS = int(objabi.SNOPTRBSS)
-	// Thread-local data that is initally all 0s
+	// Thread-local data that is initially all 0s
 	STLSBSS = int(objabi.STLSBSS)
 )
 

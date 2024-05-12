@@ -21,7 +21,7 @@ const (
 	SBSS = int(obj.SBSS)
 	// Statically data that is initially all 0s and does not contain pointers
 	SNOPTRBSS = int(obj.SNOPTRBSS)
-	// Thread-local data that is initally all 0s
+	// Thread-local data that is initially all 0s
 	STLSBSS = int(obj.STLSBSS)
 )
 
