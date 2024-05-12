@@ -20,7 +20,7 @@ type pcHeader struct {
 	funcnameOffset uintptr // offset to the funcnametab variable from pcHeader
 	cuOffset       uintptr // offset to the cutab variable from pcHeader
 	filetabOffset  uintptr // offset to the filetab variable from pcHeader
-	pctabOffset    uintptr // offset to the pctab varible from pcHeader
+	pctabOffset    uintptr // offset to the pctab variable from pcHeader
 	pclnOffset     uintptr // offset to the pclntab variable from pcHeader
 }
 

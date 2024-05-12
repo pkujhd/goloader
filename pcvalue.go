@@ -34,7 +34,7 @@ func writePCValue(p []byte, val int64, pc uint64) []byte {
 }
 
 func rewritePCFile(symbol *obj.ObjSymbol, linker *Linker) {
-	// golang version <= 1.15 PCFile need rewrite, PCFile (pc, val), val only adapte symbol.Func.File
+	// golang version <= 1.15 PCFile need rewrite, PCFile (pc, val), val only adapt symbol.Func.File
 	p := symbol.Func.PCFile
 	pcfile := make([]byte, 0)
 	pc := uintptr(0)
