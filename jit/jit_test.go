@@ -159,6 +159,29 @@ func TestJitSimpleFunctions(t *testing.T) {
 	}
 }
 
+func TestJitRecursiveFunctions(t *testing.T) {
+	conf := baseConfig
+
+	data := testData{
+		files: []string{"./testdata/test_recursion/test.go"},
+		pkg:   "./testdata/test_recursion",
+	}
+	testNames := []string{"BuildGoFiles", "BuildGoPackage", "BuildGoText"}
+
+	for _, testName := range testNames {
+		t.Run(testName, func(t *testing.T) {
+			module, symbols := buildLoadable(t, conf, testName, data)
+			fib := symbols["Fib"].(func(input uint64) uint64)
+			fmt.Println(fib(5))
+
+			err := module.Unload()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestHeapStrings(t *testing.T) {
 	conf := baseConfig
 
