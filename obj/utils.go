@@ -32,3 +32,18 @@ func ReplacePkgPath(name, pkgpath string) string {
 	}
 	return name
 }
+
+//go:inline
+func IsHasTypePrefix(name string) bool {
+	return strings.HasPrefix(name, constants.TypePrefix)
+}
+
+//go:inline
+func IsHasItabPrefix(name string) bool {
+	return strings.HasPrefix(name, constants.ItabPrefix)
+}
+
+//go:inline
+func IsHasStringPrefix(name string) bool {
+	return strings.HasPrefix(name, constants.TypeStringPrefix)
+}
