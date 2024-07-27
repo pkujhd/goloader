@@ -19,7 +19,7 @@ func Parse(file, pkgpath string) ([]string, error) {
 }
 
 func (linker *Linker) readObj(file, pkgpath string) error {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: file, PkgPath: pkgpath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), CgoImports: make(map[string]*obj.CgoImport, 0), File: file, PkgPath: pkgpath}
 	if pkg.PkgPath == EmptyString {
 		pkg.PkgPath = DefaultPkgPath
 	}
@@ -32,28 +32,23 @@ func (linker *Linker) readObj(file, pkgpath string) error {
 		linker.Arch = getArch(pkg.Arch)
 	}
 
-	for _, sym := range pkg.Syms {
-		for index, loc := range sym.Reloc {
-			sym.Reloc[index].SymName = obj.ReplacePkgPath(loc.SymName, pkg.PkgPath)
-		}
-		if sym.Type != EmptyString {
-			sym.Type = obj.ReplacePkgPath(sym.Type, pkg.PkgPath)
-		}
-		if sym.Func != nil {
-			for index, FuncData := range sym.Func.FuncData {
-				sym.Func.FuncData[index] = obj.ReplacePkgPath(FuncData, pkg.PkgPath)
-			}
-			for index, inl := range sym.Func.InlTree {
-				sym.Func.InlTree[index].Func = obj.ReplacePkgPath(inl.Func, pkg.PkgPath)
-			}
-			sym.Func.CUOffset += linker.CUOffset
-		}
-		sym.Name = obj.ReplacePkgPath(sym.Name, pkg.PkgPath)
-		linker.ObjSymbolMap[sym.Name] = sym
-	}
-	linker.addFiles(pkg.CUFiles)
+	pkg.AddCgoFuncs(linker.CgoFuncs)
 	linker.Packages[pkg.PkgPath] = &pkg
 	return nil
+}
+
+func (linker *Linker) resolveSymbols() {
+	for _, pkg := range linker.Packages {
+		pkg.AddSymIndex(linker.CgoFuncs)
+	}
+	for _, pkg := range linker.Packages {
+		pkg.ResolveSymbols(linker.Packages, linker.ObjSymbolMap, linker.CUOffset)
+		pkg.GoArchive = nil
+		linker.addFiles(pkg.CUFiles)
+		for name, cgoImport := range pkg.CgoImports {
+			linker.CgoImportMap[name] = cgoImport
+		}
+	}
 }
 
 func ReadObj(file, pkgpath string) (*Linker, error) {
@@ -61,6 +56,7 @@ func ReadObj(file, pkgpath string) (*Linker, error) {
 	if err := linker.readObj(file, pkgpath); err != nil {
 		return nil, err
 	}
+	linker.resolveSymbols()
 	linker.initPcHeader()
 	if err := linker.addSymbols(); err != nil {
 		return nil, err
@@ -75,6 +71,7 @@ func ReadObjs(files []string, pkgPaths []string) (*Linker, error) {
 			return nil, err
 		}
 	}
+	linker.resolveSymbols()
 	linker.initPcHeader()
 	if err := linker.addSymbols(); err != nil {
 		return nil, err
@@ -82,25 +79,41 @@ func ReadObjs(files []string, pkgPaths []string) (*Linker, error) {
 	return linker, nil
 }
 
-func (linker *Linker) ReadDependPkg(file, pkgPath string, symbolNames []string, symPtr map[string]uintptr) error {
+func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []string, symPtr map[string]uintptr) error {
 	if linker.AdaptedOffset {
 		return fmt.Errorf("already adapted symbol offset, don't add new symbols")
 	}
+
 	//only add unresolved symbol in ObjSymbolMap. use temporary map store read symbols
 	objSymbolMap := linker.ObjSymbolMap
+	cgoImportMap := linker.CgoImportMap
 	linker.ObjSymbolMap = make(map[string]*obj.ObjSymbol)
-	if err := linker.readObj(file, pkgPath); err != nil {
-		return err
-	}
-	initFuncName := getInitFuncName(pkgPath)
-	if _, ok := linker.ObjSymbolMap[initFuncName]; ok {
-		if _, err := linker.addSymbol(initFuncName, nil); err != nil {
+	linker.CgoImportMap = make(map[string]*obj.CgoImport)
+	for i, file := range files {
+		if err := linker.readObj(file, pkgPaths[i]); err != nil {
 			return err
 		}
 	}
+	linker.resolveSymbols()
+	tmpCgoImportMap := linker.CgoImportMap
+	linker.CgoImportMap = cgoImportMap
+
 	for _, name := range symbolNames {
 		if _, ok := linker.ObjSymbolMap[name]; ok {
 			delete(linker.SymMap, name)
+			_, err := linker.addSymbol(name, symPtr)
+			if err != nil {
+				return err
+			}
+		} else {
+			if cgoImport, ok := tmpCgoImportMap[name]; ok {
+				linker.CgoImportMap[name] = cgoImport
+			}
+		}
+	}
+	for _, pkg := range linker.Packages {
+		name := getInitFuncName(pkg.PkgPath)
+		if _, ok := linker.ObjSymbolMap[name]; ok {
 			_, err := linker.addSymbol(name, symPtr)
 			if err != nil {
 				return err

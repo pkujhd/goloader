@@ -3,6 +3,8 @@ package obj
 type Pkg struct {
 	Syms       map[string]*ObjSymbol
 	CgoImports map[string]*CgoImport
+	GoArchive  *Archive
+	SymIndex   []string
 	Arch       string
 	PkgPath    string
 	File       string
@@ -43,6 +45,7 @@ type ObjSymbol struct {
 	Type  string
 	Reloc []Reloc
 	Func  *FuncInfo // additional data for functions
+	ABI   uint
 }
 
 type InlTreeNode struct {

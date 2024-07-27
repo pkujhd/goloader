@@ -5,14 +5,22 @@ package obj
 
 import (
 	"cmd/objfile/goobj"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/pkujhd/goloader/objabi/symkind"
 )
 
 type readAtSeeker struct {
 	io.ReadSeeker
+}
+
+type Archive struct {
 }
 
 func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
@@ -24,12 +32,43 @@ func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
 	return
 }
 
+func (pkg *Pkg) addCgoImports(file *os.File) {
+	bytes, _ := ioutil.ReadAll(file)
+	content := string(bytes)
+	for {
+		index := strings.Index(content, "$$  // cgo")
+		if index == -1 {
+			break
+		}
+		content = content[index+len("$$  // cgo"):]
+		index = strings.Index(content, "$$")
+		jsonStr := content[:index-len("$$")]
+		var cgo_imports [][]string
+		json.NewDecoder(strings.NewReader(jsonStr)).Decode(&cgo_imports)
+		for _, cgo_import := range cgo_imports {
+			switch cgo_import[0] {
+			case "cgo_import_dynamic":
+				pkg.CgoImports[cgo_import[1]] = &CgoImport{cgo_import[1], cgo_import[2], cgo_import[3]}
+			case "cgo_import_static":
+			case "cgo_export_dynamic":
+			case "cgo_export_static":
+			case "cgo_ldflag":
+				//nothing
+			}
+		}
+		content = content[index:]
+	}
+
+}
 func (pkg *Pkg) Symbols() error {
 	file, err := os.Open(pkg.File)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+
+	pkg.addCgoImports(file)
+	file.Seek(0, io.SeekStart)
 	obj, err := goobj.Parse(file, pkg.PkgPath)
 	if err != nil {
 		return fmt.Errorf("read error: %v", err)
@@ -91,11 +130,27 @@ func (pkg *Pkg) Symbols() error {
 				return fmt.Errorf("read error: %v", err)
 			}
 		}
-		pkg.Syms[sym.Name] = symbol
+		if symbol.Kind > symkind.Sxxx && symbol.Kind <= symkind.STLSBSS {
+			pkg.Syms[symbol.Name] = symbol
+		}
+
 	}
 	for _, path := range obj.Imports {
 		path = path[:len(path)-len(filepath.Ext(path))]
 		pkg.ImportPkgs = append(pkg.ImportPkgs, path)
 	}
 	return nil
+}
+
+func (pkg *Pkg) AddCgoFuncs(cgoFuncs map[string]int) {
+}
+
+func (pkg *Pkg) AddSymIndex(cgoFuncs map[string]int) {
+}
+
+func (pkg *Pkg) ResolveSymbols(packages map[string]*Pkg, ObjSymbolMap map[string]*ObjSymbol, CUOffset int32) {
+	for _, sym := range pkg.Syms {
+		replacePkgPath(sym, pkg.PkgPath)
+		ObjSymbolMap[sym.Name] = sym
+	}
 }
