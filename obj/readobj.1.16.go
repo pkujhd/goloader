@@ -178,7 +178,7 @@ func (pkg *Pkg) AddCgoFuncs(cgoFuncs map[string]int) {
 				if index, ok := goArchive.symVersions[obj.ABI0][sym.Name]; ok {
 					nsym := goArchive.entries[index.entryIndex].syms[index.symbolIndex]
 					cgoFuncs[sym.Name] = nsym.Kind
-					if nsym.Func.FuncID == uint8(objabi.GetFuncID(``, true)) ||
+					if (nsym.Func != nil && nsym.Func.FuncID == uint8(objabi.GetFuncID(``, true))) ||
 						sym.Func.FuncID == uint8(objabi.GetFuncID(``, true)) {
 						sym.Name = sym.Name + ABIINTERNAL_SUFFIX
 						nsym.Name = nsym.Name + ABI0_SUFFIX
