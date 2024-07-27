@@ -2,11 +2,19 @@ package obj
 
 type Pkg struct {
 	Syms       map[string]*ObjSymbol
+	CgoImports map[string]*CgoImport
 	Arch       string
 	PkgPath    string
 	File       string
 	ImportPkgs []string
 	CUFiles    []string
+	CUOffset   int32
+}
+
+type CgoImport struct {
+	GoSymName string
+	CSymName  string
+	SoName    string
 }
 
 type FuncInfo struct {

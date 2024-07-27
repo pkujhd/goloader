@@ -72,6 +72,8 @@ type Linker struct {
 	ObjSymbolMap  map[string]*obj.ObjSymbol
 	NameMap       map[string]int
 	StringMap     map[string]*string
+	CgoImportMap  map[string]*obj.CgoImport
+	CgoFuncs      map[string]int
 	Filetab       []uint32
 	Pclntable     []byte
 	Funcs         []*_func
@@ -93,6 +95,8 @@ func initLinker() *Linker {
 		ObjSymbolMap:  make(map[string]*obj.ObjSymbol),
 		NameMap:       make(map[string]int),
 		StringMap:     make(map[string]*string),
+		CgoImportMap:  make(map[string]*obj.CgoImport),
+		CgoFuncs:      make(map[string]int),
 		Packages:      make(map[string]*obj.Pkg),
 		CUOffset:      0,
 		AdaptedOffset: false,
@@ -574,14 +578,16 @@ func UnresolvedSymbols(linker *Linker, symPtr map[string]uintptr) []string {
 	unresolvedSymbols := make([]string, 0)
 	for name, sym := range linker.SymMap {
 		if sym.Offset == InvalidOffset {
-			if _, ok := symPtr[sym.Name]; !ok {
-				nName := strings.TrimSuffix(name, GOTPCRELSuffix)
-				if name != nName {
-					if _, ok := symPtr[nName]; !ok {
-						unresolvedSymbols = append(unresolvedSymbols, nName)
+			if _, ok := linker.CgoImportMap[name]; !ok {
+				if _, ok := symPtr[sym.Name]; !ok {
+					nName := strings.TrimSuffix(name, GOTPCRELSuffix)
+					if name != nName {
+						if _, ok := symPtr[nName]; !ok {
+							unresolvedSymbols = append(unresolvedSymbols, nName)
+						}
+					} else {
+						unresolvedSymbols = append(unresolvedSymbols, name)
 					}
-				} else {
-					unresolvedSymbols = append(unresolvedSymbols, name)
 				}
 			}
 		}
