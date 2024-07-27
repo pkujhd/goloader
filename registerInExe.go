@@ -104,15 +104,27 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 	if err != nil {
 		return err
 	}
-	roDataSect := machoFile.Section("__rodata")
-	roDataSectData, err := roDataSect.Data()
+
+	getSymbolInMacho := func(machoFile *macho.File, symbolName string) *macho.Symbol {
+		symbols := machoFile.Symtab.Syms
+		for _, sym := range symbols {
+			if sym.Name == symbolName {
+				return &sym
+			}
+		}
+		return nil
+	}
+	typesSym := getSymbolInMacho(machoFile, "runtime.types")
+
+	section := machoFile.Sections[typesSym.Sect-1]
+	sectData, err := section.Data()
 	if err != nil {
 		return err
 	}
 
 	byteOrder := machoFile.ByteOrder
 	typelinks := *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
-	_registerTypesInExe(symPtr, byteOrder, typelinks, roDataSectData, uintptr(roDataSect.Addr))
+	_registerTypesInExe(symPtr, byteOrder, typelinks, sectData[typesSym.Value-section.Addr:], uintptr(typesSym.Value))
 	return nil
 }
 
