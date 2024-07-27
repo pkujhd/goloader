@@ -416,6 +416,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 		return err
 	}
 
+	grow(&module.pclntable, PtrSize)
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(_func)), _FuncSize)
 
 	if _func.Npcdata > 0 {
@@ -425,6 +426,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	if _func.Nfuncdata > 0 {
 		addfuncdata(module, Func, _func)
 	}
+	grow(&module.pclntable, PtrSize)
 
 	return err
 }
