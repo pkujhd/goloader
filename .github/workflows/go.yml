@@ -34,21 +34,15 @@ jobs:
           - os: macos-latest
             go-second-version: 15
         include:
-          - os: macos-11
-            go-second-version: 8
-          - os: macos-11
-            go-second-version: 9
-          - os: macos-11
-            go-second-version: 10
-          - os: macos-11
+          - os: macos-12
             go-second-version: 11
-          - os: macos-11
+          - os: macos-12
             go-second-version: 12
-          - os: macos-11
+          - os: macos-12
             go-second-version: 13
-          - os: macos-11
+          - os: macos-12
             go-second-version: 14
-          - os: macos-11
+          - os: macos-12
             go-second-version: 15
     runs-on: ${{ matrix.os }}
 
