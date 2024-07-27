@@ -43,6 +43,9 @@ func (linker *Linker) readObj(file, pkgpath string) error {
 			for index, FuncData := range sym.Func.FuncData {
 				sym.Func.FuncData[index] = obj.ReplacePkgPath(FuncData, pkg.PkgPath)
 			}
+			for index, inl := range sym.Func.InlTree {
+				sym.Func.InlTree[index].Func = obj.ReplacePkgPath(inl.Func, pkg.PkgPath)
+			}
 			sym.Func.CUOffset += linker.CUOffset
 		}
 		sym.Name = obj.ReplacePkgPath(sym.Name, pkg.PkgPath)
