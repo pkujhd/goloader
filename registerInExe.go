@@ -170,12 +170,7 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 	}
 	typelinkSym := getSymbolInPe(peFile.Symbols, "runtime.typelink")
 	moduledataSym := getSymbolInPe(peFile.Symbols, "runtime.firstmoduledata")
-
-	roDataSect := peFile.Section(".rdata")
-	roDataSectData, err := roDataSect.Data()
-	if err != nil {
-		return err
-	}
+	typesSym := getSymbolInPe(peFile.Symbols, "runtime.types")
 
 	dataSect := peFile.Section(".data")
 	dataSectData, err := dataSect.Data()
@@ -184,7 +179,8 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 	}
 
 	md := (*moduledata)(unsafe.Pointer(&dataSectData[moduledataSym.Value]))
-	typelinks := *ptr2uint32slice(uintptr(unsafe.Pointer(&roDataSectData[typelinkSym.Value])), len(md.typelinks))
+	typelinksSectData, _ := peFile.Sections[typelinkSym.SectionNumber-1].Data()
+	typelinks := *ptr2uint32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
 
 	getImageBase := func(peFile *pe.File) uintptr {
 		_, pe64 := peFile.OptionalHeader.(*pe.OptionalHeader64)
@@ -194,7 +190,12 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 			return uintptr(peFile.OptionalHeader.(*pe.OptionalHeader32).ImageBase)
 		}
 	}
-	_registerTypesInExe(symPtr, binary.LittleEndian, typelinks, roDataSectData, uintptr(roDataSect.VirtualAddress)+getImageBase(peFile))
+
+	typeSect := peFile.Sections[typesSym.SectionNumber-1]
+	typeSectData, _ := typeSect.Data()
+
+	roDataAddr := uintptr(typeSect.VirtualAddress) + getImageBase(peFile)
+	_registerTypesInExe(symPtr, binary.LittleEndian, typelinks, typeSectData[md.types-roDataAddr:], md.types)
 	return nil
 }
 
