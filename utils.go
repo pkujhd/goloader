@@ -4,6 +4,7 @@ import (
 	"cmd/objfile/sys"
 	"encoding/binary"
 	"fmt"
+	"runtime"
 	"strconv"
 	"unsafe"
 
@@ -207,4 +208,11 @@ func ptr2uint32slice(ptr uintptr, size int) *[]int32 {
 		Cap:  size,
 	}
 	return (*[]int32)(unsafe.Pointer(&s))
+}
+
+func isMmapInLowAddress(archName string) bool {
+	if archName == sys.ArchAMD64.Name && runtime.GOOS == "linux" {
+		return true
+	}
+	return false
 }
