@@ -33,6 +33,24 @@ func ReplacePkgPath(name, pkgpath string) string {
 	return name
 }
 
+func replacePkgPath(sym *ObjSymbol, pkgpath string) {
+	for index, loc := range sym.Reloc {
+		sym.Reloc[index].SymName = ReplacePkgPath(loc.SymName, pkgpath)
+	}
+	if sym.Type != EmptyString {
+		sym.Type = ReplacePkgPath(sym.Type, pkgpath)
+	}
+	if sym.Func != nil {
+		for index, FuncData := range sym.Func.FuncData {
+			sym.Func.FuncData[index] = ReplacePkgPath(FuncData, pkgpath)
+		}
+		for index, inl := range sym.Func.InlTree {
+			sym.Func.InlTree[index].Func = ReplacePkgPath(inl.Func, pkgpath)
+		}
+	}
+	sym.Name = ReplacePkgPath(sym.Name, pkgpath)
+}
+
 //go:inline
 func IsHasTypePrefix(name string) bool {
 	return strings.HasPrefix(name, constants.TypePrefix)
