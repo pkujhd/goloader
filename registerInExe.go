@@ -98,7 +98,11 @@ func (td *typedata) adaptType(tl int32) {
 }
 
 func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
-	machoFile, _ := macho.Open(path)
+	machoFile, err := macho.Open(path)
+	if err != nil {
+		return err
+	}
+	defer machoFile.Close()
 	typeLinkSect := machoFile.Section("__typelink")
 	typeLinkSectData, err := typeLinkSect.Data()
 	if err != nil {
@@ -129,7 +133,11 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 }
 
 func registerTypesInElf(path string, symPtr map[string]uintptr) error {
-	elfFile, _ := elf.Open(path)
+	elfFile, err := elf.Open(path)
+	if err != nil {
+		return err
+	}
+	defer elfFile.Close()
 	typeLinkSect := elfFile.Section(".typelink")
 	typeLinkSectData, err := typeLinkSect.Data()
 	if err != nil {
@@ -159,7 +167,11 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 }
 
 func registerTypesInPE(path string, symPtr map[string]uintptr) error {
-	peFile, _ := pe.Open(path)
+	peFile, err := pe.Open(path)
+	if err != nil {
+		return err
+	}
+	defer peFile.Close()
 	getSymbolInPe := func(symbols []*pe.Symbol, symbolName string) *pe.Symbol {
 		for _, sym := range symbols {
 			if sym.Name == symbolName {
