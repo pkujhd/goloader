@@ -200,7 +200,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 		}
 		bytearrayAlignNops(linker.Arch, &linker.Code, funcalign.GetFuncAlign(linker.Arch))
 		symbol.Func = &obj.Func{}
-		if err := linker.readFuncData(linker.ObjSymbolMap[name], symbol.Offset, symPtr); err != nil {
+		if err := linker.readFuncData(linker.ObjSymbolMap[name], symPtr); err != nil {
 			return nil, err
 		}
 	case symkind.SDATA:
@@ -298,7 +298,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 	return symbol, nil
 }
 
-func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, codeLen int, symPtr map[string]uintptr) (err error) {
+func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, symPtr map[string]uintptr) (err error) {
 	nameOff := len(linker.Pclntable)
 	if offset, ok := linker.NameMap[symbol.Name]; !ok {
 		linker.NameMap[symbol.Name] = len(linker.Pclntable)
