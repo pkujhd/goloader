@@ -74,6 +74,16 @@ type uncommonType struct {
 	_       uint32  // unused
 }
 
+func (t *uncommonType) methods() []method {
+	if t.mcount == 0 {
+		return nil
+	}
+	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.moff)))[:t.mcount:t.mcount]
+}
+
+//go:linkname _uncommon reflect.(*rtype).uncommon
+func _uncommon(t *_type) *uncommonType
+
 //go:linkname _Kind reflect.(*rtype).Kind
 func _Kind(t *_type) reflect.Kind
 
@@ -128,6 +138,7 @@ func _PkgPath(t *_type) string
 //go:linkname typelinksinit runtime.typelinksinit
 func typelinksinit()
 
+func (t *_type) uncommon() *uncommonType         { return _uncommon(t) }
 func (t *_type) Kind() reflect.Kind              { return _Kind(t) }
 func (t *_type) NumField() int                   { return _NumField(t) }
 func (t *_type) Field(i int) reflect.StructField { return _Field(t, i) }
