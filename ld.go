@@ -75,7 +75,7 @@ type Linker struct {
 	Filetab       []uint32
 	Pclntable     []byte
 	Funcs         []*_func
-	Packages      []*obj.Pkg
+	Packages      map[string]*obj.Pkg
 	Arch          *sys.Arch
 	CUOffset      int32
 	AdaptedOffset bool
@@ -93,6 +93,7 @@ func initLinker() *Linker {
 		ObjSymbolMap:  make(map[string]*obj.ObjSymbol),
 		NameMap:       make(map[string]int),
 		StringMap:     make(map[string]*string),
+		Packages:      make(map[string]*obj.Pkg),
 		CUOffset:      0,
 		AdaptedOffset: false,
 	}

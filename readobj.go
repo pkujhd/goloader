@@ -49,7 +49,7 @@ func (linker *Linker) readObj(file, pkgpath string) error {
 		linker.ObjSymbolMap[sym.Name] = sym
 	}
 	linker.addFiles(pkg.CUFiles)
-	linker.Packages = append(linker.Packages, &pkg)
+	linker.Packages[pkg.PkgPath] = &pkg
 	return nil
 }
 
