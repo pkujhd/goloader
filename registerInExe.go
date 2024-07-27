@@ -135,15 +135,26 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 	if err != nil {
 		return err
 	}
-	roDataSect := elfFile.Section(".rodata")
-	roDataSectData, err := roDataSect.Data()
+	getSymbolInElf := func(elfFile *elf.File, symbolName string) *elf.Symbol {
+		symbols, _ := elfFile.Symbols()
+		for _, sym := range symbols {
+			if sym.Name == symbolName {
+				return &sym
+			}
+		}
+		return nil
+	}
+	typesSym := getSymbolInElf(elfFile, "runtime.types")
+
+	section := elfFile.Sections[typesSym.Section-1]
+	sectData, err := section.Data()
 	if err != nil {
 		return err
 	}
 
 	byteOrder := elfFile.ByteOrder
 	typelinks := *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
-	_registerTypesInExe(symPtr, byteOrder, typelinks, roDataSectData, uintptr(roDataSect.Addr))
+	_registerTypesInExe(symPtr, byteOrder, typelinks, sectData[typesSym.Value-section.Addr:], uintptr(typesSym.Value))
 	return nil
 }
 
