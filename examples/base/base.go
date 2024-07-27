@@ -122,7 +122,7 @@ func recoverTest() {
 
 func logPanic() {
 	if r := recover(); r != nil {
-		trace := make([]byte, 1024)
+		trace := make([]byte, 65536)
 		count := runtime.Stack(trace, false)
 		fmt.Printf("panic: %s\nStack of %d bytes:\n%s\n", r, count, trace[:count])
 	}
