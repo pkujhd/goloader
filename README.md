@@ -29,38 +29,54 @@ Goloader don't support obj file with cgo.
 
 First, execute the following command, then do build and test. This is because Goloader relies on the internal package, which is forbidden by the Go compiler.
 ```
-cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
+  cp -r $GOROOT/src/cmd/internal $GOROOT/src/cmd/objfile
 ```
 
 ## Examples
 
+#Build Loader:
+
+If use go version >= 1.23
+```
+  go build --ldflags="-checklinkname=0" github.com/pkujhd/goloader/examples/loader
+```
+If use go version <= 1.22
+```
+  go build github.com/pkujhd/goloader/examples/loader
+```
+
+
+#Compile Object File and Run:
+
 If use go module or go version >= 1.20
 ```
-export GO111MODULE=on
-go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
-go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
+  export GO111MODULE=on
+  go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
+  go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
+  ./loader -o schedule.o -run main.main -times 10
 ```
 If use go path and go version < 1.20
 ```
-export GO111MODULE=auto
-go build github.com/pkujhd/goloader/examples/loader
+  export GO111MODULE=auto
+  go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
+  ./loader -o schedule.o -run main.main -times 10
+  
+  go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
+  ./loader -o base.o -run main.main
+  
+  go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/http/http.go
+  ./loader -o http.o -run main.main
+  
+  go install github.com/pkujhd/goloader/examples/basecontext
+  go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ $GOPATH/src/github.com/pkujhd/goloader/examples/inter/inter.go
+  ./loader -o $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/github.com/pkujhd/goloader/examples/basecontext.a:github.com/pkujhd/goloader/examples/basecontext -o inter.o
+```
 
-go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
-./loader -o schedule.o -run main.main -times 10
 
-go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
-./loader -o base.o -run main.main
-
-go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/http/http.go
-./loader -o http.o -run main.main
-
-go install github.com/pkujhd/goloader/examples/basecontext
-go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ $GOPATH/src/github.com/pkujhd/goloader/examples/inter/inter.go
-./loader -o $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/github.com/pkujhd/goloader/examples/basecontext.a:github.com/pkujhd/goloader/examples/basecontext -o inter.o
-
-#build multiple go files
-go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go test2.go
-./loader -o test.o -run main.main
+#Build multiple go files
+```
+  go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go test2.go
+  ./loader -o test.o -run main.main
 ```
 
 ## Warning
@@ -69,10 +85,10 @@ Don't use "-s -w" compile argument, It strips symbol table.
 
 This has currently only been tested and developed on:
 
-Golang 1.8-1.22 (x64/x86, darwin, linux, windows)
+Golang 1.8-1.23 (x64/x86, darwin, linux, windows)
 
-Golang 1.10-1.22 (arm, linux, android)
+Golang 1.10-1.23 (arm, linux, android)
 
-Golang 1.8-1.22 (arm64, linux, android)
+Golang 1.8-1.23 (arm64, linux, android)
 
-Golang 1.16-1.22 (arm64, darwin)
+Golang 1.16-1.23 (arm64, darwin)
