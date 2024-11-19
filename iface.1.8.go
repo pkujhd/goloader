@@ -23,32 +23,28 @@ type itab struct {
 // See: src/runtime/iface.go
 const hashSize = 1009
 
-//go:linkname __hash runtime.hash
-var __hash uintptr
+//go:linkname hash runtime.hash
+var hash [hashSize]*itab
 
-var hash = (*[hashSize]*itab)(unsafe.Pointer(&__hash))
-
-//go:linkname __ifaceLock runtime.ifaceLock
-var __ifaceLock uintptr
-
-var ifaceLock = (*mutex)(unsafe.Pointer(&__ifaceLock))
+//go:linkname ifaceLock runtime.ifaceLock
+var ifaceLock mutex
 
 //go:linkname additab runtime.additab
 func additab(m *itab, locked, canfail bool)
 
 func additabs(module *moduledata) {
-	lock(ifaceLock)
+	lock(&ifaceLock)
 	for _, itab := range module.itablinks {
 		if itab.inhash == 0 {
 			additab(itab, true, false)
 		}
 	}
-	unlock(ifaceLock)
+	unlock(&ifaceLock)
 }
 
 func removeitabs(module *moduledata) bool {
-	lock(ifaceLock)
-	defer unlock(ifaceLock)
+	lock(&ifaceLock)
+	defer unlock(&ifaceLock)
 
 	//the itab alloc by runtime.persistentalloc, can't free
 	for index, h := range hash {
