@@ -125,7 +125,7 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 		if code == "B" || code == "D" {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
-		if strings.HasPrefix(sym.Name, constants.ItabPrefix) {
+		if code == "R" && !strings.HasPrefix(sym.Name, DefaultPkgPath) {
 			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 		}
 	}
