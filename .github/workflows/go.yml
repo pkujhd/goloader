@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-second-version: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+        go-second-version: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
         os:  [ubuntu-latest, windows-latest, macos-latest]
         exclude:
           - os: macos-latest
@@ -52,8 +52,13 @@ jobs:
         path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
       
     - name: Build
-      run:
-        go build github.com/pkujhd/goloader/examples/loader
+      shell: sh
+      run: |
+        if [ ${{ matrix.go-second-version }} -ge 23 ]; then
+          go build --ldflags="-checklinkname=0" github.com/pkujhd/goloader/examples/loader
+        else
+          go build github.com/pkujhd/goloader/examples/loader
+        fi
         
     - name: Compile const.go
       shell: sh
