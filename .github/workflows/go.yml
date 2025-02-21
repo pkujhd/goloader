@@ -64,7 +64,7 @@ jobs:
       shell: sh
       run: |
         if [ ${{ matrix.go-second-version }} -ge 20 ]; then
-          go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
+          go list -export -deps -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go > importcfg
           go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go
         else
           go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/const/const.go
@@ -74,7 +74,7 @@ jobs:
       shell: sh
       run: |
         if [ ${{ matrix.go-second-version }} -ge 20 ]; then
-          go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
+          go list -export -deps -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go > importcfg
           go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
         else
           go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
