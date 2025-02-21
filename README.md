@@ -51,7 +51,7 @@ If use go version <= 1.22
 If use go module or go version >= 1.20
 ```
   export GO111MODULE=on
-  go list -export -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' std `go list -f {{.Imports}} $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go | awk '{sub(/^\[/, ""); print }' | awk '{sub(/\]$/, ""); print }'` > importcfg
+  go list -export -deps -f '{{if .Export}}packagefile {{.ImportPath}}={{.Export}}{{end}}' $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go > importcfg
   go tool compile -importcfg importcfg $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
   ./loader -o schedule.o -run main.main -times 10
 ```
