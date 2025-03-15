@@ -82,6 +82,7 @@ If use go path and go version < 1.20
 ## Warning
 
 Don't use "-s -w" compile argument, It strips symbol table.
+Don't use "go run" command, "-s -w" compile argument is default.
 
 This has currently only been tested and developed on:
 
