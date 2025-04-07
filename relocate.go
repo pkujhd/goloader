@@ -311,7 +311,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					offset := int(addr) - addrBase + loc.Add
 					if isOverflowInt32(offset) {
 						if sym, ok := linker.SymMap[loc.SymName]; ok {
-							offset = sym.Offset
+							offset = sym.Offset + loc.Add
 						} else {
 							err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
 						}
@@ -324,7 +324,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					offset := int(addr) - addrBase + loc.Add
 					if isOverflowInt32(offset) {
 						if sym, ok := linker.SymMap[loc.SymName]; ok {
-							offset = sym.Offset
+							offset = sym.Offset + loc.Add
 						} else {
 							err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
 						}
