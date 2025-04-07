@@ -388,8 +388,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			codeModule.Syms[sym.Name] = symbolMap[name]
 		} else if strings.HasPrefix(name, constants.TypeStringPrefix) {
 			symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.StringMap[name])).Data
-		} else if name == getInitFuncName(DefaultPkgPath) ||
-			strings.HasPrefix(name, constants.TypePrefix) {
+		} else if name == getInitFuncName(DefaultPkgPath) {
+			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
+		} else if ispreprocesssymbol(name) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
 		} else if _, ok := symPtr[name]; ok {
 			symbolMap[name] = symPtr[name]

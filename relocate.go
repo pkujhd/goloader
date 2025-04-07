@@ -310,7 +310,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF:
 					offset := int(addr) - addrBase + loc.Add
 					if isOverflowInt32(offset) {
-						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
+						if sym, ok := linker.SymMap[loc.SymName]; ok {
+							offset = sym.Offset
+						} else {
+							err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
+						}
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_METHODOFF:
@@ -319,7 +323,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					}
 					offset := int(addr) - addrBase + loc.Add
 					if isOverflowInt32(offset) {
-						err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
+						if sym, ok := linker.SymMap[loc.SymName]; ok {
+							offset = sym.Offset
+						} else {
+							err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
+						}
 					}
 					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_GOTPCREL, reloctype.R_ARM64_GOTPCREL:
