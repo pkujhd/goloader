@@ -30,6 +30,12 @@ func typelinksRegister(symPtr map[string]uintptr) {
 				if _, ok := symPtr[name]; !ok {
 					symPtr[name] = getfuncentry(_func, md.text)
 				}
+				if strings.HasSuffix(name, constants.FunctionWrapperSuffix) {
+					nName := strings.TrimSuffix(name, constants.FunctionWrapperSuffix)
+					if _, ok := symPtr[nName]; !ok {
+						symPtr[nName] = symPtr[name]
+					}
+				}
 			}
 		}
 	}
