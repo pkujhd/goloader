@@ -417,7 +417,6 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 		return err
 	}
 
-	grow(&module.pclntable, PtrSize)
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(_func)), _FuncSize)
 
 	if _func.Npcdata > 0 {
@@ -427,7 +426,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	if _func.Nfuncdata > 0 {
 		addfuncdata(module, Func, _func)
 	}
-	grow(&module.pclntable, PtrSize)
+	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
 
 	return err
 }
@@ -453,6 +452,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	module.etypes = module.enoptrbss
 	initmodule(codeModule.module, linker)
 
+	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker.Funcs {
 		funcname := getfuncname(_func, module)

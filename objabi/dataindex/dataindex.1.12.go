@@ -9,13 +9,15 @@ package dataindex
 // These must agree with ../../../runtime/funcdata.h and
 // ../../../runtime/symtab.go.
 const (
-	PCDATA_StackMapIndex       = 0
-	PCDATA_InlTreeIndex        = 1
-	PCDATA_RegMapIndex         = 2
+	PCDATA_StackMapIndex = 0
+	PCDATA_InlTreeIndex  = 1
+	PCDATA_RegMapIndex   = 2
+
 	FUNCDATA_ArgsPointerMaps   = 0
 	FUNCDATA_LocalsPointerMaps = 1
 	FUNCDATA_InlTree           = 2
 	FUNCDATA_RegPointerMaps    = 3
 	FUNCDATA_StackObjects      = 4
-	ArgsSizeUnknown            = -0x80000000
+	
+	ArgsSizeUnknown = -0x80000000
 )
