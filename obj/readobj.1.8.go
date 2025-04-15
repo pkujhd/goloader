@@ -32,6 +32,20 @@ func (r *readAtSeeker) BytesAt(offset, size int64) (bytes []byte, err error) {
 	return
 }
 
+func decodeCgoImports(str string) [][]string {
+	var cgo_imports [][]string
+	if strings.HasPrefix(str, "cgo_") {
+		lines := strings.Split(str, "\n")
+		for _, line := range lines {
+			cgo_imports = append(cgo_imports, strings.Split(line, " "))
+		}
+
+	} else {
+		json.NewDecoder(strings.NewReader(str)).Decode(&cgo_imports)
+	}
+	return cgo_imports
+}
+
 func (pkg *Pkg) addCgoImports(file *os.File) {
 	bytes, _ := ioutil.ReadAll(file)
 	content := string(bytes)
@@ -40,11 +54,10 @@ func (pkg *Pkg) addCgoImports(file *os.File) {
 		if index == -1 {
 			break
 		}
-		content = content[index+len("$$  // cgo"):]
+		content = content[index+len("$$  // cgo")+1:]
 		index = strings.Index(content, "$$")
 		jsonStr := content[:index-len("$$")]
-		var cgo_imports [][]string
-		json.NewDecoder(strings.NewReader(jsonStr)).Decode(&cgo_imports)
+		cgo_imports := decodeCgoImports(jsonStr)
 		for _, cgo_import := range cgo_imports {
 			switch cgo_import[0] {
 			case "cgo_import_dynamic":
