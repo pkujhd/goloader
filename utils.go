@@ -4,8 +4,10 @@ import (
 	"cmd/objfile/sys"
 	"encoding/binary"
 	"fmt"
+	"github.com/pkujhd/goloader/constants"
 	"runtime"
 	"strconv"
+	"strings"
 	"unsafe"
 
 	"github.com/pkujhd/goloader/mmap"
@@ -215,4 +217,14 @@ func isMmapInLowAddress(archName string) bool {
 		return true
 	}
 	return false
+}
+
+//go:inline
+func isX86_64(archName string) bool {
+	return archName == sys.ArchAMD64.Name || archName == sys.Arch386.Name
+}
+
+//go:inline
+func isTypeName(aName string) bool {
+	return strings.HasPrefix(aName, constants.TypePrefix) && !strings.HasPrefix(aName, constants.TypeDoubleDotPrefix)
 }

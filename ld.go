@@ -194,6 +194,9 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 	case symkind.STEXT:
 		symbol.Offset = len(linker.Code)
 		linker.Code = append(linker.Code, objsym.Data...)
+		if isX86_64(linker.Arch.Name) {
+			obj.MarkReloc(objsym.Data, objsym.Reloc, symbol.Offset, linker.Arch.Name)
+		}
 		expandFunc(linker, objsym, symbol)
 		if len(linker.Code)-symbol.Offset < minfunc {
 			linker.Code = append(linker.Code, createArchNops(linker.Arch, minfunc-(len(linker.Code)-symbol.Offset))...)
