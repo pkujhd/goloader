@@ -77,10 +77,33 @@ type Reloc struct {
 	Size    int
 	Type    int
 	Add     int
+	Instruction
 	Epilogue
+}
+
+type Instruction struct {
+	Op    uint
+	Start int
+	End   int
+	Text  []byte
+	Args  []string
 }
 
 type Epilogue struct {
 	Offset int
 	Size   int
+}
+
+func (r *Reloc) GetStart() int {
+	if r.Start != 0 {
+		return r.Start
+	}
+	return r.Offset
+}
+
+func (r *Reloc) GetEnd() int {
+	if r.End != 0 {
+		return r.End
+	}
+	return r.Offset + r.Size
 }
