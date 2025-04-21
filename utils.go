@@ -76,7 +76,7 @@ func createArchNops(arch *sys.Arch, size int) []byte {
 func createX86Amd64Nops(size int) []byte {
 	nops := make([]byte, size)
 	for i := 0; i < size; i++ {
-		copy(nops[i:], x86amd64NOPcode)
+		nops[i] = x86amd64NOPcode
 	}
 	return nops
 }

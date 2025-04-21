@@ -80,6 +80,7 @@ type Linker struct {
 	Packages      map[string]*obj.Pkg
 	Arch          *sys.Arch
 	CUOffset      int32
+	ExtraData     int
 	AdaptedOffset bool
 }
 
@@ -99,6 +100,7 @@ func initLinker() *Linker {
 		CgoFuncs:      make(map[string]int),
 		Packages:      make(map[string]*obj.Pkg),
 		CUOffset:      0,
+		ExtraData:     0,
 		AdaptedOffset: false,
 	}
 	linker.Pclntable = make([]byte, PCHeaderSize)
@@ -527,7 +529,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	//init code segment
 	codeSeg := &codeModule.segment.codeSeg
 	codeSeg.length = len(linker.Code)
-	codeSeg.maxLen = alignof((codeSeg.length)*2, PageSize)
+	codeSeg.maxLen = alignof(codeSeg.length, PageSize)
 	codeByte, err := Mmap(codeSeg.maxLen)
 	if err != nil {
 		return nil, err
@@ -544,7 +546,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	dataSeg.bssLen = len(linker.Bss)
 	dataSeg.noptrbssLen = len(linker.Noptrbss)
 	dataSeg.length = dataSeg.dataLen + dataSeg.noptrdataLen + dataSeg.bssLen + dataSeg.noptrbssLen
-	dataSeg.maxLen = alignof((dataSeg.length)*2, PageSize)
+	dataSeg.maxLen = alignof(dataSeg.length+linker.ExtraData, PageSize)
 	dataSeg.dataOff = 0
 	dataByte, err := MmapData(dataSeg.maxLen)
 	if err != nil {

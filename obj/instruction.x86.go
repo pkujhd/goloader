@@ -109,6 +109,7 @@ func DumpCode(text []byte, archName string) {
 		if err != nil {
 			fmt.Println("x86asm.Decode failed")
 		}
+		fmt.Println(inst)
 		pc = pc + inst.Len
 	}
 }

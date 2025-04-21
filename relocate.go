@@ -1,14 +1,14 @@
 package goloader
 
 import (
-	"cmd/objfile/sys"
+	"encoding/binary"
 	"fmt"
-	"runtime"
-
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"github.com/pkujhd/goloader/objabi/tls"
+	"strings"
 )
 
 const (
@@ -16,61 +16,66 @@ const (
 	maxExtraCodeSize_CALLARM64        = 16
 	maxExtraCodeSize_ARM64_PCREL_LDST = 24
 	maxExtraCodeSize_PCRELxMOV        = 18
-	maxExtraCodeSize_PCRELxCMPL       = 21
+	maxExtraCodeSize_PCRELxCMPL       = 14
 	maxExtraCodeSize_PCRELxCALL       = 11
-	maxExtraCodeSize_PCRELxJMP        = 14
+	maxExtraCodeSize_PCRELxJMP        = 6
 	maxExtraCodeSize_CALL             = 11
 )
 
 func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
-	// on linux/amd64, mmap force return < 32bit address, don't need add extra instructions
-	if linker.Arch.Name == sys.ArchAMD64.Name && runtime.GOOS == "linux" {
-		return
-	}
 	// Pessimistically pad the function text with extra bytes for any relocations which might add extra
 	// instructions at the end in the case of a 32 bit overflow. These epilogue PCs need to be added to
 	// the PCData, PCLine, PCFile, PCSP etc.
 	for i, reloc := range objsym.Reloc {
-		epilogue := &(objsym.Reloc[i].Epilogue)
-		epilogue.Offset = len(linker.Code) - symbol.Offset
-		switch reloc.Type {
-		case reloctype.R_ADDRARM64:
-			epilogue.Size = maxExtraCodeSize_ADDRARM64
-		case reloctype.R_CALLARM64:
-			epilogue.Size = maxExtraCodeSize_CALLARM64
-		case reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
-			epilogue.Size = maxExtraCodeSize_ARM64_PCREL_LDST
-		case reloctype.R_CALL:
-			epilogue.Size = maxExtraCodeSize_CALL
-		case reloctype.R_PCREL:
-			opCodes := objsym.Data[reloc.Offset-2 : reloc.Offset+reloc.Size]
-			switch opCodes[0] {
-			case x86amd64MOVcode:
-				epilogue.Size = maxExtraCodeSize_PCRELxMOV
-			case x86amd64CMPLcode:
-				epilogue.Size = maxExtraCodeSize_PCRELxCMPL
-			default:
-				switch opCodes[1] {
-				case x86amd64CALLcode:
+		// on linux/amd64, mmap force return < 32bit address,
+		// doesn't need to add extra instructions except relocate symbol is a string.
+		// because string is dynamic allocate in a far address
+		if !isMmapInLowAddress(linker.Arch.Name) || strings.HasPrefix(reloc.SymName, constants.TypeStringPrefix) {
+			epilogue := &(objsym.Reloc[i].Epilogue)
+			epilogue.Offset = len(linker.Code) - symbol.Offset
+			switch reloc.Type {
+			case reloctype.R_ADDRARM64:
+				epilogue.Size = maxExtraCodeSize_ADDRARM64
+			case reloctype.R_CALLARM64:
+				epilogue.Size = maxExtraCodeSize_CALLARM64
+			case reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
+				epilogue.Size = maxExtraCodeSize_ARM64_PCREL_LDST
+			case reloctype.R_CALL:
+				epilogue.Size = maxExtraCodeSize_CALL
+				linker.ExtraData += PtrSize
+			case reloctype.R_PCREL:
+				switch obj.GetOpName(reloc.Op) {
+				case "LEA":
+					linker.ExtraData += PtrSize
+				case "MOV", "MOVUPS", "MOVZ", "MOVZX", "MOVQ", "MOVSD_XMM":
+					epilogue.Size = maxExtraCodeSize_PCRELxMOV
+				case "CMP", "CMPL":
+					epilogue.Size = maxExtraCodeSize_PCRELxCMPL
+				case "CALL":
 					epilogue.Size = maxExtraCodeSize_PCRELxCALL
-				case x86amd64JMPcode:
+					linker.ExtraData += PtrSize
+				case "JMP":
 					epilogue.Size = maxExtraCodeSize_PCRELxJMP
+					linker.ExtraData += PtrSize
+				default:
 				}
+			case reloctype.R_GOTPCREL, reloctype.R_ARM64_GOTPCREL:
+				linker.ExtraData += PtrSize
 			}
-		}
-		if epilogue.Size > 0 {
-			linker.Code = append(linker.Code, createArchNops(linker.Arch, epilogue.Size)...)
+
+			if epilogue.Size > 0 {
+				linker.Code = append(linker.Code, createArchNops(linker.Arch, epilogue.Size)...)
+			}
 		}
 	}
 }
 
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
 	byteorder := linker.Arch.ByteOrder
-	offset := int64(symAddr) + int64(loc.Add) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
+	offset := int64(symAddr) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
 	//overflow
 	if offset >= 1<<32 || offset < -1<<32 {
 		epilogueOffset := loc.Epilogue.Offset
-		symAddr = symAddr + uintptr(loc.Add)
 		if symAddr < 0xFFFFFFFF && loc.Type == reloctype.R_ADDRARM64 {
 			addr := byteorder.Uint32(mCode)
 			//low:	MOV reg imm
@@ -148,90 +153,101 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 	return err
 }
 
-func (linker *Linker) relocateCALL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) {
+func (linker *Linker) relocateCALL(symAddr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) error {
 	byteorder := linker.Arch.ByteOrder
-	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
-	if isOverflowInt32(offset) {
-		segment.dataOff = alignof(segment.dataOff, PtrSize)
-		epilogueOffset := loc.Epilogue.Offset
-		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
-		relocByte[loc.Offset-1] = x86amd64JMPcode
-		copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
-		off := (segment.dataBase + segment.dataOff - segment.codeBase - epilogueOffset - 6)
-		byteorder.PutUint32(segment.codeByte[epilogueOffset+2:], uint32(off))
-		putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr)+uint64(loc.Add))
-		epilogueOffset += len(x86amd64replaceCALLcode)
-		off = addrBase + loc.Offset + loc.Size - segment.codeBase - epilogueOffset
-		byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(off))
-	}
-	byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
-}
-
-func (linker *Linker) relocatePCREL(addr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
-	byteorder := linker.Arch.ByteOrder
-	offset := int(addr) - (addrBase + loc.Offset + loc.Size) + loc.Add
+	offset := int(symAddr) - (addrBase + loc.Offset + loc.Size)
 	if isOverflowInt32(offset) {
 		epilogueOffset := loc.Epilogue.Offset
-		offset = (segment.codeBase + epilogueOffset) - (addrBase + loc.Offset + loc.Size)
-		bytes := relocByte[loc.Offset-2:]
-		opcode := relocByte[loc.Offset-2]
-		register := ZeroByte
-		if opcode == x86amd64LEAcode {
-			bytes[0] = x86amd64MOVcode
-			//not append epilogue for LEA, put the address into data segment.
-			offset = (segment.dataBase + segment.dataOff) - (addrBase + loc.Offset + loc.Size)
-		} else if opcode == x86amd64MOVcode && loc.Size >= Uint32Size {
-			register = (relocByte[loc.Offset-1] >> 3) & 0x7
-			copy(bytes, append(x86amd64NOPcode, x86amd64JMPNcode...))
-		} else if opcode == x86amd64CMPLcode && loc.Size >= Uint32Size {
-			copy(bytes, append(x86amd64NOPcode, x86amd64JMPNcode...))
-		} else if (bytes[1] == x86amd64CALLcode) && byteorder.Uint32(relocByte[loc.Offset:]) == 0 {
-			opcode = bytes[1]
-		} else if bytes[1] == x86amd64JMPcode {
-			opcode = bytes[1]
-		} else {
-			return fmt.Errorf("do not support x86 opcode: %x for symbol %s (offset %d)!\n", relocByte[loc.Offset-2:loc.Offset], loc.SymName, offset)
-		}
-		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
-		switch opcode {
-		case x86amd64CMPLcode:
-			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPLcode)
-			segment.codeByte[epilogueOffset+0x11] = relocByte[loc.Offset+loc.Size]
-			putAddress(byteorder, segment.codeByte[epilogueOffset+3:], uint64(addr)+uint64(loc.Add))
-			epilogueOffset += len(x86amd64replaceCMPLcode)
-		case x86amd64MOVcode:
-			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVQcode)
-			segment.codeByte[epilogueOffset+1] |= register
-			segment.codeByte[epilogueOffset+0xC] |= register | (register << 3)
-			putAddress(byteorder, segment.codeByte[epilogueOffset+2:], uint64(addr)+uint64(loc.Add))
-			epilogueOffset += len(x86amd64replaceMOVQcode)
-		case x86amd64CALLcode:
-			segment.dataOff = alignof(segment.dataOff, PtrSize)
-			bytes[1] = x86amd64JMPcode
+		switch obj.GetOpName(loc.Op) {
+		case "CALL":
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
-			off := (segment.dataBase + segment.dataOff - segment.codeBase - epilogueOffset - 6)
+			off := segment.dataBase + segment.dataOff - (segment.codeBase + epilogueOffset + len(x86amd64CALLcode))
 			byteorder.PutUint32(segment.codeByte[epilogueOffset+2:], uint32(off))
+			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(symAddr))
 			epilogueOffset += len(x86amd64replaceCALLcode)
-			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr)+uint64(loc.Add))
-			off = addrBase + loc.Offset + loc.Size - segment.codeBase - epilogueOffset
+			off = addrBase + loc.GetEnd() - segment.codeBase - epilogueOffset
 			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(off))
-		case x86amd64JMPcode:
+			fillCode(relocByte, loc, x86amd64JMPNcode, byteorder, loc.Epilogue.Offset-loc.GetEnd())
+		case "JMP":
 			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
 			epilogueOffset += len(x86amd64JMPLcode)
-			copy2Slice(segment.codeByte[epilogueOffset:], addr, PtrSize)
-			epilogueOffset += PtrSize
-		case x86amd64LEAcode:
-			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr)+uint64(loc.Add))
+			off := segment.dataBase + segment.dataOff - (segment.codeBase + epilogueOffset)
+			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(off))
+			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(symAddr))
+			byteorder.PutUint32(relocByte[loc.Offset:], uint32(epilogueOffset-loc.GetEnd()))
 		default:
-			return fmt.Errorf("unexpected x86 opcode %x: %x for symbol %s (offset %d)!\n", opcode, relocByte[loc.Offset-2:loc.Offset], loc.SymName, offset)
+			return fmt.Errorf("do not support x86 opcode:%s(Inst:%x) for symbol %s on CALL!\n", obj.GetOpName(loc.Op), loc.Text, loc.SymName)
 		}
+	} else {
+		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+	}
 
-		switch opcode {
-		case x86amd64CMPLcode, x86amd64MOVcode:
-			copy(segment.codeByte[epilogueOffset:], x86amd64JMPNcode)
-			epilogueOffset += len(x86amd64JMPNcode)
-			returnOffset := (loc.Offset + loc.Size - loc.Add) - epilogueOffset
-			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(returnOffset))
+	return nil
+}
+
+func fillCode(relocByte []byte, reloc obj.Reloc, codes []byte, byteorder binary.ByteOrder, offset int) {
+	if len(reloc.Text) < len(codes) {
+		panic("not enough space for replace codes")
+	}
+
+	startPc := reloc.GetStart()
+	for n := 0; n < len(reloc.Text)-len(codes); n++ {
+		relocByte[startPc] = x86amd64NOPcode
+		startPc++
+	}
+	copy(relocByte[startPc:], codes)
+	byteorder.PutUint32(relocByte[reloc.GetEnd()-Uint32Size:], uint32(offset))
+}
+
+func (linker *Linker) relocatePCREL(symAddr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {
+	byteorder := linker.Arch.ByteOrder
+	offset := int(symAddr) - (addrBase + loc.Offset + loc.Size)
+	if isOverflowInt32(offset) {
+		epilogueOffset := loc.Epilogue.Offset
+		switch obj.GetOpName(loc.Op) {
+		case "LEA":
+			relocByte[loc.Offset-2] = x86amd64MOVcode
+			//not append epilogue for LEA, put the address into data segment.
+			offset = (segment.dataBase + segment.dataOff) - (addrBase + loc.GetEnd())
+			byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(symAddr))
+		case "MOV", "MOVUPS", "MOVZ", "MOVZX", "MOVQ", "MOVSD_XMM":
+			register := (relocByte[loc.Offset-1] >> 3) & 0x7
+			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVcode)
+			if obj.IsExtraRegister(loc.Args[0]) {
+				segment.codeByte[epilogueOffset] = 0x49
+				segment.codeByte[epilogueOffset+10] = 0x4d
+			}
+			segment.codeByte[epilogueOffset+1] |= register
+			segment.codeByte[epilogueOffset+12] |= register | (register << 3)
+			putAddress(byteorder, segment.codeByte[epilogueOffset+2:], uint64(symAddr))
+			epilogueOffset += len(x86amd64replaceMOVcode)
+			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(loc.GetEnd()-epilogueOffset))
+			fillCode(relocByte, loc, x86amd64JMPNcode, byteorder, loc.Epilogue.Offset-loc.GetEnd())
+		case "CMP", "CMPL":
+			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCMPcode)
+			byteorder.PutUint32(segment.codeByte[epilogueOffset+4:], uint32(symAddr))
+			segment.codeByte[epilogueOffset+8] = relocByte[loc.Offset+loc.Size]
+			epilogueOffset += len(x86amd64replaceCMPcode)
+			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(loc.GetEnd()-epilogueOffset))
+			fillCode(relocByte, loc, x86amd64JMPNcode, byteorder, loc.Epilogue.Offset-loc.GetEnd())
+		case "JMP":
+			byteorder.PutUint32(relocByte[loc.Offset:], uint32(epilogueOffset-loc.GetEnd()))
+			copy(segment.codeByte[epilogueOffset:], x86amd64JMPLcode)
+			epilogueOffset += len(x86amd64JMPLcode)
+			off := segment.dataBase + segment.dataOff - (segment.codeBase + epilogueOffset)
+			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(off))
+			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(symAddr))
+		case "CALL":
+			copy(segment.codeByte[epilogueOffset:], x86amd64replaceCALLcode)
+			off := segment.dataBase + segment.dataOff - (segment.codeBase + epilogueOffset + len(x86amd64CALLcode))
+			byteorder.PutUint32(segment.codeByte[epilogueOffset+2:], uint32(off))
+			epilogueOffset += len(x86amd64replaceCALLcode)
+			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(symAddr))
+			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(loc.GetEnd()-epilogueOffset))
+			fillCode(relocByte, loc, x86amd64JMPNcode, byteorder, loc.Epilogue.Offset-loc.GetEnd())
+		default:
+			return fmt.Errorf("do not support x86 opcode:%s(Inst:%x) for symbol %s on PCREL!\n", obj.GetOpName(loc.Op), loc.Text, loc.SymName)
 		}
 	} else {
 		byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
@@ -275,11 +291,11 @@ func (linker *Linker) relocteCALLARM(addr uintptr, loc obj.Reloc, segment *segme
 
 func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[string]uintptr) (err error) {
 	segment := &codeModule.segment
-	byteorder := linker.Arch.ByteOrder
+	byteOrder := linker.Arch.ByteOrder
 	tlsOffset := uint32(tls.GetTLSOffset(linker.Arch, linker.Arch.PtrSize))
 	for _, symbol := range linker.SymMap {
 		for _, loc := range symbol.Reloc {
-			addr := symbolMap[loc.SymName]
+			symAddr := symbolMap[loc.SymName]
 			relocByte := segment.dataByte
 			addrBase := segment.dataBase
 			if symbol.Kind == symkind.STEXT {
@@ -287,28 +303,28 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				relocByte = segment.codeByte
 			}
 
-			if addr != InvalidHandleValue {
+			if symAddr != InvalidHandleValue {
+				symAddr = uintptr(int(symAddr) + loc.Add)
 				switch loc.Type {
 				case reloctype.R_TLS_LE, reloctype.R_TLS_IE:
-					byteorder.PutUint32(relocByte[loc.Offset:], tlsOffset)
+					byteOrder.PutUint32(relocByte[loc.Offset:], tlsOffset)
 				case reloctype.R_CALL, reloctype.R_CALL | reloctype.R_WEAK:
-					linker.relocateCALL(addr, loc, segment, relocByte, addrBase)
+					err = linker.relocateCALL(symAddr, loc, segment, relocByte, addrBase)
 				case reloctype.R_PCREL:
-					err = linker.relocatePCREL(addr, loc, segment, relocByte, addrBase)
+					err = linker.relocatePCREL(symAddr, loc, segment, relocByte, addrBase)
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALLARM64 | reloctype.R_WEAK:
-					linker.relocteCALLARM(addr, loc, segment)
+					linker.relocteCALLARM(symbolMap[loc.SymName], loc, segment)
 				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 					if symbol.Kind != symkind.STEXT {
 						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", loc.SymName)
 					}
-					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, addr)
+					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, symAddr)
 				case reloctype.R_ADDR, reloctype.R_WEAKADDR:
-					address := uintptr(int(addr) + loc.Add)
-					putAddress(byteorder, relocByte[loc.Offset:], uint64(address))
+					putAddress(byteOrder, relocByte[loc.Offset:], uint64(symAddr))
 				case reloctype.R_CALLIND:
 					//nothing todo
 				case reloctype.R_ADDROFF, reloctype.R_WEAKADDROFF:
-					offset := int(addr) - addrBase + loc.Add
+					offset := int(symAddr) - addrBase
 					if isOverflowInt32(offset) {
 						if sym, ok := linker.SymMap[loc.SymName]; ok {
 							offset = sym.Offset + loc.Add
@@ -316,12 +332,12 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 							err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
 						}
 					}
-					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+					byteOrder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_METHODOFF:
 					if linker.SymMap[loc.SymName].Kind == symkind.STEXT {
 						addrBase = segment.codeBase
 					}
-					offset := int(addr) - addrBase + loc.Add
+					offset := int(symAddr) - addrBase
 					if isOverflowInt32(offset) {
 						if sym, ok := linker.SymMap[loc.SymName]; ok {
 							offset = sym.Offset + loc.Add
@@ -329,11 +345,11 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 							err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
 						}
 					}
-					byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+					byteOrder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_GOTPCREL, reloctype.R_ARM64_GOTPCREL:
-					offset := uint32(segment.dataBase + segment.dataOff - addrBase - loc.Offset - loc.Size)
-					byteorder.PutUint32(relocByte[loc.Offset:], offset)
-					putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(addr))
+					offset := uint32(segment.dataBase + segment.dataOff - (addrBase + loc.GetEnd()))
+					byteOrder.PutUint32(relocByte[loc.Offset:], offset)
+					putAddressAddOffset(byteOrder, segment.dataByte, &segment.dataOff, uint64(symAddr))
 				case reloctype.R_USETYPE,
 					reloctype.R_USEIFACE,
 					reloctype.R_USEIFACEMETHOD,
