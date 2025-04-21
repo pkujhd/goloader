@@ -10,20 +10,18 @@ func (linker *Linker) RegisterCgoSymbols(symPtr map[string]uintptr) error {
 		soNameMap[cgoImport.SoName] = cgoImport.SoName
 	}
 
+	soMap := make(map[string]uintptr, 0)
 	for _, soName := range soNameMap {
-		_, err := libdl.Open(soName)
+		h, err := libdl.Open(soName)
 		if err != nil {
 			return err
+		} else {
+			soMap[soName] = h
 		}
 	}
 
-	handle, err := libdl.Open(EmptyString)
-	if err != nil {
-		return err
-	}
-
 	for _, cgoImport := range linker.CgoImportMap {
-		ptr, err := libdl.LookupSymbol(handle, cgoImport.CSymName)
+		ptr, err := libdl.LookupSymbol(soMap[cgoImport.SoName], cgoImport.CSymName)
 		if err != nil {
 			return err
 		}
