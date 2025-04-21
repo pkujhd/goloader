@@ -28,26 +28,30 @@ type itabTableType struct {
 	entries [itabInitSize]*itab // really [size] large
 }
 
-//go:linkname itabTable runtime.itabTable
-var itabTable *itabTableType // pointer to current table
+//go:linkname _itabTable runtime.itabTable
+var _itabTable uintptr // pointer to current table
 
-//go:linkname itabLock runtime.itabLock
-var itabLock mutex
+var itabTable *itabTableType = (*itabTableType)(unsafe.Pointer(_itabTable))
+
+//go:linkname _itabLock runtime.itabLock
+var _itabLock uintptr
+
+var itabLock *mutex = (*mutex)(unsafe.Pointer(&_itabLock))
 
 //go:linkname itabAdd runtime.itabAdd
 func itabAdd(m *itab)
 
 func additabs(module *moduledata) {
-	lock(&itabLock)
+	lock(itabLock)
 	for _, itab := range module.itablinks {
 		itabAdd(itab)
 	}
-	unlock(&itabLock)
+	unlock(itabLock)
 }
 
 func removeitabs(module *moduledata) bool {
-	lock(&itabLock)
-	defer unlock(&itabLock)
+	lock(itabLock)
+	defer unlock(itabLock)
 
 	for i := uintptr(0); i < itabTable.size; i++ {
 		p := (**itab)(add(unsafe.Pointer(&itabTable.entries), i*PtrSize))
