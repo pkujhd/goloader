@@ -66,3 +66,11 @@ func removeitabs(module *moduledata) bool {
 	}
 	return true
 }
+
+func addItab(m *itab) {
+	lock(&ifaceLock)
+	if m.inhash == 0 {
+		additab(m, true, false)
+	}
+	unlock(&ifaceLock)
+}

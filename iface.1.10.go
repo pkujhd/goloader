@@ -69,3 +69,9 @@ func removeitabs(module *moduledata) bool {
 	}
 	return true
 }
+
+func addItab(m *itab) {
+	lock(itabLock)
+	itabAdd(m)
+	unlock(itabLock)
+}
