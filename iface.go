@@ -59,3 +59,25 @@ func validateInterface(symPtr map[string]uintptr, name string) bool {
 	}
 	return false
 }
+
+func hasInvalidMethod(typ *_type, methods map[string]string) bool {
+	uncommon := _uncommon(typ)
+	if uncommon != nil {
+		for _, m := range uncommon.methods() {
+			if m.ifn == constants.InvalidMethodOff {
+				methodName := typ.nameOff(m.name).Name()
+				methodTypeName := EmptyString
+				if m.mtyp != constants.InvalidTypeOff && m.mtyp != constants.UnReachableTypeOff {
+					_typ := typ.typeOff(m.mtyp)
+					methodTypeName = constants.TypePrefix + _typ.String()
+				}
+				if mType, ok := methods[methodName]; ok {
+					if methodTypeName == mType || methodTypeName == EmptyString {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
