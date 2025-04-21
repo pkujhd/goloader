@@ -115,6 +115,7 @@ func (pkg *Pkg) Symbols() error {
 		case archive.EntryPkgDef:
 			//nothing todo
 		case archive.EntryGoObj:
+			pkg.Arch = e.Obj.Arch
 			fields := strings.Fields(string(e.Obj.TextHeader))
 			for index, field := range fields {
 				if field == "cgo" {
@@ -157,7 +158,6 @@ func (pkg *Pkg) Symbols() error {
 				path = path[:len(path)-len(filepath.Ext(path))]
 				pkg.ImportPkgs = append(pkg.ImportPkgs, path)
 			}
-			pkg.Arch = e.Obj.Arch
 			goArchive.entryId++
 		case archive.EntryNativeObj:
 			//CGo files must be parsed by an elf/macho etc. native reader
@@ -174,12 +174,12 @@ func (pkg *Pkg) AddCgoFuncs(cgoFuncs map[string]int) {
 		r := goArchive.entries[objIndex].r
 		// cgo function wrapper
 		for i, sym := range goArchive.entries[objIndex].syms {
-			if !isRef(r, i) && !IsHasTypePrefix(sym.Name) && sym.Kind == symkind.STEXT && sym.ABI == uint(obj.ABIInternal) {
+			if !isRef(r, i) && !isTypeName(sym.Name) && sym.Kind == symkind.STEXT && sym.ABI == uint(obj.ABIInternal) {
 				if index, ok := goArchive.symVersions[obj.ABI0][sym.Name]; ok {
 					nsym := goArchive.entries[index.entryIndex].syms[index.symbolIndex]
 					cgoFuncs[sym.Name] = nsym.Kind
-					if (nsym.Func != nil && nsym.Func.FuncID == uint8(objabi.GetFuncID(``, true))) ||
-						sym.Func.FuncID == uint8(objabi.GetFuncID(``, true)) {
+
+					if (nsym.Func != nil && isWrapperFunctionID(nsym.Func.FuncID)) || isWrapperFunctionID(sym.Func.FuncID) {
 						sym.Name = sym.Name + ABIINTERNAL_SUFFIX
 						nsym.Name = nsym.Name + ABI0_SUFFIX
 					}
@@ -359,4 +359,9 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, goArchive *Archive) *ObjSy
 	}
 
 	return &symbol
+}
+
+//go:inline
+func isWrapperFunctionID(aFuncId uint8) bool {
+	return aFuncId == uint8(objabi.GetFuncID(``, true))
 }

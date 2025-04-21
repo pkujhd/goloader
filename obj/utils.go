@@ -52,16 +52,6 @@ func replacePkgPath(sym *ObjSymbol, pkgpath string) {
 }
 
 //go:inline
-func IsHasTypePrefix(name string) bool {
-	return strings.HasPrefix(name, constants.TypePrefix)
-}
-
-//go:inline
-func IsHasItabPrefix(name string) bool {
-	return strings.HasPrefix(name, constants.ItabPrefix)
-}
-
-//go:inline
-func IsHasStringPrefix(name string) bool {
-	return strings.HasPrefix(name, constants.TypeStringPrefix)
+func isTypeName(aName string) bool {
+	return strings.HasPrefix(aName, constants.TypePrefix) && !strings.HasPrefix(aName, constants.TypeDoubleDotPrefix)
 }
