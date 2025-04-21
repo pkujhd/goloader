@@ -174,7 +174,7 @@ func (linker *Linker) relocateCALL(symAddr uintptr, loc obj.Reloc, segment *segm
 			off := segment.dataBase + segment.dataOff - (segment.codeBase + epilogueOffset)
 			byteorder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(off))
 			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(symAddr))
-			byteorder.PutUint32(relocByte[loc.Offset:], uint32(epilogueOffset-loc.GetEnd()))
+			byteorder.PutUint32(relocByte[loc.Offset:], uint32(loc.Epilogue.Offset-loc.GetEnd()))
 		default:
 			return fmt.Errorf("do not support x86 opcode:%s(Inst:%x) for symbol %s on CALL!\n", obj.GetOpName(loc.Op), loc.Text, loc.SymName)
 		}
