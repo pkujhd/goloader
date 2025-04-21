@@ -1,6 +1,7 @@
 package goloader
 
 import (
+	"github.com/pkujhd/goloader/obj"
 	"strings"
 	"unsafe"
 
@@ -58,6 +59,32 @@ func validateInterface(symPtr map[string]uintptr, name string) bool {
 		return true
 	}
 	return false
+}
+
+func getUnimplementedInterfaceType(symbol *obj.Sym, symPtr map[string]uintptr) []string {
+	methods := make(map[string]string)
+	for i := len(symbol.Reloc) - 1; i > 0; i -= 2 {
+		if strings.Contains(symbol.Reloc[i].SymName, constants.TypeImportPathPrefix) {
+			break
+		}
+		methodName := strings.TrimSuffix(strings.TrimPrefix(symbol.Reloc[i-1].SymName, constants.TypeNameDataPrefix), ".")
+		methods[methodName] = symbol.Reloc[i].SymName
+	}
+
+	if len(methods) == 0 {
+		return nil
+	}
+
+	typeNames := make([]string, 0)
+	for typeName, p := range symPtr {
+		if isTypeName(typeName) {
+			typ := (*_type)(unsafe.Pointer(p))
+			if isTypeImpleltementMethods(typ, methods) && hasInvalidMethod(typ, methods) {
+				typeNames = append(typeNames, typeName)
+			}
+		}
+	}
+	return typeNames
 }
 
 func isTypeImpleltementMethods(typ *_type, methods map[string]string) bool {
