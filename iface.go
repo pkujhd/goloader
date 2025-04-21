@@ -1,6 +1,11 @@
 package goloader
 
-import "unsafe"
+import (
+	"strings"
+	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
+)
 
 // Mutual exclusion locks.  In the uncontended case,
 // as fast as spin locks (just a few user-level instructions),
@@ -21,3 +26,36 @@ func unlock(l *mutex)
 
 //go:linkname atomicstorep runtime.atomicstorep
 func atomicstorep(ptr unsafe.Pointer, new unsafe.Pointer)
+
+//go:linkname getitab runtime.getitab
+func getitab(inter *interfacetype, typ *_type, canfail bool) *itab
+
+func validateInterface(symPtr map[string]uintptr, name string) bool {
+	result := strings.Split(name, ",")
+	interTypeName := constants.TypePrefix + result[1]
+	inter := (*interfacetype)(unsafe.Pointer(symPtr[interTypeName]))
+	typeName := constants.TypePrefix + strings.TrimPrefix(result[0], constants.ItabPrefix)
+	typ := (*_type)(unsafe.Pointer(symPtr[typeName]))
+
+	if inter != nil && typ != nil {
+		x := typ.uncommon()
+		off := add(unsafe.Pointer(x), uintptr(x.moff))
+		ni := len(inter.mhdr)
+		methods := (*[1 << 16]unsafe.Pointer)(unsafe.Pointer(off))[:ni:ni]
+		for i := 0; i < ni; i++ {
+			if uintptr(methods[i]) == InvalidHandleValue {
+				return false
+			}
+		}
+		nt := int(x.mcount)
+		xmhdr := (*[1 << 16]method)(add(unsafe.Pointer(x), uintptr(x.moff)))[:nt:nt]
+		for k := 0; k < nt; k++ {
+			t := &xmhdr[k]
+			if int(t.ifn) == InvalidOffset || int(t.tfn) == InvalidOffset {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
