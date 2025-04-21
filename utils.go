@@ -228,3 +228,8 @@ func isX86_64(archName string) bool {
 func isTypeName(aName string) bool {
 	return strings.HasPrefix(aName, constants.TypePrefix) && !strings.HasPrefix(aName, constants.TypeDoubleDotPrefix)
 }
+
+//go:inline
+func isItabName(aName string) bool {
+	return strings.HasPrefix(aName, constants.ItabPrefix)
+}
