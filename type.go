@@ -81,6 +81,12 @@ func (t *uncommonType) methods() []method {
 	return (*[1 << 16]method)(add(unsafe.Pointer(t), uintptr(t.moff)))[:t.mcount:t.mcount]
 }
 
+//go:linkname _nameOff reflect.(*rtype).nameOff
+func _nameOff(t *_type, off nameOff) obj.Name
+
+//go:linkname _typeOff reflect.(*rtype).typeOff
+func _typeOff(t *_type, off typeOff) *_type
+
 //go:linkname _uncommon reflect.(*rtype).uncommon
 func _uncommon(t *_type) *uncommonType
 
@@ -139,6 +145,8 @@ func _PkgPath(t *_type) string
 func typelinksinit()
 
 func (t *_type) uncommon() *uncommonType         { return _uncommon(t) }
+func (t *_type) nameOff(off nameOff) obj.Name    { return _nameOff(t, off) }
+func (t *_type) typeOff(off typeOff) *_type      { return _typeOff(t, off) }
 func (t *_type) Kind() reflect.Kind              { return _Kind(t) }
 func (t *_type) NumField() int                   { return _NumField(t) }
 func (t *_type) Field(i int) reflect.StructField { return _Field(t, i) }
