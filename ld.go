@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -68,20 +69,21 @@ type LinkerData struct {
 
 type Linker struct {
 	LinkerData
-	SymMap        map[string]*obj.Sym
-	ObjSymbolMap  map[string]*obj.ObjSymbol
-	NameMap       map[string]int
-	StringMap     map[string]*string
-	CgoImportMap  map[string]*obj.CgoImport
-	CgoFuncs      map[string]int
-	Filetab       []uint32
-	Pclntable     []byte
-	Funcs         []*_func
-	Packages      map[string]*obj.Pkg
-	Arch          *sys.Arch
-	CUOffset      int32
-	ExtraData     int
-	AdaptedOffset bool
+	SymMap             map[string]*obj.Sym
+	ObjSymbolMap       map[string]*obj.ObjSymbol
+	NameMap            map[string]int
+	StringMap          map[string]*string
+	CgoImportMap       map[string]*obj.CgoImport
+	CgoFuncs           map[string]int
+	UnImplementedTypes map[string]map[string]int
+	Filetab            []uint32
+	Pclntable          []byte
+	Funcs              []*_func
+	Packages           map[string]*obj.Pkg
+	Arch               *sys.Arch
+	CUOffset           int32
+	ExtraData          int
+	AdaptedOffset      bool
 }
 
 var (
@@ -92,16 +94,17 @@ var (
 // initialize Linker
 func initLinker() *Linker {
 	linker := &Linker{
-		SymMap:        make(map[string]*obj.Sym),
-		ObjSymbolMap:  make(map[string]*obj.ObjSymbol),
-		NameMap:       make(map[string]int),
-		StringMap:     make(map[string]*string),
-		CgoImportMap:  make(map[string]*obj.CgoImport),
-		CgoFuncs:      make(map[string]int),
-		Packages:      make(map[string]*obj.Pkg),
-		CUOffset:      0,
-		ExtraData:     0,
-		AdaptedOffset: false,
+		SymMap:             make(map[string]*obj.Sym),
+		ObjSymbolMap:       make(map[string]*obj.ObjSymbol),
+		NameMap:            make(map[string]int),
+		StringMap:          make(map[string]*string),
+		CgoImportMap:       make(map[string]*obj.CgoImport),
+		CgoFuncs:           make(map[string]int),
+		UnImplementedTypes: make(map[string]map[string]int),
+		Packages:           make(map[string]*obj.Pkg),
+		CUOffset:           0,
+		ExtraData:          0,
+		AdaptedOffset:      false,
 	}
 	linker.Pclntable = make([]byte, PCHeaderSize)
 	return linker
@@ -180,7 +183,7 @@ func (linker *Linker) adaptSymbolOffset() {
 }
 
 func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol *obj.Sym, err error) {
-	if symbol, ok := linker.SymMap[name]; ok {
+	if symbol, ok := linker.SymMap[name]; ok && symbol.Offset != InvalidOffset {
 		return symbol, nil
 	}
 	objsym := linker.ObjSymbolMap[name]
@@ -601,6 +604,23 @@ func UnresolvedSymbols(linker *Linker, symPtr map[string]uintptr) []string {
 		}
 	}
 	return unresolvedSymbols
+}
+
+func CheckUnimplementedInterface(linker *Linker, symPtr map[string]uintptr) map[string]map[string]int {
+	for _, sym := range linker.SymMap {
+		if isTypeName(sym.Name) && sym.Offset != InvalidOffset {
+			typ := (*_type)(unsafe.Pointer(&(linker.Noptrdata[sym.Offset])))
+			if typ.Kind() == reflect.Interface {
+				for _, typeName := range getUnimplementedInterfaceType(linker.SymMap[sym.Name], symPtr) {
+					if _, ok := linker.UnImplementedTypes[typeName]; !ok {
+						linker.UnImplementedTypes[typeName] = make(map[string]int, 0)
+					}
+					linker.UnImplementedTypes[typeName][sym.Name] = 1
+				}
+			}
+		}
+	}
+	return linker.UnImplementedTypes
 }
 
 func (cm *CodeModule) Unload() {
