@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"strings"
 	"unsafe"
 )
 
@@ -261,4 +262,43 @@ func registerTypesInExe(symPtr map[string]uintptr, path string) error {
 	default:
 		panic(fmt.Errorf("unsupported platform:%s", runtime.GOOS))
 	}
+}
+
+func RegSymbolWithPath(symPtr map[string]uintptr, path string) error {
+	/*
+		register types and functions in exe file, the address of symbol not used for relocate, just for builder check reachable
+	*/
+	err := registerTypesInExe(symPtr, path)
+	if err != nil {
+		return err
+	}
+	return regSymbolInExe(symPtr, path)
+}
+
+func regSymbolInExe(symPtr map[string]uintptr, path string) error {
+	f, err := objfile.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	syms, err := f.Symbols()
+	if err != nil {
+		return err
+	}
+
+	for _, sym := range syms {
+		code := strings.ToUpper(string(sym.Code))
+		if code == "B" || code == "D" || code == "T" || code == "R" {
+			if isItabName(sym.Name) {
+				if validateInterface(symPtr, sym.Name) {
+					symPtr[sym.Name] = uintptr(sym.Addr)
+				}
+			} else if !strings.HasPrefix(sym.Name, DefaultPkgPath) && !isTypeName(sym.Name) {
+				symPtr[sym.Name] = uintptr(sym.Addr)
+			}
+		}
+
+	}
+	return nil
 }

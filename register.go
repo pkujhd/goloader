@@ -88,16 +88,7 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 
 func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
 	typelinksRegister(symPtr)
-	return regSymbol(symPtr, path)
-}
-
-func RegSymbolWithPath(symPtr map[string]uintptr, path string) error {
-	//register types and functions in exe file, the address of symbol not used for relocateaaa, just
-	//for builder check reachable
-	err := registerTypesInExe(symPtr, path)
-	if err != nil {
-		return err
-	}
+	ftabRegister(symPtr, &firstmoduledata)
 	return regSymbol(symPtr, path)
 }
 
@@ -132,11 +123,10 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OsStdout])
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
-		if code == "B" || code == "D" {
-			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
-		}
-		if code == "R" && !strings.HasPrefix(sym.Name, DefaultPkgPath) {
-			symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
+		if code == "B" || code == "D" || code == "T" || code == "R" {
+			if !strings.HasPrefix(sym.Name, DefaultPkgPath) {
+				symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
+			}
 		}
 	}
 	return nil
