@@ -175,11 +175,21 @@ func (pkg *Pkg) AddCgoFuncs(cgoFuncs map[string]int) {
 		// cgo function wrapper
 		for i, sym := range goArchive.entries[objIndex].syms {
 			if !isRef(r, i) && !isTypeName(sym.Name) && sym.Kind == symkind.STEXT && sym.ABI == uint(obj.ABIInternal) {
-				if index, ok := goArchive.symVersions[obj.ABI0][sym.Name]; ok {
+				if index, ok := goArchive.symVersions[obj.ABI0][sym.Name]; ok && !isRef(goArchive.entries[index.entryIndex].r, index.symbolIndex) {
 					nsym := goArchive.entries[index.entryIndex].syms[index.symbolIndex]
 					cgoFuncs[sym.Name] = nsym.Kind
 
 					if (nsym.Func != nil && isWrapperFunctionID(nsym.Func.FuncID)) || isWrapperFunctionID(sym.Func.FuncID) {
+						pkg.Syms[sym.Name] = &ObjSymbol{
+							Name:  nsym.Name,
+							Kind:  nsym.Kind,
+							Size:  nsym.Size,
+							Data:  nsym.Data,
+							Type:  nsym.Type,
+							Reloc: nsym.Reloc,
+							Func:  nsym.Func,
+							ABI:   nsym.ABI,
+						}
 						sym.Name = sym.Name + ABIINTERNAL_SUFFIX
 						nsym.Name = nsym.Name + ABI0_SUFFIX
 					}
