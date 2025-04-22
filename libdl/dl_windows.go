@@ -5,26 +5,24 @@ package libdl
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
+	"unsafe"
 )
 
-var (
-	modkernel32 *syscall.DLL
-)
-
-func Open(symName string) (uintptr, error) {
-	if modkernel32 == nil {
-		var err error
-		modkernel32, err = syscall.LoadDLL("kernel32.dll")
-		if err != nil {
-			return 0, fmt.Errorf("could not open kernel32.dll")
-		}
+func Open(dllName string) (uintptr, error) {
+	dll, err := syscall.LoadDLL(dllName)
+	if err != nil {
+		return 0, fmt.Errorf("could not open ", dllName)
 	}
-	return 0, nil
+	return uintptr(unsafe.Pointer(dll)), nil
 }
 
 func LookupSymbol(h uintptr, symName string) (uintptr, error) {
-	proc, err := modkernel32.FindProc(symName)
+	index := strings.Index(symName, "%")
+	symName = symName[:index]
+	dll := (*syscall.DLL)(unsafe.Pointer(h))
+	proc, err := dll.FindProc(symName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to lookup symbol %s: %w", symName, err)
 	}
