@@ -135,3 +135,23 @@ func hasInvalidMethod(typ *_type, methods map[string]string) bool {
 	}
 	return false
 }
+
+/*
+in golang linker, if a method in types not used, it is deleted by dead code checker.
+if the method is loaded by the goloader, the goloader needs to add a fake itab for avoiding panic in getitab
+*/
+func addFakeItabs(symMap map[string]*obj.Sym, symbolMap, symPtr map[string]uintptr, unImplementedTypes map[string]map[string]int, codeModule *CodeModule) {
+	for typ, interMap := range unImplementedTypes {
+		for inter := range interMap {
+			if symPtr[typ] != uintptr(0) && symMap[typ] != nil && symbolMap[inter] != uintptr(0) {
+				interType := (*interfacetype)(unsafe.Pointer(symbolMap[inter]))
+				typType := (*_type)(unsafe.Pointer(uintptr(symMap[typ].Offset + codeModule.dataBase)))
+				m := getitab(interType, typType, true)
+				if m != nil {
+					m._type = (*_type)(unsafe.Pointer(symPtr[typ]))
+					addItab(m)
+				}
+			}
+		}
+	}
+}

@@ -439,7 +439,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	return err
 }
 
-func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]uintptr) (err error) {
+func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	module := codeModule.module
 	module.pclntable = append(module.pclntable, linker.Pclntable...)
@@ -518,6 +518,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap map[string]u
 	moduledataverify1(codeModule.module)
 	modulesinit()
 	typelinksinit()
+	addFakeItabs(linker.SymMap, symbolMap, symPtr, linker.UnImplementedTypes, codeModule)
 	additabs(codeModule.module)
 
 	return err
@@ -574,7 +575,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	var symbolMap map[string]uintptr
 	if symbolMap, err = linker.addSymbolMap(symPtr, codeModule); err == nil {
 		if err = linker.relocate(codeModule, symbolMap, symPtr); err == nil {
-			if err = linker.buildModule(codeModule, symbolMap); err == nil {
+			if err = linker.buildModule(codeModule, symbolMap, symPtr); err == nil {
 				MakeThreadJITCodeExecutable(uintptr(codeModule.codeBase), codeSeg.maxLen)
 				if err = linker.doInitialize(symPtr, symbolMap); err == nil {
 					return codeModule, err
