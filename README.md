@@ -34,7 +34,7 @@ First, execute the following command, then do build and test. This is because Go
 
 ## Examples
 
-#Build Loader:
+#### Build Loader:
 
 If use go version >= 1.23
 ```
@@ -46,7 +46,7 @@ If use go version <= 1.22
 ```
 
 
-#Compile Object File and Run:
+#### Compile Object File and Run:
 
 If use go module or go version >= 1.20
 ```
@@ -73,7 +73,7 @@ If use go path and go version < 1.20
 ```
 
 
-#Build multiple go files
+#### Build multiple go files
 ```
   go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go test2.go
   ./loader -o test.o -run main.main
