@@ -3,7 +3,6 @@ package goloader
 import (
 	"cmd/objfile/objfile"
 	"debug/elf"
-	"debug/gosym"
 	"debug/macho"
 	"debug/pe"
 	"encoding/binary"
@@ -14,34 +13,44 @@ import (
 	"unsafe"
 )
 
-type typedata struct {
+type typeData struct {
 	data      []byte
-	saddr     uintptr
-	naddr     uintptr
+	sAddr     uintptr
+	nAddr     uintptr
 	byteOrder binary.ByteOrder
 	adapted   map[int32]int32
 }
 
-func (td *typedata) adaptPtr(dataOff int) uintptr {
+type exeFileData struct {
+	md            *moduledata
+	typesSectData *[]byte
+	textSectData  *[]byte
+	dataSectData  *[]byte
+	typData       *typeData
+}
+
+var exeData = exeFileData{md: nil, typesSectData: nil, textSectData: nil, dataSectData: nil, typData: nil}
+
+func (td *typeData) adaptPtr(dataOff int) uintptr {
 	ptr := uintptr(td.byteOrder.Uint64(td.data[dataOff:]))
 	if PtrSize == Uint32Size {
 		ptr = uintptr(td.byteOrder.Uint32(td.data[dataOff:]))
 	}
-	putAddress(td.byteOrder, td.data[dataOff:], uint64(ptr+td.naddr-td.saddr))
-	return ptr + td.naddr - td.saddr
+	putAddress(td.byteOrder, td.data[dataOff:], uint64(ptr+td.nAddr-td.sAddr))
+	return ptr + td.nAddr - td.sAddr
 }
 
-func (td *typedata) adaptType(tl int32) {
+func (td *typeData) adaptType(tl int32) {
 	if _, ok := td.adapted[tl]; ok {
 		return
 	}
 	td.adapted[tl] = tl
-	t := (*_type)(adduintptr(td.naddr, int(tl)))
+	t := (*_type)(adduintptr(td.nAddr, int(tl)))
 	switch t.Kind() {
 	case reflect.Array, reflect.Ptr, reflect.Chan, reflect.Slice:
 		//Element
 		addr := td.adaptPtr(int(tl) + _typeSize)
-		td.adaptType(int32(addr - td.naddr))
+		td.adaptType(int32(addr - td.nAddr))
 	case reflect.Func:
 		f := (*funcType)(unsafe.Pointer(t))
 		inOutCount := f.inCount + f.outCount&(1<<15-1)
@@ -52,36 +61,34 @@ func (td *typedata) adaptType(tl int32) {
 		uadd += int(tl)
 		for i := 0; i < int(inOutCount); i++ {
 			addr := td.adaptPtr(int(uadd + i*PtrSize))
-			td.adaptType(int32(addr - td.naddr))
+			td.adaptType(int32(addr - td.nAddr))
 		}
 	case reflect.Interface:
 		//pkgPath
 		td.adaptPtr(int(tl + int32(_typeSize)))
-		//imethod slice.Data
-		td.adaptPtr(int(tl + int32(_typeSize+PtrSize)))
 	case reflect.Map:
 		//Key
 		addr := td.adaptPtr(int(tl) + _typeSize)
-		td.adaptType(int32(addr - td.naddr))
+		td.adaptType(int32(addr - td.nAddr))
 		//Elem
 		addr = td.adaptPtr(int(tl) + _typeSize + PtrSize)
-		td.adaptType(int32(addr - td.naddr))
+		td.adaptType(int32(addr - td.nAddr))
 		//Bucket
 		addr = td.adaptPtr(int(tl) + _typeSize + PtrSize + PtrSize)
-		td.adaptType(int32(addr - td.naddr))
+		td.adaptType(int32(addr - td.nAddr))
 	case reflect.Struct:
 		//PkgPath
 		td.adaptPtr(int(tl + int32(_typeSize)))
 		s := (*sliceHeader)(unsafe.Pointer(&td.data[tl+int32(_typeSize+PtrSize)]))
 		for i := 0; i < s.Len; i++ {
 			//Filed Name
-			off := s.Data - td.saddr + +uintptr(3*i)*PtrSize
+			off := s.Data - td.sAddr + +uintptr(3*i)*PtrSize
 			td.adaptPtr(int(off))
 			//Field Type
 			addr := td.adaptPtr(int(off + PtrSize))
-			td.adaptType(int32(addr - td.naddr))
+			td.adaptType(int32(addr - td.nAddr))
 		}
-		s.Data = s.Data + td.naddr - td.saddr
+		s.Data = s.Data + td.nAddr - td.sAddr
 	case reflect.Bool,
 		reflect.Int, reflect.Uint,
 		reflect.Int64, reflect.Uint64,
@@ -121,15 +128,51 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 	}
 	typesSym := getSymbolInMacho(machoFile, "runtime.types")
 
-	section := machoFile.Sections[typesSym.Sect-1]
-	sectData, err := section.Data()
+	typesSection := machoFile.Sections[typesSym.Sect-1]
+	typesSectData, err := typesSection.Data()
 	if err != nil {
 		return err
 	}
 
+	textSym := getSymbolInMacho(machoFile, "runtime.text")
+
+	textSection := machoFile.Sections[textSym.Sect-1]
+	textSectData, err := textSection.Data()
+	if err != nil {
+		return err
+	}
+
+	moduledataSym := getSymbolInMacho(machoFile, "runtime.firstmoduledata")
+	noptrDataSect := machoFile.Section("__noptrdata")
+	noptrDataSectData, err := noptrDataSect.Data()
+	if err != nil {
+		return err
+	}
+	md := (*moduledata)(unsafe.Pointer(&noptrDataSectData[moduledataSym.Value-noptrDataSect.Addr]))
+
+	pclntabSect := machoFile.Section("__gopclntab")
+	pclntabSectData, err := pclntabSect.Data()
+	if err != nil {
+		return err
+	}
+	ptr := uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.pclntable[0])))-pclntabSect.Addr]))
+	exeData.md.pclntable = md.pclntable
+	(*sliceHeader)((unsafe.Pointer)(&exeData.md.pclntable)).Data = ptr
+
+	ptr = uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.ftab[0])))-pclntabSect.Addr]))
+	exeData.md.ftab = md.ftab
+	(*sliceHeader)((unsafe.Pointer)(&exeData.md.ftab)).Data = ptr
+
+	updateFuncnameTabInUnix(md, uintptr(pclntabSect.Addr), pclntabSectData)
+
+	ftabRegister(symPtr, exeData.md)
+
 	byteOrder := machoFile.ByteOrder
-	typelinks := *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
-	_registerTypesInExe(symPtr, byteOrder, typelinks, sectData[typesSym.Value-section.Addr:], uintptr(typesSym.Value))
+
+	exeData.typesSectData = &typesSectData
+	exeData.textSectData = &textSectData
+	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
+	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }
 
@@ -155,15 +198,48 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 	}
 	typesSym := getSymbolInElf(elfFile, "runtime.types")
 
-	section := elfFile.Sections[typesSym.Section-1]
-	sectData, err := section.Data()
+	typesSection := elfFile.Sections[typesSym.Section]
+	typesSectData, err := typesSection.Data()
+	if err != nil {
+		return err
+	}
+	textSym := getSymbolInElf(elfFile, "runtime.text")
+
+	textSection := elfFile.Sections[textSym.Section]
+	textSectData, err := textSection.Data()
 	if err != nil {
 		return err
 	}
 
+	moduledataSym := getSymbolInElf(elfFile, "runtime.firstmoduledata")
+	noptrDataSect := elfFile.Section(".noptrdata")
+	noptrDataSectData, err := noptrDataSect.Data()
+	if err != nil {
+		return err
+	}
+	md := (*moduledata)(unsafe.Pointer(&noptrDataSectData[moduledataSym.Value-noptrDataSect.Addr]))
+
+	pclntabSect := elfFile.Section(".gopclntab")
+	pclntabSectData, err := pclntabSect.Data()
+	if err != nil {
+		return err
+	}
+	ptr := uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.pclntable[0])))-pclntabSect.Addr]))
+	exeData.md.pclntable = md.pclntable
+	(*sliceHeader)((unsafe.Pointer)(&exeData.md.pclntable)).Data = ptr
+
+	ptr = uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.ftab[0])))-pclntabSect.Addr]))
+	exeData.md.ftab = md.ftab
+	(*sliceHeader)((unsafe.Pointer)(&exeData.md.ftab)).Data = ptr
+
+	updateFuncnameTabInUnix(md, uintptr(pclntabSect.Addr), pclntabSectData)
+
 	byteOrder := elfFile.ByteOrder
-	typelinks := *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
-	_registerTypesInExe(symPtr, byteOrder, typelinks, sectData[typesSym.Value-section.Addr:], uintptr(typesSym.Value))
+
+	exeData.typesSectData = &typesSectData
+	exeData.textSectData = &textSectData
+	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
+	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }
 
@@ -184,6 +260,7 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 	typelinkSym := getSymbolInPe(peFile.Symbols, "runtime.typelink")
 	moduledataSym := getSymbolInPe(peFile.Symbols, "runtime.firstmoduledata")
 	typesSym := getSymbolInPe(peFile.Symbols, "runtime.types")
+	textSym := getSymbolInPe(peFile.Symbols, "runtime.text")
 
 	dataSect := peFile.Section(".data")
 	dataSectData, err := dataSect.Data()
@@ -193,7 +270,6 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 
 	md := (*moduledata)(unsafe.Pointer(&dataSectData[moduledataSym.Value]))
 	typelinksSectData, _ := peFile.Sections[typelinkSym.SectionNumber-1].Data()
-	typelinks := *ptr2uint32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
 
 	getImageBase := func(peFile *pe.File) uintptr {
 		_, pe64 := peFile.OptionalHeader.(*pe.OptionalHeader64)
@@ -204,23 +280,42 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 		}
 	}
 
-	typeSect := peFile.Sections[typesSym.SectionNumber-1]
-	typeSectData, _ := typeSect.Data()
+	typesSect := peFile.Sections[typesSym.SectionNumber-1]
+	typesSectData, _ := typesSect.Data()
+	exeData.typesSectData = &typesSectData
 
-	roDataAddr := uintptr(typeSect.VirtualAddress) + getImageBase(peFile)
-	_registerTypesInExe(symPtr, binary.LittleEndian, typelinks, typeSectData[md.types-roDataAddr:], md.types)
+	textSect := peFile.Sections[textSym.SectionNumber-1]
+	textSectData, _ := textSect.Data()
+	exeData.textSectData = &textSectData
+
+	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
+	off := uintptr(unsafe.Pointer(&exeData.md.typelinks[0])) - uintptr(unsafe.Pointer(&md.typelinks[0]))
+	ptr := off + uintptr(unsafe.Pointer(&md.pclntable[0]))
+	exeData.md.pclntable = md.pclntable
+	(*sliceHeader)((unsafe.Pointer)(&exeData.md.pclntable)).Data = ptr
+
+	ptr = off + uintptr(unsafe.Pointer(&md.ftab[0]))
+	exeData.md.ftab = md.ftab
+	(*sliceHeader)((unsafe.Pointer)(&exeData.md.ftab)).Data = ptr
+
+	updateFuncnameTabInPe(md, off)
+
+	ftabRegister(symPtr, exeData.md)
+	roDataAddr := uintptr(typesSect.VirtualAddress) + getImageBase(peFile)
+	registerTypelinksInExe(symPtr, binary.LittleEndian, typesSectData[md.types-roDataAddr:], md.types)
 	return nil
 }
 
-func _registerTypesInExe(symPtr map[string]uintptr, byteOrder binary.ByteOrder, typelinks []int32, data []byte, addr uintptr) {
-	md := &moduledata{typelinks: typelinks}
+func registerTypelinksInExe(symPtr map[string]uintptr, byteOrder binary.ByteOrder, data []byte, addr uintptr) {
+	md := exeData.md
 	md.types = uintptr(unsafe.Pointer(&data[0]))
 	md.etypes = md.types + uintptr(len(data))
-
-	td := typedata{
+	md.text = uintptr(unsafe.Pointer(&(*exeData.textSectData)[0]))
+	md.etext = md.text + uintptr(len(*exeData.textSectData))
+	exeData.typData = &typeData{
 		data:      data,
-		saddr:     addr,
-		naddr:     md.types,
+		sAddr:     addr,
+		nAddr:     md.types,
 		byteOrder: byteOrder,
 		adapted:   make(map[int32]int32),
 	}
@@ -228,30 +323,15 @@ func _registerTypesInExe(symPtr map[string]uintptr, byteOrder binary.ByteOrder, 
 	addModule(md)
 	modulesLock.Unlock()
 	for _, tl := range md.typelinks {
-		td.adaptType(tl)
+		exeData.typData.adaptType(tl)
 	}
 	for _, tl := range md.typelinks {
 		registerType((*_type)(adduintptr(md.types, int(tl))), symPtr)
 	}
-	modulesLock.Lock()
-	removeModule(md)
-	modulesLock.Unlock()
 }
 
 func registerTypesInExe(symPtr map[string]uintptr, path string) error {
-	f, err := objfile.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	pcLineTable, err := f.PCLineTable()
-	if err != nil {
-		return err
-	}
-	for _, f := range pcLineTable.(*gosym.Table).Funcs {
-		symPtr[f.Name] = uintptr(f.Entry)
-	}
-
+	exeData.md = &moduledata{}
 	switch runtime.GOOS {
 	case "linux", "android":
 		return registerTypesInElf(path, symPtr)
