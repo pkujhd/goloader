@@ -34,9 +34,9 @@ func additab(m *itab, locked, canfail bool)
 
 func additabs(module *moduledata) {
 	lock(&ifaceLock)
-	for _, itab := range module.itablinks {
-		if itab.inhash == 0 {
-			additab(itab, true, false)
+	for _, it := range module.itablinks {
+		if it.inhash == 0 {
+			additab(it, true, true)
 		}
 	}
 	unlock(&ifaceLock)
@@ -70,7 +70,7 @@ func removeitabs(module *moduledata) bool {
 func addItab(m *itab) {
 	lock(&ifaceLock)
 	if m.inhash == 0 {
-		additab(m, true, false)
+		additab(m, true, true)
 	}
 	unlock(&ifaceLock)
 }
