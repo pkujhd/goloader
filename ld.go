@@ -11,6 +11,8 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/pkujhd/goloader/objabi/reloctype"
+
 	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/funcalign"
@@ -246,6 +248,10 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 			reloc.Epilogue.Offset += symbol.Offset
 		}
 		if _, ok := linker.ObjSymbolMap[reloc.SymName]; ok {
+			if symPtr != nil && !isMmapInLowAddress(linker.Arch.Name) &&
+				(reloc.Type == reloctype.R_METHODOFF || reloc.Type == reloctype.R_ADDROFF || reloc.Type == reloctype.R_WEAKADDROFF) {
+				delete(symPtr, reloc.SymName)
+			}
 			relocSym, err := linker.addSymbol(reloc.SymName, symPtr)
 			if err != nil {
 				return nil, err
@@ -396,7 +402,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			codeModule.Syms[sym.Name] = symbolMap[name]
 		} else if strings.HasPrefix(name, constants.TypeStringPrefix) {
 			symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.StringMap[name])).Data
-		} else if name == getInitFuncName(DefaultPkgPath) {
+		} else if name == getInitFuncName(DefaultPkgPath) || isItabName(name) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
 		} else if ispreprocesssymbol(name) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
@@ -406,7 +412,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
 		}
 		//fill itablinks
-		if strings.HasPrefix(name, constants.ItabPrefix) {
+		if isItabName(name) {
 			codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(symbolMap[name], 0)))
 		}
 	}
@@ -504,11 +510,10 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	if err = linker.addgcdata(codeModule, symbolMap); err != nil {
 		return err
 	}
-	for name, addr := range symbolMap {
-		if strings.HasPrefix(name, constants.TypePrefix) &&
-			!strings.HasPrefix(name, constants.TypeDoubleDotPrefix) &&
-			addr >= module.types && addr < module.etypes {
-			module.typelinks = append(module.typelinks, int32(addr-module.types))
+	for name, symbol := range linker.SymMap {
+		if isTypeName(name) {
+			typeOff := int32(codeModule.dataBase + symbol.Offset - int(module.types))
+			module.typelinks = append(module.typelinks, typeOff)
 		}
 	}
 

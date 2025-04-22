@@ -99,7 +99,6 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 
 	for _, name := range symbolNames {
 		if _, ok := linker.ObjSymbolMap[name]; ok {
-			delete(linker.SymMap, name)
 			_, err := linker.addSymbol(name, symPtr)
 			if err != nil {
 				return err
