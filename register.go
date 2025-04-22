@@ -16,16 +16,16 @@ func typelinksRegister(symPtr map[string]uintptr) {
 	md := firstmoduledata
 	for _, tl := range md.typelinks {
 		t := (*_type)(adduintptr(md.types, int(tl)))
-		if md.typemap != nil {
-			t = (*_type)(adduintptr(md.typemap[typeOff(tl)], 0))
-		}
 		registerType(t, symPtr)
 	}
+}
+
+func ftabRegister(symPtr map[string]uintptr, md *moduledata) {
 	//register function
 	for _, f := range md.ftab {
 		if int(f.funcoff) < len(md.pclntable) {
 			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
-			name := getfuncname(_func, &md)
+			name := getfuncname(_func, md)
 			if name != EmptyString {
 				if _, ok := symPtr[name]; !ok {
 					symPtr[name] = getfuncentry(_func, md.text)
@@ -107,6 +107,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 		return err
 	}
 	typelinksRegister(symPtr)
+	ftabRegister(symPtr, &firstmoduledata)
 	return regSymbol(symPtr, path)
 }
 
@@ -118,6 +119,9 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 	defer f.Close()
 
 	syms, err := f.Symbols()
+	if err != nil {
+		return err
+	}
 	for _, sym := range syms {
 		if sym.Name == OsStdout {
 			symPtr[sym.Name] = uintptr(sym.Addr)
