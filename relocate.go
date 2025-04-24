@@ -294,8 +294,14 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 	byteOrder := linker.Arch.ByteOrder
 	tlsOffset := uint32(tls.GetTLSOffset(linker.Arch, linker.Arch.PtrSize))
 	for _, symbol := range linker.SymMap {
+		ifaceTypeMap := getUseIfaceTypeMap(symbol)
 		for _, loc := range symbol.Reloc {
 			symAddr := symbolMap[loc.SymName]
+			if isItabName(loc.SymName) && isUseIfaceMethod(ifaceTypeMap, &loc) {
+				if sym, ok := linker.SymMap[loc.SymName]; ok {
+					symAddr = uintptr(sym.Offset + segment.dataBase)
+				}
+			}
 			relocByte := segment.dataByte
 			addrBase := segment.dataBase
 			if symbol.Kind == symkind.STEXT {
@@ -368,4 +374,21 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 		}
 	}
 	return err
+}
+
+func getUseIfaceTypeMap(symbol *obj.Sym) map[string]int {
+	typMap := make(map[string]int, 0)
+	for _, l := range symbol.Reloc {
+		if l.Type == reloctype.R_USEIFACE || l.Type == reloctype.R_USEIFACEMETHOD {
+			typMap[l.SymName] = 0x1
+		}
+	}
+	return typMap
+}
+
+func isUseIfaceMethod(typMap map[string]int, reloc *obj.Reloc) bool {
+	interTypeName, typeName := getTypeNameByItab(reloc.SymName)
+	_, interExist := typMap[interTypeName]
+	_, typExist := typMap[typeName]
+	return interExist && typExist
 }
