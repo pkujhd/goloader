@@ -31,11 +31,17 @@ func atomicstorep(ptr unsafe.Pointer, new unsafe.Pointer)
 //go:linkname getitab runtime.getitab
 func getitab(inter *interfacetype, typ *_type, canfail bool) *itab
 
-func validateInterface(symPtr map[string]uintptr, name string) bool {
+//go:inline
+func getTypeNameByItab(name string) (string, string) {
 	result := strings.Split(name, ",")
-	interTypeName := constants.TypePrefix + result[1]
-	inter := (*interfacetype)(unsafe.Pointer(symPtr[interTypeName]))
 	typeName := constants.TypePrefix + strings.TrimPrefix(result[0], constants.ItabPrefix)
+	interTypeName := constants.TypePrefix + result[1]
+	return interTypeName, typeName
+}
+
+func validateInterface(symPtr map[string]uintptr, name string) bool {
+	interTypeName, typeName := getTypeNameByItab(name)
+	inter := (*interfacetype)(unsafe.Pointer(symPtr[interTypeName]))
 	typ := (*_type)(unsafe.Pointer(symPtr[typeName]))
 
 	if inter != nil && typ != nil {
