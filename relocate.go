@@ -304,7 +304,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 			}
 			relocByte := segment.dataByte
 			addrBase := segment.dataBase
-			if symbol.Kind == symkind.STEXT || symbol.Kind == symkind.STEXTFIPS {
+			if symkind.IsText(symbol.Kind) {
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}

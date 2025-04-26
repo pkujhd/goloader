@@ -312,7 +312,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, goArchive *Archive) *ObjSy
 		symbol.Data = make([]byte, 0)
 	}
 
-	if symbol.Kind == symkind.STEXT || symbol.Kind == symkind.STEXTFIPS {
+	if symkind.IsText(symbol.Kind) {
 		symbol.Func = &FuncInfo{}
 	}
 	auxs := r.Auxs(index)
