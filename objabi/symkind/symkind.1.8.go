@@ -25,6 +25,13 @@ const (
 	STLSBSS = int(obj.STLSBSS)
 )
 
+const (
+	STEXTFIPS      = 0x10000000 - 1
+	SRODATAFIPS    = 0x10000000 - 2
+	SNOPTRDATAFIPS = 0x10000000 - 3
+	SDATAFIPS      = 0x10000000 - 4
+)
+
 func SymKindString(symKind int) string {
 	return (obj.SymKind)(symKind).String()
 }
