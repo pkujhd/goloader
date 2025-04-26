@@ -54,11 +54,11 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 	return nil
 }
 
-func sortSym(symMap map[string]*obj.Sym, kind int) []*obj.Sym {
+func sortSym(symMap map[string]*obj.Sym, kindFunc func(k int) bool) []*obj.Sym {
 	syms := make(map[int]*obj.Sym)
 	keys := []int{}
 	for _, sym := range symMap {
-		if sym.Kind == kind {
+		if kindFunc(sym.Kind) {
 			syms[sym.Offset] = sym
 			keys = append(keys, sym.Offset)
 		}
@@ -77,7 +77,13 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 	w.Init(func(x byte) {
 		codeModule.gcdata = append(codeModule.gcdata, x)
 	})
-	for _, sym := range sortSym(linker.SymMap, symkind.SDATA) {
+	kindFunc := func(kind int) bool {
+		if kind == symkind.SDATA || kind == symkind.SDATAFIPS {
+			return true
+		}
+		return false
+	}
+	for _, sym := range sortSym(linker.SymMap, kindFunc) {
 		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
@@ -93,7 +99,13 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 		codeModule.gcbss = append(codeModule.gcbss, x)
 	})
 
-	for _, sym := range sortSym(linker.SymMap, symkind.SBSS) {
+	kindFunc = func(kind int) bool {
+		if kind == symkind.SBSS {
+			return true
+		}
+		return false
+	}
+	for _, sym := range sortSym(linker.SymMap, kindFunc) {
 		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
