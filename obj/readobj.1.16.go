@@ -174,7 +174,7 @@ func (pkg *Pkg) AddCgoFuncs(cgoFuncs map[string]int) {
 		r := goArchive.entries[objIndex].r
 		// cgo function wrapper
 		for i, sym := range goArchive.entries[objIndex].syms {
-			if !isRef(r, i) && !isTypeName(sym.Name) && sym.Kind == symkind.STEXT && sym.ABI == uint(obj.ABIInternal) {
+			if !isRef(r, i) && !isTypeName(sym.Name) && symkind.IsText(sym.Kind) && sym.ABI == uint(obj.ABIInternal) {
 				if index, ok := goArchive.symVersions[obj.ABI0][sym.Name]; ok && !isRef(goArchive.entries[index.entryIndex].r, index.symbolIndex) {
 					nsym := goArchive.entries[index.entryIndex].syms[index.symbolIndex]
 					cgoFuncs[sym.Name] = nsym.Kind
@@ -312,7 +312,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, goArchive *Archive) *ObjSy
 		symbol.Data = make([]byte, 0)
 	}
 
-	if symbol.Kind == symkind.STEXT {
+	if symbol.Kind == symkind.STEXT || symbol.Kind == symkind.STEXTFIPS {
 		symbol.Func = &FuncInfo{}
 	}
 	auxs := r.Auxs(index)

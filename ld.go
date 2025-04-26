@@ -138,7 +138,7 @@ func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
 	linker.Noptrdata = append(linker.Noptrdata, make([]byte, IntSize)...)
 	for _, objSym := range linker.ObjSymbolMap {
-		if objSym.Kind == symkind.STEXT && objSym.DupOK == false {
+		if symkind.IsText(objSym.Kind) && objSym.DupOK == false {
 			if _, err := linker.addSymbol(objSym.Name, nil); err != nil {
 				return err
 			}
@@ -160,7 +160,7 @@ func (linker *Linker) adaptSymbolOffset() {
 		for _, sym := range linker.SymMap {
 			offset := 0
 			switch sym.Kind {
-			case symkind.SNOPTRDATA, symkind.SRODATA:
+			case symkind.SNOPTRDATA, symkind.SRODATA, symkind.SNOPTRDATAFIPS, symkind.SRODATAFIPS:
 				if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
 					offset += len(linker.Data)
 				}
@@ -198,7 +198,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 		}
 	}
 	switch symbol.Kind {
-	case symkind.STEXT:
+	case symkind.STEXT, symkind.STEXTFIPS:
 		symbol.Offset = len(linker.Code)
 		linker.Code = append(linker.Code, objsym.Data...)
 		if isX86_64(linker.Arch.Name) {
@@ -213,11 +213,11 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 		if err := linker.readFuncData(linker.ObjSymbolMap[name], symPtr); err != nil {
 			return nil, err
 		}
-	case symkind.SDATA:
+	case symkind.SDATA, symkind.SDATAFIPS:
 		symbol.Offset = len(linker.Data)
 		linker.Data = append(linker.Data, objsym.Data...)
 		bytearrayAlign(&linker.Data, PtrSize)
-	case symkind.SNOPTRDATA, symkind.SRODATA:
+	case symkind.SNOPTRDATA, symkind.SRODATA, symkind.SNOPTRDATAFIPS, symkind.SRODATAFIPS:
 		//because golang string assignment is pointer assignment, so store go.string constants in heap.
 		if strings.HasPrefix(symbol.Name, constants.TypeStringPrefix) {
 			data := make([]byte, len(objsym.Data))
@@ -397,7 +397,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = InvalidHandleValue
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
 			}
-		} else if sym.Kind == symkind.STEXT {
+		} else if symkind.IsText(sym.Kind) {
 			symbolMap[name] = uintptr(sym.Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
 		} else if strings.HasPrefix(name, constants.TypeStringPrefix) {

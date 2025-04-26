@@ -304,7 +304,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 			}
 			relocByte := segment.dataByte
 			addrBase := segment.dataBase
-			if symbol.Kind == symkind.STEXT {
+			if symbol.Kind == symkind.STEXT || symbol.Kind == symkind.STEXTFIPS {
 				addrBase = segment.codeBase
 				relocByte = segment.codeByte
 			}
@@ -321,7 +321,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALLARM64 | reloctype.R_WEAK:
 					linker.relocteCALLARM(symbolMap[loc.SymName], loc, segment)
 				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
-					if symbol.Kind != symkind.STEXT {
+					if symkind.IsText(symbol.Kind) {
 						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", loc.SymName)
 					}
 					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, symAddr)
@@ -340,7 +340,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					}
 					byteOrder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_METHODOFF:
-					if linker.SymMap[loc.SymName].Kind == symkind.STEXT {
+					if symkind.IsText(linker.SymMap[loc.SymName].Kind) {
 						addrBase = segment.codeBase
 					}
 					offset := int(symAddr) - addrBase
