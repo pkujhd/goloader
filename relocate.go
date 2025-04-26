@@ -47,7 +47,7 @@ func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 				switch obj.GetOpName(reloc.Op) {
 				case "LEA":
 					linker.ExtraData += PtrSize
-				case "MOV", "MOVUPS", "MOVZ", "MOVZX", "MOVQ", "MOVSD_XMM":
+				case "MOV", "MOVUPS", "MOVZ", "MOVZX", "MOVQ", "MOVSD_XMM", "MOVDQU":
 					epilogue.Size = maxExtraCodeSize_PCRELxMOV
 				case "CMP", "CMPL":
 					epilogue.Size = maxExtraCodeSize_PCRELxCMPL
@@ -211,7 +211,7 @@ func (linker *Linker) relocatePCREL(symAddr uintptr, loc obj.Reloc, segment *seg
 			offset = (segment.dataBase + segment.dataOff) - (addrBase + loc.GetEnd())
 			byteorder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 			putAddressAddOffset(byteorder, segment.dataByte, &segment.dataOff, uint64(symAddr))
-		case "MOV", "MOVUPS", "MOVZ", "MOVZX", "MOVQ", "MOVSD_XMM":
+		case "MOV", "MOVUPS", "MOVZ", "MOVZX", "MOVQ", "MOVSD_XMM", "MOVDQU":
 			register := (relocByte[loc.Offset-1] >> 3) & 0x7
 			copy(segment.codeByte[epilogueOffset:], x86amd64replaceMOVcode)
 			if obj.IsExtraRegister(loc.Args[0]) {
