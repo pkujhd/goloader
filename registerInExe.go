@@ -233,6 +233,7 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 	(*sliceHeader)((unsafe.Pointer)(&exeData.md.ftab)).Data = ptr
 
 	updateFuncnameTabInUnix(md, uintptr(pclntabSect.Addr), pclntabSectData)
+	ftabRegister(symPtr, exeData.md)
 
 	byteOrder := elfFile.ByteOrder
 
