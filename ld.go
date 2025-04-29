@@ -294,6 +294,9 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 				}
 				if reloc.Size > 0 {
 					linker.SymMap[reloc.SymName] = relocSym
+					if isGOTPCRELName(reloc.SymName) {
+						linker.ExtraData += PtrSize
+					}
 				}
 			}
 		}
@@ -390,7 +393,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
-			} else if addr, ok := symPtr[strings.TrimSuffix(name, GOTPCRELSuffix)]; ok && strings.HasSuffix(name, GOTPCRELSuffix) {
+			} else if addr, ok := symPtr[strings.TrimSuffix(name, GOTPCRELSuffix)]; ok && isGOTPCRELName(name) {
 				symbolMap[name] = uintptr(segment.dataBase) + uintptr(segment.dataOff)
 				putAddressAddOffset(linker.Arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
 			} else {

@@ -233,3 +233,8 @@ func isTypeName(aName string) bool {
 func isItabName(aName string) bool {
 	return strings.HasPrefix(aName, constants.ItabPrefix)
 }
+
+//go:inline
+func isGOTPCRELName(aName string) bool {
+	return strings.HasSuffix(aName, GOTPCRELSuffix)
+}
