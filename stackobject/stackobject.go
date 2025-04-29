@@ -40,7 +40,7 @@ func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[s
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_StackObjects &&
 		Func.FuncData[dataindex.FUNCDATA_StackObjects] != 0 {
 		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[dataindex.FUNCDATA_StackObjects], int(noptrdata)))
-		stkobjName := strings.TrimSuffix(strings.TrimSuffix(funcname, obj.ABIINTERNAL_SUFFIX), obj.ABI0_SUFFIX) + StkobjSuffix
+		stkobjName := strings.TrimSuffix(funcname, obj.ABI0_SUFFIX) + StkobjSuffix
 		for i := range *objects {
 			name := EmptyString
 			if symbol := symMap[stkobjName]; symbol != nil {

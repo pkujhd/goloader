@@ -178,19 +178,7 @@ func (pkg *Pkg) AddCgoFuncs(cgoFuncs map[string]int) {
 				if index, ok := goArchive.symVersions[obj.ABI0][sym.Name]; ok && !isRef(goArchive.entries[index.entryIndex].r, index.symbolIndex) {
 					nsym := goArchive.entries[index.entryIndex].syms[index.symbolIndex]
 					cgoFuncs[sym.Name] = nsym.Kind
-
 					if (nsym.Func != nil && isWrapperFunctionID(nsym.Func.FuncID)) || isWrapperFunctionID(sym.Func.FuncID) {
-						pkg.Syms[sym.Name] = &ObjSymbol{
-							Name:  nsym.Name,
-							Kind:  nsym.Kind,
-							Size:  nsym.Size,
-							Data:  nsym.Data,
-							Type:  nsym.Type,
-							Reloc: nsym.Reloc,
-							Func:  nsym.Func,
-							ABI:   nsym.ABI,
-						}
-						sym.Name = sym.Name + ABIINTERNAL_SUFFIX
 						nsym.Name = nsym.Name + ABI0_SUFFIX
 					}
 				}
@@ -211,9 +199,6 @@ func (pkg *Pkg) AddSymIndex(cgoFuncs map[string]int) {
 			if kind, ok := cgoFuncs[sym.Name]; ok && kind > symkind.Sxxx && kind <= symkind.STLSBSS {
 				if sym.ABI == uint(obj.ABI0) {
 					sym.Name += ABI0_SUFFIX
-				}
-				if sym.ABI == uint(obj.ABIInternal) {
-					sym.Name += ABIINTERNAL_SUFFIX
 				}
 			}
 
