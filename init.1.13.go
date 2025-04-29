@@ -13,8 +13,12 @@ const (
 	_InitTaskSuffix = "..inittask"
 )
 
-func getInitFuncName(packagename string) string {
-	return obj.PathToPrefix(packagename) + _InitTaskSuffix
+func getInitFuncName(packageName string) string {
+	return obj.PathToPrefix(packageName) + _InitTaskSuffix
+}
+
+func isNeedInitTaskInPlugin(name string) bool {
+	return name == getInitFuncName(DefaultPkgPath)
 }
 
 //go:linkname doInit runtime.doInit
@@ -28,4 +32,8 @@ func (linker *Linker) doInitialize(symPtr, symbolMap map[string]uintptr) error {
 		}
 	}
 	return nil
+}
+
+func isCompleteInitialization(linker *Linker, name string, symPtr map[string]uintptr) bool {
+	return true
 }

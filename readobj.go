@@ -113,9 +113,13 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 	for _, pkg := range linker.Packages {
 		name := getInitFuncName(pkg.PkgPath)
 		if _, ok := linker.ObjSymbolMap[name]; ok {
-			_, err := linker.addSymbol(name, symPtr)
-			if err != nil {
-				return err
+			if symbol, ok := linker.SymMap[name]; !ok || symbol.Offset == InvalidOffset {
+				if !isCompleteInitialization(linker, name, symPtr) {
+					_, err := linker.addSymbol(name, symPtr)
+					if err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}

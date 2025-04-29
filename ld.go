@@ -161,7 +161,7 @@ func (linker *Linker) adaptSymbolOffset() {
 			offset := 0
 			switch sym.Kind {
 			case symkind.SNOPTRDATA, symkind.SRODATA, symkind.SNOPTRDATAFIPS, symkind.SRODATAFIPS:
-				if !strings.HasPrefix(sym.Name, constants.TypeStringPrefix) {
+				if !isStringTypeName(sym.Name) {
 					offset += len(linker.Data)
 				}
 			case symkind.SBSS:
@@ -219,7 +219,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 		bytearrayAlign(&linker.Data, PtrSize)
 	case symkind.SNOPTRDATA, symkind.SRODATA, symkind.SNOPTRDATAFIPS, symkind.SRODATAFIPS:
 		//because golang string assignment is pointer assignment, so store go.string constants in heap.
-		if strings.HasPrefix(symbol.Name, constants.TypeStringPrefix) {
+		if isStringTypeName(symbol.Name) {
 			data := make([]byte, len(objsym.Data))
 			copy(data, objsym.Data)
 			stringVal := string(data)
@@ -403,9 +403,9 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		} else if symkind.IsText(sym.Kind) {
 			symbolMap[name] = uintptr(sym.Offset + segment.codeBase)
 			codeModule.Syms[sym.Name] = symbolMap[name]
-		} else if strings.HasPrefix(name, constants.TypeStringPrefix) {
+		} else if isStringTypeName(sym.Name) {
 			symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.StringMap[name])).Data
-		} else if name == getInitFuncName(DefaultPkgPath) {
+		} else if isNeedInitTaskInPlugin(name) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
 		} else if ispreprocesssymbol(name) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
