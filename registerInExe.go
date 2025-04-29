@@ -1,7 +1,6 @@
 package goloader
 
 import (
-	"cmd/objfile/objfile"
 	"debug/elf"
 	"debug/macho"
 	"debug/pe"
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
-	"strings"
 	"unsafe"
 )
 
@@ -25,11 +23,10 @@ type exeFileData struct {
 	md            *moduledata
 	typesSectData *[]byte
 	textSectData  *[]byte
-	dataSectData  *[]byte
 	typData       *typeData
 }
 
-var exeData = exeFileData{md: nil, typesSectData: nil, textSectData: nil, dataSectData: nil, typData: nil}
+var exeData = exeFileData{md: nil, typesSectData: nil, textSectData: nil, typData: nil}
 
 func (td *typeData) adaptPtr(dataOff int) uintptr {
 	ptr := uintptr(td.byteOrder.Uint64(td.data[dataOff:]))
@@ -141,32 +138,6 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 	if err != nil {
 		return err
 	}
-
-	moduledataSym := getSymbolInMacho(machoFile, "runtime.firstmoduledata")
-	noptrDataSect := machoFile.Section("__noptrdata")
-	noptrDataSectData, err := noptrDataSect.Data()
-	if err != nil {
-		return err
-	}
-	md := (*moduledata)(unsafe.Pointer(&noptrDataSectData[moduledataSym.Value-noptrDataSect.Addr]))
-
-	pclntabSect := machoFile.Section("__gopclntab")
-	pclntabSectData, err := pclntabSect.Data()
-	if err != nil {
-		return err
-	}
-	ptr := uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.pclntable[0])))-pclntabSect.Addr]))
-	exeData.md.pclntable = md.pclntable
-	(*sliceHeader)((unsafe.Pointer)(&exeData.md.pclntable)).Data = ptr
-
-	ptr = uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.ftab[0])))-pclntabSect.Addr]))
-	exeData.md.ftab = md.ftab
-	(*sliceHeader)((unsafe.Pointer)(&exeData.md.ftab)).Data = ptr
-
-	updateFuncnameTabInUnix(md, uintptr(pclntabSect.Addr), pclntabSectData)
-
-	ftabRegister(symPtr, exeData.md)
-
 	byteOrder := machoFile.ByteOrder
 
 	exeData.typesSectData = &typesSectData
@@ -210,30 +181,6 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 	if err != nil {
 		return err
 	}
-
-	moduledataSym := getSymbolInElf(elfFile, "runtime.firstmoduledata")
-	noptrDataSect := elfFile.Section(".noptrdata")
-	noptrDataSectData, err := noptrDataSect.Data()
-	if err != nil {
-		return err
-	}
-	md := (*moduledata)(unsafe.Pointer(&noptrDataSectData[moduledataSym.Value-noptrDataSect.Addr]))
-
-	pclntabSect := elfFile.Section(".gopclntab")
-	pclntabSectData, err := pclntabSect.Data()
-	if err != nil {
-		return err
-	}
-	ptr := uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.pclntable[0])))-pclntabSect.Addr]))
-	exeData.md.pclntable = md.pclntable
-	(*sliceHeader)((unsafe.Pointer)(&exeData.md.pclntable)).Data = ptr
-
-	ptr = uintptr(unsafe.Pointer(&pclntabSectData[uint64(uintptr(unsafe.Pointer(&md.ftab[0])))-pclntabSect.Addr]))
-	exeData.md.ftab = md.ftab
-	(*sliceHeader)((unsafe.Pointer)(&exeData.md.ftab)).Data = ptr
-
-	updateFuncnameTabInUnix(md, uintptr(pclntabSect.Addr), pclntabSectData)
-	ftabRegister(symPtr, exeData.md)
 
 	byteOrder := elfFile.ByteOrder
 
@@ -290,18 +237,7 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 	exeData.textSectData = &textSectData
 
 	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
-	off := uintptr(unsafe.Pointer(&exeData.md.typelinks[0])) - uintptr(unsafe.Pointer(&md.typelinks[0]))
-	ptr := off + uintptr(unsafe.Pointer(&md.pclntable[0]))
-	exeData.md.pclntable = md.pclntable
-	(*sliceHeader)((unsafe.Pointer)(&exeData.md.pclntable)).Data = ptr
 
-	ptr = off + uintptr(unsafe.Pointer(&md.ftab[0]))
-	exeData.md.ftab = md.ftab
-	(*sliceHeader)((unsafe.Pointer)(&exeData.md.ftab)).Data = ptr
-
-	updateFuncnameTabInPe(md, off)
-
-	ftabRegister(symPtr, exeData.md)
 	roDataAddr := uintptr(typesSect.VirtualAddress) + getImageBase(peFile)
 	registerTypelinksInExe(symPtr, binary.LittleEndian, typesSectData[md.types-roDataAddr:], md.types)
 	return nil
@@ -347,39 +283,12 @@ func registerTypesInExe(symPtr map[string]uintptr, path string) error {
 
 func RegSymbolWithPath(symPtr map[string]uintptr, path string) error {
 	/*
-		register types and functions in exe file, the address of symbol not used for relocate, just for builder check reachable
+		register types and functions in an executable file, the address of symbol not used for relocation,
+		just for builder check reachable
 	*/
-	err := registerTypesInExe(symPtr, path)
+	err := regSymbol(symPtr, path, true)
 	if err != nil {
 		return err
 	}
-	return regSymbolInExe(symPtr, path)
-}
-
-func regSymbolInExe(symPtr map[string]uintptr, path string) error {
-	f, err := objfile.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	syms, err := f.Symbols()
-	if err != nil {
-		return err
-	}
-
-	for _, sym := range syms {
-		code := strings.ToUpper(string(sym.Code))
-		if code == "B" || code == "D" || code == "T" || code == "R" {
-			if isItabName(sym.Name) {
-				if validateInterface(symPtr, sym.Name) {
-					symPtr[sym.Name] = uintptr(sym.Addr)
-				}
-			} else if !strings.HasPrefix(sym.Name, DefaultPkgPath) && !isTypeName(sym.Name) {
-				symPtr[sym.Name] = uintptr(sym.Addr)
-			}
-		}
-
-	}
-	return nil
+	return registerTypesInExe(symPtr, path)
 }

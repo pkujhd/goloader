@@ -3,6 +3,7 @@ package goloader
 import (
 	"cmd/objfile/objfile"
 	"fmt"
+	"github.com/pkujhd/goloader/obj"
 	"os"
 	"reflect"
 	"strings"
@@ -17,27 +18,6 @@ func typelinksRegister(symPtr map[string]uintptr) {
 	for _, tl := range md.typelinks {
 		t := (*_type)(adduintptr(md.types, int(tl)))
 		registerType(t, symPtr)
-	}
-}
-
-func ftabRegister(symPtr map[string]uintptr, md *moduledata) {
-	//register function
-	for _, f := range md.ftab {
-		if int(f.funcoff) < len(md.pclntable) {
-			_func := (*_func)(unsafe.Pointer(&(md.pclntable[f.funcoff])))
-			name := getfuncname(_func, md)
-			if name != EmptyString {
-				if _, ok := symPtr[name]; !ok {
-					symPtr[name] = getfuncentry(_func, md.text)
-				}
-				if strings.HasSuffix(name, constants.FunctionWrapperSuffix) {
-					nName := strings.TrimSuffix(name, constants.FunctionWrapperSuffix)
-					if _, ok := symPtr[nName]; !ok {
-						symPtr[nName] = symPtr[name]
-					}
-				}
-			}
-		}
 	}
 }
 
@@ -88,8 +68,7 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 
 func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
 	typelinksRegister(symPtr)
-	ftabRegister(symPtr, &firstmoduledata)
-	return regSymbol(symPtr, path)
+	return regSymbol(symPtr, path, false)
 }
 
 func RegSymbol(symPtr map[string]uintptr) error {
@@ -98,11 +77,10 @@ func RegSymbol(symPtr map[string]uintptr) error {
 		return err
 	}
 	typelinksRegister(symPtr)
-	ftabRegister(symPtr, &firstmoduledata)
-	return regSymbol(symPtr, path)
+	return regSymbol(symPtr, path, false)
 }
 
-func regSymbol(symPtr map[string]uintptr, path string) error {
+func regSymbol(symPtr map[string]uintptr, path string, isValidateItab bool) error {
 	f, err := objfile.Open(path)
 	if err != nil {
 		return err
@@ -124,8 +102,28 @@ func regSymbol(symPtr map[string]uintptr, path string) error {
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
 		if code == "B" || code == "D" || code == "T" || code == "R" {
-			if !strings.HasPrefix(sym.Name, DefaultPkgPath) {
+			if isItabName(sym.Name) && isValidateItab {
+				if validateInterface(symPtr, sym.Name) {
+					symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
+				}
+			} else if !strings.HasPrefix(sym.Name, DefaultPkgPath) && !isTypeName(sym.Name) {
 				symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
+				if strings.HasSuffix(sym.Name, constants.FunctionWrapperSuffix) {
+					nName := strings.TrimSuffix(sym.Name, constants.FunctionWrapperSuffix)
+					if _, ok := symPtr[nName]; !ok {
+						symPtr[nName] = symPtr[sym.Name]
+					}
+				}
+			}
+		}
+	}
+
+	// if only abi symbols in runtime environment, set abi internal symbol same as abi0
+	for symName, ptr := range symPtr {
+		if strings.HasSuffix(symName, obj.ABI0_SUFFIX) {
+			nName := strings.TrimSuffix(symName, obj.ABI0_SUFFIX)
+			if _, ok := symPtr[nName]; !ok {
+				symPtr[nName] = ptr
 			}
 		}
 	}
