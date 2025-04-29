@@ -3,12 +3,10 @@ package goloader
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"github.com/pkujhd/goloader/objabi/tls"
-	"strings"
 )
 
 const (
@@ -30,7 +28,7 @@ func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 		// on linux/amd64, mmap force return < 32bit address,
 		// doesn't need to add extra instructions except relocate symbol is a string.
 		// because string is dynamic allocate in a far address
-		if !isMmapInLowAddress(linker.Arch.Name) || strings.HasPrefix(reloc.SymName, constants.TypeStringPrefix) {
+		if !isMmapInLowAddress(linker.Arch.Name) || isStringTypeName(reloc.SymName) {
 			epilogue := &(objsym.Reloc[i].Epilogue)
 			epilogue.Offset = len(linker.Code) - symbol.Offset
 			switch reloc.Type {
