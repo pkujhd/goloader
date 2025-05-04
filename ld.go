@@ -152,6 +152,7 @@ func (linker *Linker) addSymbols() error {
 			}
 		}
 	}
+	linker.ObjSymbolMap = nil
 	return nil
 }
 

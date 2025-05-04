@@ -83,19 +83,14 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 		return fmt.Errorf("already adapted symbol offset, don't add new symbols")
 	}
 
-	//only add unresolved symbol in ObjSymbolMap. use temporary map store read symbols
-	objSymbolMap := linker.ObjSymbolMap
-	cgoImportMap := linker.CgoImportMap
 	linker.ObjSymbolMap = make(map[string]*obj.ObjSymbol)
-	linker.CgoImportMap = make(map[string]*obj.CgoImport)
+
 	for i, file := range files {
 		if err := linker.readObj(file, pkgPaths[i]); err != nil {
 			return err
 		}
 	}
 	linker.resolveSymbols()
-	tmpCgoImportMap := linker.CgoImportMap
-	linker.CgoImportMap = cgoImportMap
 
 	for _, name := range symbolNames {
 		if _, ok := linker.ObjSymbolMap[name]; ok {
@@ -105,11 +100,13 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 			}
 		}
 	}
-	for name, cgoImport := range tmpCgoImportMap {
-		if _, ok := linker.SymMap[name]; ok {
-			linker.CgoImportMap[name] = cgoImport
+
+	for name, _ := range linker.CgoImportMap {
+		if _, ok := linker.SymMap[name]; !ok {
+			delete(linker.CgoImportMap, name)
 		}
 	}
+
 	for _, pkg := range linker.Packages {
 		name := getInitFuncName(pkg.PkgPath)
 		if _, ok := linker.ObjSymbolMap[name]; ok {
@@ -123,11 +120,7 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 			}
 		}
 	}
-	for name, sym := range linker.ObjSymbolMap {
-		if _, ok := linker.SymMap[name]; ok {
-			objSymbolMap[name] = sym
-		}
-	}
-	linker.ObjSymbolMap = objSymbolMap
+
+	linker.ObjSymbolMap = nil
 	return nil
 }
