@@ -43,6 +43,7 @@ func (linker *Linker) resolveSymbols() {
 	for _, pkg := range linker.Packages {
 		pkg.ResolveSymbols(linker.Packages, linker.ObjSymbolMap, linker.CUOffset)
 		pkg.GoArchive = nil
+		pkg.Syms = nil
 		linker.addFiles(pkg.CUFiles)
 		for name, cgoImport := range pkg.CgoImports {
 			linker.CgoImportMap[name] = cgoImport
@@ -116,6 +117,23 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 					if err != nil {
 						return err
 					}
+				}
+			}
+		}
+	}
+
+	unimplementedTypes := CheckUnimplementedInterface(linker, symPtr)
+	if unimplementedTypes != nil {
+		unresolvedSymbols := make([]string, len(unimplementedTypes))
+		for name := range unimplementedTypes {
+			unresolvedSymbols = append(unresolvedSymbols, name)
+			delete(symPtr, name)
+		}
+		for _, name := range unresolvedSymbols {
+			if _, ok := linker.ObjSymbolMap[name]; ok {
+				_, err := linker.addSymbol(name, symPtr)
+				if err != nil {
+					return err
 				}
 			}
 		}
