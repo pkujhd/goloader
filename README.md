@@ -21,8 +21,6 @@ Goloader reuses the Go runtime, which makes it much smaller. And code loaded by 
 
 Goloader supports pprof tool(Yes, you can see code loaded by Goloader in pprof). 
 
-Goloader don't support obj file with cgo.
-
 ## Build
 
 **Make sure you're using go >= 1.8.**
