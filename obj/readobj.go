@@ -64,6 +64,7 @@ type Func struct {
 // copy from $GOROOT/src/cmd/internal/goobj/read.go type Sym struct
 type Sym struct {
 	Name   string
+	Type   string
 	Kind   int
 	Offset int
 	Func   *Func

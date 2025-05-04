@@ -189,7 +189,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 		return symbol, nil
 	}
 	objsym := linker.ObjSymbolMap[name]
-	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind}
+	symbol = &obj.Sym{Name: objsym.Name, Kind: objsym.Kind, Type: objsym.Type}
 	linker.SymMap[symbol.Name] = symbol
 	if symPtr != nil {
 		if _, ok := symPtr[name]; ok {
