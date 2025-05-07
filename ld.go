@@ -535,7 +535,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	//add cgo symbols
-	err = linker.AddCgoSymbols()
+	err = linker.AddCgoSymbols(symPtr)
 	if err != nil {
 		return nil, err
 	}

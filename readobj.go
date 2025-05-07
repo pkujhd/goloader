@@ -2,6 +2,7 @@ package goloader
 
 import (
 	"fmt"
+
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -102,12 +103,6 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 		}
 	}
 
-	for name, _ := range linker.CgoImportMap {
-		if _, ok := linker.SymMap[name]; !ok {
-			delete(linker.CgoImportMap, name)
-		}
-	}
-
 	for _, pkg := range linker.Packages {
 		name := getInitFuncName(pkg.PkgPath)
 		if _, ok := linker.ObjSymbolMap[name]; ok {
@@ -136,6 +131,12 @@ func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []str
 					return err
 				}
 			}
+		}
+	}
+
+	for name, _ := range linker.CgoImportMap {
+		if _, ok := linker.SymMap[name]; !ok {
+			delete(linker.CgoImportMap, name)
 		}
 	}
 
