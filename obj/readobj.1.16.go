@@ -203,7 +203,7 @@ func (pkg *Pkg) AddSymIndex(cgoFuncs map[string]int) {
 			}
 
 			if sym.Kind > symkind.Sxxx && sym.Kind <= symkind.STLSBSS && sym.Name != EmptyString {
-				if _, ok := pkg.Syms[sym.Name]; !ok {
+				if _, ok := pkg.Syms[sym.Name]; !ok || !sym.DupOK {
 					pkg.Syms[sym.Name] = sym
 				}
 			}
