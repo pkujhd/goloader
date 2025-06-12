@@ -77,6 +77,21 @@ If use go path and go version < 1.20
   ./loader -o test.o -run main.main
 ```
 
+## compile with goloaderbuilder
+
+#### compile only package archive
+```
+./builder -f $GOPATH/src/github.com/pkujhd/goloader/examples/inter/inter.go -p inter -b
+./loader -o ./target/github.com/pkujhd/goloader/examples/inter/inter.a -run inter.main -times 10
+```
+
+#### compile with dependence packages
+```
+./builder -e ../runner/runner -f $GOPATH/src/github.com/pkujhd/goloader/examples/inter/inter.go -p inter
+../runner/runner -f target/inter.goloader -r inter.main
+```
+
+
 ## Warning
 
 Don't use "-s -w" compile argument, It strips symbol table.
