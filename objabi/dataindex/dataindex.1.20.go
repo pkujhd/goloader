@@ -1,5 +1,5 @@
-//go:build go1.20 && !go1.25
-// +build go1.20,!go1.25
+//go:build go1.20 && !go1.26
+// +build go1.20,!go1.26
 
 package dataindex
 
