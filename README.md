@@ -100,10 +100,10 @@ Don't use "go run" and "go test" command, "-s -w" compile argument is default.
 
 This has currently only been tested and developed on:
 
-Golang 1.8-1.24 (x64/x86, darwin, linux, windows)
+Golang 1.8-1.25 (x64/x86, darwin, linux, windows)
 
-Golang 1.10-1.24 (arm, linux, android)
+Golang 1.10-1.25 (arm, linux, android)
 
-Golang 1.8-1.24 (arm64, linux, android)
+Golang 1.8-1.25 (arm64, linux, android)
 
-Golang 1.16-1.24 (arm64, darwin)
+Golang 1.16-1.25 (arm64, darwin)
