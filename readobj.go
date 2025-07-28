@@ -6,8 +6,8 @@ import (
 	"github.com/pkujhd/goloader/obj"
 )
 
-func Parse(file, pkgpath string) ([]string, error) {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: file, PkgPath: pkgpath}
+func Parse(file, pkgPath string) ([]string, error) {
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol), File: file, PkgPath: pkgPath}
 	if err := pkg.Symbols(); err != nil {
 		return nil, err
 	}
@@ -19,7 +19,7 @@ func Parse(file, pkgpath string) ([]string, error) {
 }
 
 func (linker *Linker) readObj(file, pkgPath string) error {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), CgoImports: make(map[string]*obj.CgoImport, 0), File: file, PkgPath: pkgPath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol), CgoImports: make(map[string]*obj.CgoImport, 0), File: file, PkgPath: pkgPath}
 	if pkg.PkgPath == EmptyString {
 		pkg.PkgPath = DefaultPkgPath
 	}
@@ -52,9 +52,9 @@ func (linker *Linker) resolveSymbols() {
 	}
 }
 
-func ReadObj(file, pkgpath string) (*Linker, error) {
+func ReadObj(file, pkgPath string) (*Linker, error) {
 	linker := initLinker()
-	if err := linker.readObj(file, pkgpath); err != nil {
+	if err := linker.readObj(file, pkgPath); err != nil {
 		return nil, err
 	}
 	linker.resolveSymbols()
@@ -80,7 +80,7 @@ func ReadObjs(files []string, pkgPaths []string) (*Linker, error) {
 	return linker, nil
 }
 
-func (linker *Linker) ReadDependPkgs(files, pkgPaths []string, symbolNames []string, symPtr map[string]uintptr) error {
+func (linker *Linker) ReadDependPackages(files, pkgPaths []string, symbolNames []string, symPtr map[string]uintptr) error {
 	if linker.AdaptedOffset {
 		return fmt.Errorf("already adapted symbol offset, don't add new symbols")
 	}
