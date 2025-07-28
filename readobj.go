@@ -80,7 +80,7 @@ func ReadObjs(files []string, pkgPaths []string) (*Linker, error) {
 	return linker, nil
 }
 
-func (linker *Linker) ReadDependPackages(files, pkgPaths []string, symbolNames []string, symPtr map[string]uintptr) error {
+func ReadDependPackages(linker *Linker, files, pkgPaths []string, symbolNames []string, symPtr map[string]uintptr) error {
 	if linker.AdaptedOffset {
 		return fmt.Errorf("already adapted symbol offset, don't add new symbols")
 	}
