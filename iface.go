@@ -85,7 +85,7 @@ func getUnimplementedInterfaceType(symbol *obj.Sym, symPtr map[string]uintptr) [
 	for typeName, p := range symPtr {
 		if isTypeName(typeName) {
 			typ := (*_type)(unsafe.Pointer(p))
-			if isTypeImpleltementMethods(typ, methods) && hasInvalidMethod(typ, methods) {
+			if isTypeImplementMethods(typ, methods) && hasInvalidMethod(typ, methods) {
 				typeNames = append(typeNames, typeName)
 			}
 		}
@@ -93,7 +93,7 @@ func getUnimplementedInterfaceType(symbol *obj.Sym, symPtr map[string]uintptr) [
 	return typeNames
 }
 
-func isTypeImpleltementMethods(typ *_type, methods map[string]string) bool {
+func isTypeImplementMethods(typ *_type, methods map[string]string) bool {
 	uncommon := _uncommon(typ)
 	if uncommon != nil && int(uncommon.mcount) >= len(methods) {
 		for methodName, typeName := range methods {
