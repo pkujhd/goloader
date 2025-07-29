@@ -6,9 +6,9 @@ import (
 	"github.com/pkujhd/goloader/constants"
 )
 
-func FindFileTab(filename string, namemap map[string]int, filetab []uint32) int32 {
-	tab := namemap[filename]
-	for index, value := range filetab {
+func FindFileTab(fileName string, nameMap map[string]int, fileTab []uint32) int32 {
+	tab := nameMap[fileName]
+	for index, value := range fileTab {
 		if uint32(tab) == value {
 			return int32(index)
 		}
