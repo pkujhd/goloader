@@ -7,6 +7,7 @@ import (
 	"cmd/objfile/objabi"
 	"strings"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -63,7 +64,7 @@ func getfuncentry(f *_func, text uintptr) uintptr {
 
 func getfuncname(f *_func, md *moduledata) string {
 	if f.Nameoff <= 0 || f.Nameoff >= int32(len(md.pclntable)) {
-		return EmptyString
+		return constants.EmptyString
 	}
 	return gostringnocopy(&(md.pclntable[f.Nameoff]))
 }

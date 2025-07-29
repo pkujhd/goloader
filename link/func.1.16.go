@@ -3,7 +3,10 @@
 
 package link
 
-import "github.com/pkujhd/goloader/obj"
+import (
+	"github.com/pkujhd/goloader/constants"
+	"github.com/pkujhd/goloader/obj"
+)
 
 // A funcID identifies particular functions that need to be treated
 // specially by the runtime.
@@ -60,7 +63,7 @@ func getfuncentry(f *_func, text uintptr) uintptr {
 
 func getfuncname(f *_func, md *moduledata) string {
 	if f.Nameoff <= 0 || f.Nameoff >= int32(len(md.funcnametab)) {
-		return EmptyString
+		return constants.EmptyString
 	}
 	return gostringnocopy(&(md.funcnametab[f.Nameoff]))
 }

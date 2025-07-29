@@ -100,12 +100,12 @@ func isTypeImplementMethods(typ *_type, methods map[string]string) bool {
 			methodFound := false
 			for _, m := range uncommon.methods() {
 				if methodName == typ.nameOff(m.name).Name() {
-					tName := EmptyString
+					tName := constants.EmptyString
 					if m.mtyp != constants.InvalidTypeOff && m.mtyp != constants.UnReachableTypeOff {
 						_typ := typ.typeOff(m.mtyp)
 						tName = constants.TypePrefix + _typ.String()
 					}
-					if typeName == tName || tName == EmptyString {
+					if typeName == tName || tName == constants.EmptyString {
 						methodFound = true
 						break
 					}
@@ -126,13 +126,13 @@ func hasInvalidMethod(typ *_type, methods map[string]string) bool {
 		for _, m := range uncommon.methods() {
 			if m.ifn == constants.InvalidMethodOff {
 				methodName := typ.nameOff(m.name).Name()
-				methodTypeName := EmptyString
+				methodTypeName := constants.EmptyString
 				if m.mtyp != constants.InvalidTypeOff && m.mtyp != constants.UnReachableTypeOff {
 					_typ := typ.typeOff(m.mtyp)
 					methodTypeName = constants.TypePrefix + _typ.String()
 				}
 				if mType, ok := methods[methodName]; ok {
-					if methodTypeName == mType || methodTypeName == EmptyString {
+					if methodTypeName == mType || methodTypeName == constants.EmptyString {
 						return true
 					}
 				}

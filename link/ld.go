@@ -267,7 +267,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 				}
 			}
 		} else {
-			if _, ok := linker.SymMap[reloc.SymName]; !ok && reloc.SymName != EmptyString {
+			if _, ok := linker.SymMap[reloc.SymName]; !ok && reloc.SymName != constants.EmptyString {
 				relocSym := &obj.Sym{Name: reloc.SymName, Offset: InvalidOffset}
 				if strings.HasPrefix(reloc.SymName, constants.TypeImportPathPrefix) {
 					path := strings.Trim(strings.TrimPrefix(reloc.SymName, constants.TypeImportPathPrefix), ".")
@@ -304,7 +304,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 		symbol.Reloc = append(symbol.Reloc, reloc)
 	}
 
-	if objsym.Type != EmptyString {
+	if objsym.Type != constants.EmptyString {
 		if _, ok := linker.SymMap[objsym.Type]; !ok {
 			if _, ok := linker.ObjSymbolMap[objsym.Type]; !ok {
 				linker.SymMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
@@ -359,7 +359,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, symPtr map[string]uint
 	}
 
 	for _, name := range symbol.Func.FuncData {
-		if name == EmptyString {
+		if name == constants.EmptyString {
 			Func.FuncData = append(Func.FuncData, (uintptr)(0))
 		} else {
 			if _, ok := linker.SymMap[name]; !ok {

@@ -7,7 +7,7 @@ func MarkReloc(text []byte, relocs []Reloc, offset int, archName string) {
 }
 
 func GetOpName(op uint) string {
-	return EmptyString
+	return constants.EmptyString
 }
 
 func IsExtraRegister(regName string) bool {

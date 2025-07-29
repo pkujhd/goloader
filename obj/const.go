@@ -11,7 +11,6 @@ const (
 )
 
 const (
-	EmptyString              = ``
 	UNRESOLVED_SYMREF_PREFIX = "unresolvedSymRef#"
 	UNRESOLVED_SYMREF_FMT    = UNRESOLVED_SYMREF_PREFIX + "%d#%d"
 	ABI0_SUFFIX              = ".abi0"

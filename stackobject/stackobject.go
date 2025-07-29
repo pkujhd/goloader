@@ -5,6 +5,7 @@ package stackobject
 
 import (
 	"fmt"
+	"github.com/pkujhd/goloader/constants"
 	"strings"
 	"unsafe"
 
@@ -28,7 +29,7 @@ func adduintptr(p uintptr, x int) unsafe.Pointer
 func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
 	n := int(*(*uintptr)(addr))
 	slice := sliceHeader{
-		Data: uintptr(add(addr, uintptr(PtrSize))),
+		Data: uintptr(add(addr, uintptr(constants.PtrSize))),
 		Len:  n,
 		Cap:  n,
 	}
@@ -40,9 +41,9 @@ func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[s
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_StackObjects &&
 		Func.FuncData[dataindex.FUNCDATA_StackObjects] != 0 {
 		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[dataindex.FUNCDATA_StackObjects], int(noptrdata)))
-		stkobjName := strings.TrimSuffix(funcname, obj.ABI0_SUFFIX) + StkobjSuffix
+		stkobjName := strings.TrimSuffix(funcname, obj.ABI0_SUFFIX) + constants.StkobjSuffix
 		for i := range *objects {
-			name := EmptyString
+			name := constants.EmptyString
 			if symbol := symMap[stkobjName]; symbol != nil {
 				name = symbol.Reloc[i].SymName
 			}

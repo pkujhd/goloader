@@ -37,7 +37,7 @@ func replacePkgPath(sym *ObjSymbol, pkgpath string) {
 	for index, loc := range sym.Reloc {
 		sym.Reloc[index].SymName = ReplacePkgPath(loc.SymName, pkgpath)
 	}
-	if sym.Type != EmptyString {
+	if sym.Type != constants.EmptyString {
 		sym.Type = ReplacePkgPath(sym.Type, pkgpath)
 	}
 	if sym.Func != nil {

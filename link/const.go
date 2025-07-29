@@ -22,7 +22,6 @@ const (
 )
 
 const (
-	EmptyString    = ""
 	DefaultPkgPath = "main"
 	ZeroByte       = byte(0x00)
 )
@@ -35,7 +34,6 @@ const (
 // string match prefix/suffix
 const (
 	FileSymPrefix  = "gofile.."
-	MainPkgPrefix  = "main."
 	OsStdout       = "os.Stdout"
 	GOTPCRELSuffix = "·f"
 )

@@ -4,6 +4,7 @@
 package link
 
 import (
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"reflect"
 	"regexp"
@@ -159,7 +160,7 @@ func isRelocSymbolsExist(symbolMap map[string]*obj.ObjSymbol, symbolName string,
 				name = strings.TrimSuffix(name, GOTPCRELSuffix)
 			}
 			if !isInSymPtrMap(symPtr, name) && !isStringTypeName(name) &&
-				!isTypeName(name) && !isItabName(name) && name != EmptyString &&
+				!isTypeName(name) && !isItabName(name) && name != constants.EmptyString &&
 				reloc.Type != reloctype.R_CALL|reloctype.R_WEAK {
 				retValue = false
 			}

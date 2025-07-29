@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -173,10 +174,10 @@ func rtypeOf(i reflect.Type) *_type {
 func resolveTypeName(typ *_type) string {
 	pkgPath := obj.PathToPrefix(typ.PkgPath())
 	name := typ.Name()
-	if pkgPath != EmptyString && name != EmptyString {
+	if pkgPath != constants.EmptyString && name != constants.EmptyString {
 		return pkgPath + "." + name
 	}
-	if name != EmptyString && typ.Kind() != reflect.UnsafePointer {
+	if name != constants.EmptyString && typ.Kind() != reflect.UnsafePointer {
 		return name
 	}
 	//golang <= 1.16 map.bucket has a self-contained struct field
@@ -193,15 +194,15 @@ func resolveTypeName(typ *_type) string {
 		}
 		fields := make([]string, typ.NumField())
 		for i := 0; i < typ.NumField(); i++ {
-			fieldName := EmptyString
+			fieldName := constants.EmptyString
 			if !typ.Field(i).Anonymous {
-				if typ.Field(i).PkgPath != EmptyString {
+				if typ.Field(i).PkgPath != constants.EmptyString {
 					fieldName = obj.PathToPrefix(typ.Field(i).PkgPath) + "."
 				}
 				fieldName = fieldName + typ.Field(i).Name + " "
 			}
 			fields[i] = fieldName + resolveTypeName(rtypeOf(typ.Field(i).Type))
-			if typ.Field(i).Tag != EmptyString {
+			if typ.Field(i).Tag != constants.EmptyString {
 				fields[i] = fields[i] + fmt.Sprintf(" %q", string(typ.Field(i).Tag))
 			}
 		}

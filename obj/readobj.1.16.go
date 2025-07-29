@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/objabi/symkind"
 )
 
@@ -29,7 +30,7 @@ func resolveSymRefName(refname string, packages map[string]*Pkg, pkgPath string,
 	if name, ok := cache[refname]; ok {
 		return name
 	}
-	cache[refname] = EmptyString
+	cache[refname] = constants.EmptyString
 	splits := strings.Split(refname, "#")
 	pkgidx, _ := strconv.Atoi(splits[1])
 	symidx, _ := strconv.Atoi(splits[2])
@@ -40,7 +41,7 @@ func resolveSymRefName(refname string, packages map[string]*Pkg, pkgPath string,
 	index := symRef2Index(ref, r)
 	if index == InvalidIndex {
 		if ref.PkgIdx == goobj.PkgIdxInvalid && ref.SymIdx == 0 {
-			cache[refname] = EmptyString
+			cache[refname] = constants.EmptyString
 		} else if ref.PkgIdx == goobj.PkgIdxBuiltin {
 			builtinName, _ := goobj.BuiltinName(int(ref.SymIdx))
 			cache[refname] = builtinName
@@ -48,14 +49,14 @@ func resolveSymRefName(refname string, packages map[string]*Pkg, pkgPath string,
 			cache[refname] = name
 		} else if ref.PkgIdx < goobj.PkgIdxSelf {
 			if ref.PkgIdx >= uint32(r.NPkg()) {
-				cache[refname] = EmptyString
+				cache[refname] = constants.EmptyString
 			} else {
 				nPkgPath := r.Pkg(int(ref.PkgIdx))
 				if nPkg, ok := packages[nPkgPath]; ok {
 					cache[refname] = nPkg.SymIndex[ref.SymIdx]
 					return nPkg.SymIndex[ref.SymIdx]
 				} else {
-					cache[refname] = EmptyString
+					cache[refname] = constants.EmptyString
 				}
 			}
 		}
@@ -202,7 +203,7 @@ func (pkg *Pkg) AddSymIndex(cgoFuncs map[string]int) {
 				}
 			}
 
-			if sym.Kind > symkind.Sxxx && sym.Kind <= symkind.STLSBSS && sym.Name != EmptyString {
+			if sym.Kind > symkind.Sxxx && sym.Kind <= symkind.STLSBSS && sym.Name != constants.EmptyString {
 				if _, ok := pkg.Syms[sym.Name]; !ok || !sym.DupOK {
 					pkg.Syms[sym.Name] = sym
 				}
@@ -276,7 +277,7 @@ func (pkg *Pkg) addSym(r *goobj.Reader, index uint32, goArchive *Archive) *ObjSy
 	s := r.Sym(index)
 	symbol := ObjSymbol{Name: s.Name(r), Kind: int(s.Type()), DupOK: s.Dupok(), Size: (int64)(s.Siz()), ABI: uint(s.ABI()), Func: nil}
 
-	if symbol.Kind == symkind.Sxxx || symbol.Name == EmptyString {
+	if symbol.Kind == symkind.Sxxx || symbol.Name == constants.EmptyString {
 		return &symbol
 	}
 
