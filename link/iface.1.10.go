@@ -4,6 +4,7 @@
 package link
 
 import (
+	"github.com/pkujhd/goloader/constants"
 	"unsafe"
 )
 
@@ -54,7 +55,7 @@ func removeitabs(module *moduledata) bool {
 	defer unlock(itabLock)
 
 	for i := uintptr(0); i < itabTable.size; i++ {
-		p := (**itab)(add(unsafe.Pointer(&itabTable.entries), i*PtrSize))
+		p := (**itab)(add(unsafe.Pointer(&itabTable.entries), i*constants.PtrSize))
 		m := (*itab)(loadp(unsafe.Pointer(p)))
 		if m != nil {
 			uintptrm := uintptr(unsafe.Pointer(m))

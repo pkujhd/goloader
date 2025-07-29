@@ -3,6 +3,7 @@ package link
 import (
 	"runtime"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/libdl"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/symkind"
@@ -39,7 +40,7 @@ func (linker *Linker) AddCgoSymbols(symPtr map[string]uintptr) error {
 				Kind:   symkind.SNOPTRDATA,
 				Offset: len(linker.Noptrdata),
 			}
-			linker.Noptrdata = append(linker.Noptrdata, make([]byte, PtrSize)...)
+			linker.Noptrdata = append(linker.Noptrdata, make([]byte, constants.PtrSize)...)
 			linker.SymMap[sym.Name] = &sym
 			putAddress(linker.Arch.ByteOrder, linker.Noptrdata[sym.Offset:], uint64(ptr))
 		} else {

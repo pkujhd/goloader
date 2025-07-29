@@ -93,16 +93,16 @@ func createArm64Nops(size int) []byte {
 }
 
 func putAddressAddOffset(byteOrder binary.ByteOrder, b []byte, offset *int, addr uint64) {
-	if PtrSize == Uint32Size {
+	if constants.PtrSize == Uint32Size {
 		byteOrder.PutUint32(b[*offset:], uint32(addr))
 	} else {
 		byteOrder.PutUint64(b[*offset:], uint64(addr))
 	}
-	*offset = *offset + PtrSize
+	*offset = *offset + constants.PtrSize
 }
 
 func putAddress(byteOrder binary.ByteOrder, b []byte, addr uint64) {
-	if PtrSize == Uint32Size {
+	if constants.PtrSize == Uint32Size {
 		byteOrder.PutUint32(b, uint32(addr))
 	} else {
 		byteOrder.PutUint64(b, uint64(addr))
@@ -236,7 +236,7 @@ func isItabName(aName string) bool {
 
 //go:inline
 func isGOTPCRELName(aName string) bool {
-	return strings.HasSuffix(aName, GOTPCRELSuffix)
+	return strings.HasSuffix(aName, constants.GOTPCRELSuffix)
 }
 
 //go:inline

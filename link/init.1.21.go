@@ -59,7 +59,7 @@ func doInit(ptr, fakeInitPtr uintptr) {
 		if ptr < firstmoduledata.text || ptr > firstmoduledata.etext {
 			// if a xxx.init.x in runtime environment, replace it with fake init
 			for i := uint32(0); i < task.nfns; i++ {
-				funcAddr := ptr + uintptr(_InitTaskSize) + uintptr(i*PtrSize)
+				funcAddr := ptr + uintptr(_InitTaskSize) + uintptr(i*constants.PtrSize)
 				addr := *(*uintptr)(unsafe.Pointer(funcAddr))
 				if addr >= firstmoduledata.text && addr <= firstmoduledata.etext {
 					*(*uintptr)(unsafe.Pointer(funcAddr)) = fakeInitPtr
@@ -156,8 +156,8 @@ func isRelocSymbolsExist(symbolMap map[string]*obj.ObjSymbol, symbolName string,
 				retValue = false
 			}
 		} else {
-			if strings.HasSuffix(name, GOTPCRELSuffix) {
-				name = strings.TrimSuffix(name, GOTPCRELSuffix)
+			if strings.HasSuffix(name, constants.GOTPCRELSuffix) {
+				name = strings.TrimSuffix(name, constants.GOTPCRELSuffix)
 			}
 			if !isInSymPtrMap(symPtr, name) && !isStringTypeName(name) &&
 				!isTypeName(name) && !isItabName(name) && name != constants.EmptyString &&

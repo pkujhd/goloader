@@ -6,7 +6,6 @@ import (
 
 // size
 const (
-	PtrSize            = 4 << (^uintptr(0) >> 63)
 	Uint32Size         = int(unsafe.Sizeof(uint32(0)))
 	IntSize            = int(unsafe.Sizeof(int(0)))
 	UInt64Size         = int(unsafe.Sizeof(uint64(0)))
@@ -29,11 +28,4 @@ const (
 // runtime symbol
 const (
 	RuntimeDeferReturn = "runtime.deferreturn"
-)
-
-// string match prefix/suffix
-const (
-	FileSymPrefix  = "gofile.."
-	OsStdout       = "os.Stdout"
-	GOTPCRELSuffix = "·f"
 )

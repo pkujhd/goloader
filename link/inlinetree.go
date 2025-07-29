@@ -3,6 +3,7 @@ package link
 import (
 	"unsafe"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/dataindex"
 )
@@ -44,7 +45,7 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 		}
 		offset := len(linker.Noptrdata)
 		linker.Noptrdata = append(linker.Noptrdata, bytes...)
-		bytearrayAlign(&linker.Noptrdata, PtrSize)
+		bytearrayAlign(&linker.Noptrdata, constants.PtrSize)
 		for _func.Nfuncdata <= dataindex.FUNCDATA_InlTree {
 			sym.Func.FuncData = append(sym.Func.FuncData, uintptr(0))
 			_func.Nfuncdata++

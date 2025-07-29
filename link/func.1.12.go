@@ -48,7 +48,7 @@ func initfunc(symbol *obj.ObjSymbol, nameOff, pcspOff, pcfileOff, pclnOff int, c
 		Pcfile:      int32(pcfileOff),
 		Pcln:        int32(pclnOff),
 		Npcdata:     int32(len(symbol.Func.PCData)),
-		FuncID:      funcID(objabi.GetFuncID(symbol.Name, strings.TrimPrefix(symbol.Func.File[0], FileSymPrefix))),
+		FuncID:      funcID(objabi.GetFuncID(symbol.Name, strings.TrimPrefix(symbol.Func.File[0], constants.FileSymPrefix))),
 		Nfuncdata:   uint8(len(symbol.Func.FuncData)),
 	}
 	return fdata

@@ -92,13 +92,13 @@ func regSymbol(symPtr map[string]uintptr, path string, isValidateItab bool) erro
 		return err
 	}
 	for _, sym := range syms {
-		if sym.Name == OsStdout {
+		if sym.Name == constants.OsStdout {
 			symPtr[sym.Name] = uintptr(sym.Addr)
 		}
 	}
 	//Address space layout randomization(ASLR)
 	//golang 1.15 symbol address has offset, before 1.15 offset is 0
-	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[OsStdout])
+	addroff := int64(uintptr(unsafe.Pointer(&os.Stdout))) - int64(symPtr[constants.OsStdout])
 	for _, sym := range syms {
 		code := strings.ToUpper(string(sym.Code))
 		if code == "B" || code == "D" || code == "T" || code == "R" {

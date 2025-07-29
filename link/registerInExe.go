@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"runtime"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
 )
 
 type typeData struct {
@@ -30,7 +32,7 @@ var exeData = exeFileData{md: nil, typesSectData: nil, textSectData: nil, typDat
 
 func (td *typeData) adaptPtr(dataOff int) uintptr {
 	ptr := uintptr(td.byteOrder.Uint64(td.data[dataOff:]))
-	if PtrSize == Uint32Size {
+	if constants.PtrSize == Uint32Size {
 		ptr = uintptr(td.byteOrder.Uint32(td.data[dataOff:]))
 	}
 	putAddress(td.byteOrder, td.data[dataOff:], uint64(ptr+td.nAddr-td.sAddr))
@@ -57,7 +59,7 @@ func (td *typeData) adaptType(tl int32) {
 		}
 		uadd += int(tl)
 		for i := 0; i < int(inOutCount); i++ {
-			addr := td.adaptPtr(int(uadd + i*PtrSize))
+			addr := td.adaptPtr(int(uadd + i*constants.PtrSize))
 			td.adaptType(int32(addr - td.nAddr))
 		}
 	case reflect.Interface:
@@ -68,21 +70,21 @@ func (td *typeData) adaptType(tl int32) {
 		addr := td.adaptPtr(int(tl) + _typeSize)
 		td.adaptType(int32(addr - td.nAddr))
 		//Elem
-		addr = td.adaptPtr(int(tl) + _typeSize + PtrSize)
+		addr = td.adaptPtr(int(tl) + _typeSize + constants.PtrSize)
 		td.adaptType(int32(addr - td.nAddr))
 		//Bucket
-		addr = td.adaptPtr(int(tl) + _typeSize + PtrSize + PtrSize)
+		addr = td.adaptPtr(int(tl) + _typeSize + constants.PtrSize + constants.PtrSize)
 		td.adaptType(int32(addr - td.nAddr))
 	case reflect.Struct:
 		//PkgPath
 		td.adaptPtr(int(tl + int32(_typeSize)))
-		s := (*sliceHeader)(unsafe.Pointer(&td.data[tl+int32(_typeSize+PtrSize)]))
+		s := (*sliceHeader)(unsafe.Pointer(&td.data[tl+int32(_typeSize+constants.PtrSize)]))
 		for i := 0; i < s.Len; i++ {
 			//Filed Name
-			off := s.Data - td.sAddr + +uintptr(3*i)*PtrSize
+			off := s.Data - td.sAddr + +uintptr(3*i)*constants.PtrSize
 			td.adaptPtr(int(off))
 			//Field Type
-			addr := td.adaptPtr(int(off + PtrSize))
+			addr := td.adaptPtr(int(off + constants.PtrSize))
 			td.adaptType(int32(addr - td.nAddr))
 		}
 		s.Data = s.Data + td.nAddr - td.sAddr

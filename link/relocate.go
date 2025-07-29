@@ -3,6 +3,7 @@ package link
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
@@ -40,25 +41,25 @@ func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 				epilogue.Size = maxExtraCodeSize_ARM64_PCREL_LDST
 			case reloctype.R_CALL:
 				epilogue.Size = maxExtraCodeSize_CALL
-				linker.ExtraData += PtrSize
+				linker.ExtraData += constants.PtrSize
 			case reloctype.R_PCREL:
 				switch obj.GetOpName(reloc.Op) {
 				case "LEA":
-					linker.ExtraData += PtrSize
+					linker.ExtraData += constants.PtrSize
 				case "MOV", "MOVUPS", "MOVZ", "MOVZX", "MOVQ", "MOVSD_XMM", "MOVDQU":
 					epilogue.Size = maxExtraCodeSize_PCRELxMOV
 				case "CMP", "CMPL":
 					epilogue.Size = maxExtraCodeSize_PCRELxCMPL
 				case "CALL":
 					epilogue.Size = maxExtraCodeSize_PCRELxCALL
-					linker.ExtraData += PtrSize
+					linker.ExtraData += constants.PtrSize
 				case "JMP":
 					epilogue.Size = maxExtraCodeSize_PCRELxJMP
-					linker.ExtraData += PtrSize
+					linker.ExtraData += constants.PtrSize
 				default:
 				}
 			case reloctype.R_GOTPCREL, reloctype.R_ARM64_GOTPCREL:
-				linker.ExtraData += PtrSize
+				linker.ExtraData += constants.PtrSize
 			}
 
 			if epilogue.Size > 0 {
@@ -115,8 +116,8 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 				epilogueOffset += Uint32Size
 			}
 			blcode = byteorder.Uint32(arm64Bcode)
-			blcode |= ((uint32(loc.Offset) - uint32(epilogueOffset) + PtrSize) >> 2) & 0x01FFFFFF
-			if loc.Offset-epilogueOffset+PtrSize < 0 {
+			blcode |= ((uint32(loc.Offset) - uint32(epilogueOffset) + constants.PtrSize) >> 2) & 0x01FFFFFF
+			if loc.Offset-epilogueOffset+constants.PtrSize < 0 {
 				blcode |= 0x02000000
 			}
 			byteorder.PutUint32(segment.codeByte[epilogueOffset:], blcode)

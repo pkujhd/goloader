@@ -125,7 +125,7 @@ func (linker *Linker) addFiles(files []string) {
 		if offset, ok := linker.NameMap[fileName]; !ok {
 			linker.Filetab = append(linker.Filetab, (uint32)(len(linker.Pclntable)))
 			linker.NameMap[fileName] = len(linker.Pclntable)
-			fileName = strings.TrimPrefix(fileName, FileSymPrefix)
+			fileName = strings.TrimPrefix(fileName, constants.FileSymPrefix)
 			linker.Pclntable = append(linker.Pclntable, []byte(fileName)...)
 			linker.Pclntable = append(linker.Pclntable, ZeroByte)
 		} else {
@@ -217,7 +217,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 	case symkind.SDATA, symkind.SDATAFIPS:
 		symbol.Offset = len(linker.Data)
 		linker.Data = append(linker.Data, objsym.Data...)
-		bytearrayAlign(&linker.Data, PtrSize)
+		bytearrayAlign(&linker.Data, constants.PtrSize)
 	case symkind.SNOPTRDATA, symkind.SRODATA, symkind.SNOPTRDATAFIPS, symkind.SRODATAFIPS:
 		//because golang string assignment is pointer assignment, so store go.string constants in heap.
 		if isStringTypeName(symbol.Name) {
@@ -228,16 +228,16 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 		} else {
 			symbol.Offset = len(linker.Noptrdata)
 			linker.Noptrdata = append(linker.Noptrdata, objsym.Data...)
-			bytearrayAlign(&linker.Noptrdata, PtrSize)
+			bytearrayAlign(&linker.Noptrdata, constants.PtrSize)
 		}
 	case symkind.SBSS:
 		symbol.Offset = len(linker.Bss)
 		linker.Bss = append(linker.Bss, objsym.Data...)
-		bytearrayAlign(&linker.Bss, PtrSize)
+		bytearrayAlign(&linker.Bss, constants.PtrSize)
 	case symkind.SNOPTRBSS:
 		symbol.Offset = len(linker.Noptrbss)
 		linker.Noptrbss = append(linker.Noptrbss, objsym.Data...)
-		bytearrayAlign(&linker.Noptrbss, PtrSize)
+		bytearrayAlign(&linker.Noptrbss, constants.PtrSize)
 	default:
 		return nil, fmt.Errorf("invalid symbol:%s kind:%d", symbol.Name, symbol.Kind)
 	}
@@ -280,7 +280,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 					linker.Noptrdata = append(linker.Noptrdata, nameLen...)
 					linker.Noptrdata = append(linker.Noptrdata, path...)
 					linker.Noptrdata = append(linker.Noptrdata, ZeroByte)
-					bytearrayAlign(&linker.Noptrbss, PtrSize)
+					bytearrayAlign(&linker.Noptrbss, constants.PtrSize)
 				}
 				if ispreprocesssymbol(reloc.SymName) {
 					bytes := make([]byte, UInt64Size)
@@ -290,13 +290,13 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 						relocSym.Kind = symkind.SNOPTRDATA
 						relocSym.Offset = len(linker.Noptrdata)
 						linker.Noptrdata = append(linker.Noptrdata, bytes...)
-						bytearrayAlign(&linker.Noptrbss, PtrSize)
+						bytearrayAlign(&linker.Noptrbss, constants.PtrSize)
 					}
 				}
 				if reloc.Size > 0 {
 					linker.SymMap[reloc.SymName] = relocSym
 					if isGOTPCRELName(reloc.SymName) {
-						linker.ExtraData += PtrSize
+						linker.ExtraData += constants.PtrSize
 					}
 				}
 			}
@@ -383,7 +383,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, symPtr map[string]uint
 		return err
 	}
 
-	grow(&linker.Pclntable, alignof(len(linker.Pclntable), PtrSize))
+	grow(&linker.Pclntable, alignof(len(linker.Pclntable), constants.PtrSize))
 	return
 }
 
@@ -394,7 +394,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		if sym.Offset == InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
-			} else if addr, ok := symPtr[strings.TrimSuffix(name, GOTPCRELSuffix)]; ok && isGOTPCRELName(name) {
+			} else if addr, ok := symPtr[strings.TrimSuffix(name, constants.GOTPCRELSuffix)]; ok && isGOTPCRELName(name) {
 				symbolMap[name] = uintptr(segment.dataBase) + uintptr(segment.dataOff)
 				putAddressAddOffset(linker.Arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
 			} else {
@@ -444,7 +444,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	if _func.Nfuncdata > 0 {
 		addfuncdata(module, Func, _func)
 	}
-	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
+	grow(&module.pclntable, alignof(len(module.pclntable), constants.PtrSize))
 
 	return err
 }
@@ -470,7 +470,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	module.etypes = module.enoptrbss
 	initmodule(codeModule.module, linker)
 
-	grow(&module.pclntable, alignof(len(module.pclntable), PtrSize))
+	grow(&module.pclntable, alignof(len(module.pclntable), constants.PtrSize))
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker.Funcs {
 		funcname := getfuncname(_func, module)
@@ -607,7 +607,7 @@ func UnresolvedSymbols(linker *Linker, symPtr map[string]uintptr) []string {
 		if sym.Offset == InvalidOffset {
 			if _, ok := linker.CgoImportMap[name]; !ok {
 				if _, ok := symPtr[sym.Name]; !ok {
-					nName := strings.TrimSuffix(name, GOTPCRELSuffix)
+					nName := strings.TrimSuffix(name, constants.GOTPCRELSuffix)
 					if name != nName {
 						if _, ok := symPtr[nName]; !ok {
 							unresolvedSymbols = append(unresolvedSymbols, nName)
