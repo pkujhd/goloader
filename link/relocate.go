@@ -308,7 +308,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				relocByte = segment.codeByte
 			}
 
-			if symAddr != InvalidHandleValue {
+			if symAddr != constants.InvalidHandleValue {
 				symAddr = uintptr(int(symAddr) + loc.Add)
 				switch loc.Type {
 				case reloctype.R_TLS_LE, reloctype.R_TLS_IE:

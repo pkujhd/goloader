@@ -50,7 +50,7 @@ func validateInterface(symPtr map[string]uintptr, name string) bool {
 		ni := len(inter.mhdr)
 		methods := (*[1 << 16]unsafe.Pointer)(unsafe.Pointer(off))[:ni:ni]
 		for i := 0; i < ni; i++ {
-			if uintptr(methods[i]) == InvalidHandleValue {
+			if uintptr(methods[i]) == constants.InvalidHandleValue {
 				return false
 			}
 		}

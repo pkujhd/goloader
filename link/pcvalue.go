@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -73,7 +74,7 @@ func pcValue(p []byte, targetPC uintptr) (int32, uintptr) {
 		}
 		prevpc = pc
 	}
-	return -1, InvalidHandleValue
+	return -1, constants.InvalidHandleValue
 }
 
 func updateLastPCValue(pcVals *[]byte, nval int32, npc, pcQuantum uintptr) {
@@ -113,7 +114,7 @@ func patchPCValues(linker *Linker, pcVals *[]byte, reloc obj.Reloc) {
 		pcQuantum = 4
 	}
 	val, startPC := pcValue(*pcVals, uintptr(reloc.Offset))
-	if startPC == InvalidHandleValue && val == -1 {
+	if startPC == constants.InvalidHandleValue && val == -1 {
 		panic(fmt.Sprintf("couldn't interpret pcvalue data with pc offset: %d", reloc.Offset))
 	}
 	updateLastPCValue(pcVals, val, uintptr(reloc.Epilogue.Offset+reloc.Epilogue.Size), pcQuantum)

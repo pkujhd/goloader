@@ -6,6 +6,7 @@ package link
 import (
 	"unsafe"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -18,7 +19,7 @@ func getInitFuncName(packageName string) string {
 }
 
 func isNeedInitTaskInPlugin(name string) bool {
-	return name == getInitFuncName(DefaultPkgPath)
+	return name == getInitFuncName(constants.DefaultPkgPath)
 }
 
 //go:linkname doInit runtime.doInit

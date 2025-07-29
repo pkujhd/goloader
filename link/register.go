@@ -3,7 +3,6 @@ package link
 import (
 	"cmd/objfile/objfile"
 	"fmt"
-	"github.com/pkujhd/goloader/obj"
 	"os"
 	"reflect"
 	"strings"
@@ -106,7 +105,7 @@ func regSymbol(symPtr map[string]uintptr, path string, isValidateItab bool) erro
 				if validateInterface(symPtr, sym.Name) {
 					symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 				}
-			} else if !strings.HasPrefix(sym.Name, DefaultPkgPath) && !isTypeName(sym.Name) {
+			} else if !strings.HasPrefix(sym.Name, constants.DefaultPkgPath) && !isTypeName(sym.Name) {
 				symPtr[sym.Name] = uintptr(int64(sym.Addr) + addroff)
 				if strings.HasSuffix(sym.Name, constants.FunctionWrapperSuffix) {
 					nName := strings.TrimSuffix(sym.Name, constants.FunctionWrapperSuffix)
@@ -120,8 +119,8 @@ func regSymbol(symPtr map[string]uintptr, path string, isValidateItab bool) erro
 
 	// if only abi symbols in runtime environment, set abi internal symbol same as abi0
 	for symName, ptr := range symPtr {
-		if strings.HasSuffix(symName, obj.ABI0_SUFFIX) {
-			nName := strings.TrimSuffix(symName, obj.ABI0_SUFFIX)
+		if strings.HasSuffix(symName, constants.ABI0_SUFFIX) {
+			nName := strings.TrimSuffix(symName, constants.ABI0_SUFFIX)
 			if _, ok := symPtr[nName]; !ok {
 				symPtr[nName] = ptr
 			}

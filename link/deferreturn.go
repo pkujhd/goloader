@@ -6,6 +6,7 @@ package link
 import (
 	"cmd/objfile/sys"
 	"fmt"
+	"github.com/pkujhd/goloader/constants"
 
 	"github.com/pkujhd/goloader/objabi/dataindex"
 )
@@ -16,7 +17,7 @@ func (linker *Linker) addDeferReturn(_func *_func, module *moduledata) (err erro
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
 		sym := linker.SymMap[funcname]
 		for _, r := range sym.Reloc {
-			if r.SymName == RuntimeDeferReturn {
+			if r.SymName == constants.RuntimeDeferReturn {
 				//../cmd/link/internal/ld/pcln.go:pclntab
 				switch linker.Arch.Name {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:

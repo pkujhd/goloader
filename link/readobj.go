@@ -21,7 +21,7 @@ func Parse(file, pkgpath string) ([]string, error) {
 func (linker *Linker) readObj(file, pkgPath string) error {
 	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), CgoImports: make(map[string]*obj.CgoImport, 0), File: file, PkgPath: pkgPath}
 	if pkg.PkgPath == constants.EmptyString {
-		pkg.PkgPath = DefaultPkgPath
+		pkg.PkgPath = constants.DefaultPkgPath
 	}
 	if err := pkg.Symbols(); err != nil {
 		return fmt.Errorf("read error: %v", err)

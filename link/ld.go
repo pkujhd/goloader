@@ -398,7 +398,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 				symbolMap[name] = uintptr(segment.dataBase) + uintptr(segment.dataOff)
 				putAddressAddOffset(linker.Arch.ByteOrder, segment.dataByte, &segment.dataOff, uint64(addr))
 			} else {
-				symbolMap[name] = InvalidHandleValue
+				symbolMap[name] = constants.InvalidHandleValue
 				return nil, fmt.Errorf("unresolve external:%s", sym.Name)
 			}
 		} else if symkind.IsText(sym.Kind) {

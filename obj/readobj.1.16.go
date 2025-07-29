@@ -180,7 +180,7 @@ func (pkg *Pkg) AddCgoFuncs(cgoFuncs map[string]int) {
 					nsym := goArchive.entries[index.entryIndex].syms[index.symbolIndex]
 					cgoFuncs[sym.Name] = nsym.Kind
 					if (nsym.Func != nil && isWrapperFunctionID(nsym.Func.FuncID)) || isWrapperFunctionID(sym.Func.FuncID) {
-						nsym.Name = nsym.Name + ABI0_SUFFIX
+						nsym.Name = nsym.Name + constants.ABI0_SUFFIX
 					}
 				}
 			}
@@ -199,7 +199,7 @@ func (pkg *Pkg) AddSymIndex(cgoFuncs map[string]int) {
 		for _, sym := range goArchive.entries[objIndex].syms {
 			if kind, ok := cgoFuncs[sym.Name]; ok && kind > symkind.Sxxx && kind <= symkind.STLSBSS {
 				if sym.ABI == uint(obj.ABI0) {
-					sym.Name += ABI0_SUFFIX
+					sym.Name += constants.ABI0_SUFFIX
 				}
 			}
 
