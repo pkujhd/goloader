@@ -30,7 +30,7 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 			if _, ok := linker.NameMap[inl.Func]; !ok {
 				linker.NameMap[inl.Func] = len(linker.Pclntable)
 				linker.Pclntable = append(linker.Pclntable, []byte(inl.Func)...)
-				linker.Pclntable = append(linker.Pclntable, ZeroByte)
+				linker.Pclntable = append(linker.Pclntable, constants.ZeroByte)
 			}
 		}
 

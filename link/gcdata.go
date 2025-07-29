@@ -6,6 +6,7 @@ import (
 	"sort"
 	"unsafe"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/symkind"
 )
@@ -44,7 +45,7 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 
 		} else {
 			var prog []byte
-			append2Slice(&prog, uintptr(unsafe.Pointer(typ.gcdata)), Uint32Size+int((*(*uint32)(unsafe.Pointer(typ.gcdata)))))
+			append2Slice(&prog, uintptr(unsafe.Pointer(typ.gcdata)), constants.Uint32Size+int((*(*uint32)(unsafe.Pointer(typ.gcdata)))))
 			w.ZeroUntil(sval / int64(linker.Arch.PtrSize))
 			w.Append(prog[4:], nptr)
 		}

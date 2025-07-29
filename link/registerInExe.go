@@ -32,7 +32,7 @@ var exeData = exeFileData{md: nil, typesSectData: nil, textSectData: nil, typDat
 
 func (td *typeData) adaptPtr(dataOff int) uintptr {
 	ptr := uintptr(td.byteOrder.Uint64(td.data[dataOff:]))
-	if constants.PtrSize == Uint32Size {
+	if constants.PtrSize == constants.Uint32Size {
 		ptr = uintptr(td.byteOrder.Uint32(td.data[dataOff:]))
 	}
 	putAddress(td.byteOrder, td.data[dataOff:], uint64(ptr+td.nAddr-td.sAddr))
@@ -144,7 +144,7 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
-	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
+	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
 	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }
@@ -188,7 +188,7 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
-	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/Uint32Size)
+	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
 	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }

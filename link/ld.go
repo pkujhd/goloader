@@ -127,7 +127,7 @@ func (linker *Linker) addFiles(files []string) {
 			linker.NameMap[fileName] = len(linker.Pclntable)
 			fileName = strings.TrimPrefix(fileName, constants.FileSymPrefix)
 			linker.Pclntable = append(linker.Pclntable, []byte(fileName)...)
-			linker.Pclntable = append(linker.Pclntable, ZeroByte)
+			linker.Pclntable = append(linker.Pclntable, constants.ZeroByte)
 		} else {
 			linker.Filetab = append(linker.Filetab, uint32(offset))
 		}
@@ -136,7 +136,7 @@ func (linker *Linker) addFiles(files []string) {
 
 func (linker *Linker) addSymbols() error {
 	//static_tmp is 0, golang compile not allocate memory.
-	linker.Noptrdata = append(linker.Noptrdata, make([]byte, IntSize)...)
+	linker.Noptrdata = append(linker.Noptrdata, make([]byte, constants.IntSize)...)
 	for _, objSym := range linker.ObjSymbolMap {
 		if symkind.IsText(objSym.Kind) && objSym.DupOK == false {
 			if _, err := linker.addSymbol(objSym.Name, nil); err != nil {
@@ -170,12 +170,12 @@ func (linker *Linker) adaptSymbolOffset() {
 			case symkind.SNOPTRBSS:
 				offset += len(linker.Data) + len(linker.Noptrdata) + len(linker.Bss)
 			}
-			if sym.Offset != InvalidOffset {
+			if sym.Offset != constants.InvalidOffset {
 				sym.Offset += offset
 			}
 			if offset != 0 {
 				for index := range sym.Reloc {
-					if sym.Reloc[index].Offset != InvalidOffset {
+					if sym.Reloc[index].Offset != constants.InvalidOffset {
 						sym.Reloc[index].Offset += offset
 					}
 				}
@@ -186,7 +186,7 @@ func (linker *Linker) adaptSymbolOffset() {
 }
 
 func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol *obj.Sym, err error) {
-	if symbol, ok := linker.SymMap[name]; ok && symbol.Offset != InvalidOffset {
+	if symbol, ok := linker.SymMap[name]; ok && symbol.Offset != constants.InvalidOffset {
 		return symbol, nil
 	}
 	objsym := linker.ObjSymbolMap[name]
@@ -194,7 +194,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 	linker.SymMap[symbol.Name] = symbol
 	if symPtr != nil {
 		if _, ok := symPtr[name]; ok {
-			symbol.Offset = InvalidOffset
+			symbol.Offset = constants.InvalidOffset
 			return symbol, nil
 		}
 	}
@@ -259,16 +259,16 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 			}
 			if relocSym != nil && len(linker.ObjSymbolMap[reloc.SymName].Data) == 0 && reloc.Size > 0 {
 				//static_tmp is 0, golang compile not allocate memory.
-				//goloader add IntSize bytes on linker.Noptrdata[0]
-				if reloc.Size <= IntSize {
+				//goloader add constants.IntSize bytes on linker.Noptrdata[0]
+				if reloc.Size <= constants.IntSize {
 					relocSym.Offset = 0
 				} else {
-					return nil, fmt.Errorf("Symbol:%s size:%d>IntSize:%d\n", relocSym.Name, reloc.Size, IntSize)
+					return nil, fmt.Errorf("Symbol:%s size:%d>constants.IntSize:%d\n", relocSym.Name, reloc.Size, constants.IntSize)
 				}
 			}
 		} else {
 			if _, ok := linker.SymMap[reloc.SymName]; !ok && reloc.SymName != constants.EmptyString {
-				relocSym := &obj.Sym{Name: reloc.SymName, Offset: InvalidOffset}
+				relocSym := &obj.Sym{Name: reloc.SymName, Offset: constants.InvalidOffset}
 				if strings.HasPrefix(reloc.SymName, constants.TypeImportPathPrefix) {
 					path := strings.Trim(strings.TrimPrefix(reloc.SymName, constants.TypeImportPathPrefix), ".")
 					relocSym.Kind = symkind.SNOPTRDATA
@@ -279,11 +279,11 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 					binary.BigEndian.PutUint16(nameLen[1:], uint16(len(path)))
 					linker.Noptrdata = append(linker.Noptrdata, nameLen...)
 					linker.Noptrdata = append(linker.Noptrdata, path...)
-					linker.Noptrdata = append(linker.Noptrdata, ZeroByte)
+					linker.Noptrdata = append(linker.Noptrdata, constants.ZeroByte)
 					bytearrayAlign(&linker.Noptrbss, constants.PtrSize)
 				}
 				if ispreprocesssymbol(reloc.SymName) {
-					bytes := make([]byte, UInt64Size)
+					bytes := make([]byte, constants.UInt64Size)
 					if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.SymName, bytes); err != nil {
 						return nil, err
 					} else {
@@ -307,7 +307,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 	if objsym.Type != constants.EmptyString {
 		if _, ok := linker.SymMap[objsym.Type]; !ok {
 			if _, ok := linker.ObjSymbolMap[objsym.Type]; !ok {
-				linker.SymMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: InvalidOffset}
+				linker.SymMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: constants.InvalidOffset}
 			} else {
 				linker.addSymbol(objsym.Type, symPtr)
 			}
@@ -321,7 +321,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, symPtr map[string]uint
 	if offset, ok := linker.NameMap[symbol.Name]; !ok {
 		linker.NameMap[symbol.Name] = len(linker.Pclntable)
 		linker.Pclntable = append(linker.Pclntable, []byte(symbol.Name)...)
-		linker.Pclntable = append(linker.Pclntable, ZeroByte)
+		linker.Pclntable = append(linker.Pclntable, constants.ZeroByte)
 	} else {
 		nameOff = offset
 	}
@@ -391,7 +391,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 	symbolMap = make(map[string]uintptr)
 	segment := &codeModule.segment
 	for name, sym := range linker.SymMap {
-		if sym.Offset == InvalidOffset {
+		if sym.Offset == constants.InvalidOffset {
 			if ptr, ok := symPtr[sym.Name]; ok {
 				symbolMap[name] = ptr
 			} else if addr, ok := symPtr[strings.TrimSuffix(name, constants.GOTPCRELSuffix)]; ok && isGOTPCRELName(name) {
@@ -438,7 +438,7 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(_func)), _FuncSize)
 
 	if _func.Npcdata > 0 {
-		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(Func.PCData[0]))), Uint32Size*int(_func.Npcdata))
+		append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&(Func.PCData[0]))), constants.Uint32Size*int(_func.Npcdata))
 	}
 
 	if _func.Nfuncdata > 0 {
@@ -548,7 +548,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	//init code segment
 	codeSeg := &codeModule.segment.codeSeg
 	codeSeg.length = len(linker.Code)
-	codeSeg.maxLen = alignof(codeSeg.length, PageSize)
+	codeSeg.maxLen = alignof(codeSeg.length, constants.PageSize)
 	codeByte, err := Mmap(codeSeg.maxLen)
 	if err != nil {
 		return nil, err
@@ -565,7 +565,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	dataSeg.bssLen = len(linker.Bss)
 	dataSeg.noptrbssLen = len(linker.Noptrbss)
 	dataSeg.length = dataSeg.dataLen + dataSeg.noptrdataLen + dataSeg.bssLen + dataSeg.noptrbssLen
-	dataSeg.maxLen = alignof(dataSeg.length+linker.ExtraData, PageSize)
+	dataSeg.maxLen = alignof(dataSeg.length+linker.ExtraData, constants.PageSize)
 	dataSeg.dataOff = 0
 	dataByte, err := MmapData(dataSeg.maxLen)
 	if err != nil {
@@ -604,7 +604,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 func UnresolvedSymbols(linker *Linker, symPtr map[string]uintptr) []string {
 	unresolvedSymbols := make([]string, 0)
 	for name, sym := range linker.SymMap {
-		if sym.Offset == InvalidOffset {
+		if sym.Offset == constants.InvalidOffset {
 			if _, ok := linker.CgoImportMap[name]; !ok {
 				if _, ok := symPtr[sym.Name]; !ok {
 					nName := strings.TrimSuffix(name, constants.GOTPCRELSuffix)
@@ -624,7 +624,7 @@ func UnresolvedSymbols(linker *Linker, symPtr map[string]uintptr) []string {
 
 func checkUnimplementedInterface(linker *Linker, symPtr map[string]uintptr) map[string]map[string]int {
 	for _, sym := range linker.SymMap {
-		if isTypeName(sym.Name) && sym.Offset != InvalidOffset {
+		if isTypeName(sym.Name) && sym.Offset != constants.InvalidOffset {
 			typ := (*_type)(unsafe.Pointer(&(linker.Noptrdata[sym.Offset])))
 			if typ.Kind() == reflect.Interface {
 				for _, typeName := range getUnimplementedInterfaceType(linker.SymMap[sym.Name], symPtr) {

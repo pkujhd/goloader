@@ -58,7 +58,7 @@ func validateInterface(symPtr map[string]uintptr, name string) bool {
 		xmhdr := (*[1 << 16]method)(add(unsafe.Pointer(x), uintptr(x.moff)))[:nt:nt]
 		for k := 0; k < nt; k++ {
 			t := &xmhdr[k]
-			if int(t.ifn) == InvalidOffset || int(t.tfn) == InvalidOffset {
+			if int(t.ifn) == constants.InvalidOffset || int(t.tfn) == constants.InvalidOffset {
 				return false
 			}
 		}

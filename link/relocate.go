@@ -113,7 +113,7 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 				//LDR or STR
 				ldrOrStr := (byteorder.Uint32(mCode[4:]) & 0xFFFFFC00) | addr&0x1F | ((addr & 0x1F) << 5)
 				byteorder.PutUint32(segment.codeByte[epilogueOffset:], ldrOrStr)
-				epilogueOffset += Uint32Size
+				epilogueOffset += constants.Uint32Size
 			}
 			blcode = byteorder.Uint32(arm64Bcode)
 			blcode |= ((uint32(loc.Offset) - uint32(epilogueOffset) + constants.PtrSize) >> 2) & 0x01FFFFFF
@@ -195,7 +195,7 @@ func fillCode(relocByte []byte, reloc obj.Reloc, codes []byte, byteorder binary.
 		startPc++
 	}
 	copy(relocByte[startPc:], codes)
-	byteorder.PutUint32(relocByte[reloc.GetEnd()-Uint32Size:], uint32(offset))
+	byteorder.PutUint32(relocByte[reloc.GetEnd()-constants.Uint32Size:], uint32(offset))
 }
 
 func (linker *Linker) relocatePCREL(symAddr uintptr, loc obj.Reloc, segment *segment, relocByte []byte, addrBase int) (err error) {

@@ -93,7 +93,7 @@ func createArm64Nops(size int) []byte {
 }
 
 func putAddressAddOffset(byteOrder binary.ByteOrder, b []byte, offset *int, addr uint64) {
-	if constants.PtrSize == Uint32Size {
+	if constants.PtrSize == constants.Uint32Size {
 		byteOrder.PutUint32(b[*offset:], uint32(addr))
 	} else {
 		byteOrder.PutUint64(b[*offset:], uint64(addr))
@@ -102,7 +102,7 @@ func putAddressAddOffset(byteOrder binary.ByteOrder, b []byte, offset *int, addr
 }
 
 func putAddress(byteOrder binary.ByteOrder, b []byte, addr uint64) {
-	if constants.PtrSize == Uint32Size {
+	if constants.PtrSize == constants.Uint32Size {
 		byteOrder.PutUint32(b, uint32(addr))
 	} else {
 		byteOrder.PutUint64(b, uint64(addr))

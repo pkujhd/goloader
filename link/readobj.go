@@ -106,7 +106,7 @@ func ReadDependPackages(linker *Linker, files, pkgPaths []string, symbolNames []
 	for _, pkg := range linker.Packages {
 		name := getInitFuncName(pkg.PkgPath)
 		if _, ok := linker.ObjSymbolMap[name]; ok {
-			if symbol, ok := linker.SymMap[name]; !ok || symbol.Offset == InvalidOffset {
+			if symbol, ok := linker.SymMap[name]; !ok || symbol.Offset == constants.InvalidOffset {
 				if !isCompleteInitialization(linker, name, symPtr) {
 					_, err := linker.addSymbol(name, symPtr)
 					if err != nil {

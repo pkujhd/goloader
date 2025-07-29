@@ -9,6 +9,9 @@ const (
 	GOTPCRELSuffix        = "·f"
 )
 
+const EmptyString = ``
+const ZeroByte = byte(0x00)
+
 const (
-	EmptyString = ``
+	InvalidOffset = int(-1)
 )

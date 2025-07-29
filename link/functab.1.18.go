@@ -6,6 +6,7 @@ package link
 import (
 	"unsafe"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
@@ -31,5 +32,5 @@ func addfuncdata(module *moduledata, Func *obj.Func, _func *_func) {
 			funcdata = append(funcdata, ^uint32(0))
 		}
 	}
-	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), Uint32Size*int(_func.Nfuncdata))
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), constants.Uint32Size*int(_func.Nfuncdata))
 }
