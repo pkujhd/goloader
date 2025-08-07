@@ -2,12 +2,13 @@ package link
 
 import (
 	"fmt"
+
 	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 )
 
-func Parse(file, pkgpath string) ([]string, error) {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), File: file, PkgPath: pkgpath}
+func Parse(file, pkgPath string) ([]string, error) {
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol), File: file, PkgPath: pkgPath}
 	if err := pkg.Symbols(); err != nil {
 		return nil, err
 	}
@@ -19,7 +20,7 @@ func Parse(file, pkgpath string) ([]string, error) {
 }
 
 func (linker *Linker) readObj(file, pkgPath string) error {
-	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol, 0), CgoImports: make(map[string]*obj.CgoImport, 0), File: file, PkgPath: pkgPath}
+	pkg := obj.Pkg{Syms: make(map[string]*obj.ObjSymbol), CgoImports: make(map[string]*obj.CgoImport), File: file, PkgPath: pkgPath}
 	if pkg.PkgPath == constants.EmptyString {
 		pkg.PkgPath = constants.DefaultPkgPath
 	}
@@ -52,9 +53,9 @@ func (linker *Linker) resolveSymbols() {
 	}
 }
 
-func ReadObj(file, pkgpath string) (*Linker, error) {
+func ReadObj(file, pkgPath string) (*Linker, error) {
 	linker := initLinker()
-	if err := linker.readObj(file, pkgpath); err != nil {
+	if err := linker.readObj(file, pkgPath); err != nil {
 		return nil, err
 	}
 	linker.resolveSymbols()

@@ -172,7 +172,7 @@ func MakeThreadJITCodeExecutable(ptr uintptr, len int) {
 }
 
 // see $GOROOT/src/cmd/internal/loader/loader.go:preprocess
-func ispreprocesssymbol(name string) bool {
+func isPreprocessSymbol(name string) bool {
 	if len(name) > 5 {
 		switch name[:5] {
 		case "$f32.", "$f64.", "$i64.":
@@ -183,7 +183,7 @@ func ispreprocesssymbol(name string) bool {
 	return false
 }
 
-func preprocesssymbol(byteOrder binary.ByteOrder, name string, bytes []byte) error {
+func preprocessSymbol(byteOrder binary.ByteOrder, name string, bytes []byte) error {
 	val, err := strconv.ParseUint(name[5:], 16, 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse $-symbol %s: %v", name, err)

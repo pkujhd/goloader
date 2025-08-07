@@ -6,16 +6,16 @@ package link
 import (
 	"cmd/objfile/sys"
 	"fmt"
-	"github.com/pkujhd/goloader/constants"
 
+	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/objabi/dataindex"
 )
 
 func (linker *Linker) addDeferReturn(_func *_func, module *moduledata) (err error) {
-	funcname := getfuncname(_func, module)
-	Func := linker.SymMap[funcname].Func
+	funcName := getfuncname(_func, module)
+	Func := linker.SymMap[funcName].Func
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
-		sym := linker.SymMap[funcname]
+		sym := linker.SymMap[funcName]
 		for _, r := range sym.Reloc {
 			if r.SymName == constants.RuntimeDeferReturn {
 				//../cmd/link/internal/ld/pcln.go:pclntab

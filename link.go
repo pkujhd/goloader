@@ -1,9 +1,10 @@
 package goloader
 
 import (
+	"io"
+
 	"github.com/pkujhd/goloader/link"
 	"github.com/pkujhd/goloader/mmap"
-	"io"
 )
 
 type Linker link.Linker

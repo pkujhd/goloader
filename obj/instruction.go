@@ -3,6 +3,10 @@
 
 package obj
 
+import (
+	"github.com/pkujhd/goloader/constants"
+)
+
 func MarkReloc(text []byte, relocs []Reloc, offset int, archName string) {
 }
 

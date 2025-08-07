@@ -11,11 +11,10 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/pkujhd/goloader/objabi/reloctype"
-
 	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/funcalign"
+	"github.com/pkujhd/goloader/objabi/reloctype"
 	"github.com/pkujhd/goloader/objabi/symkind"
 	"github.com/pkujhd/goloader/stackobject"
 )
@@ -282,9 +281,9 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 					linker.Noptrdata = append(linker.Noptrdata, constants.ZeroByte)
 					bytearrayAlign(&linker.Noptrbss, constants.PtrSize)
 				}
-				if ispreprocesssymbol(reloc.SymName) {
+				if isPreprocessSymbol(reloc.SymName) {
 					bytes := make([]byte, constants.UInt64Size)
-					if err := preprocesssymbol(linker.Arch.ByteOrder, reloc.SymName, bytes); err != nil {
+					if err := preprocessSymbol(linker.Arch.ByteOrder, reloc.SymName, bytes); err != nil {
 						return nil, err
 					} else {
 						relocSym.Kind = symkind.SNOPTRDATA
@@ -408,7 +407,7 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 			symbolMap[name] = (*stringHeader)(unsafe.Pointer(linker.StringMap[name])).Data
 		} else if isNeedInitTaskInPlugin(name) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
-		} else if ispreprocesssymbol(name) {
+		} else if isPreprocessSymbol(name) {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
 		} else if _, ok := symPtr[name]; ok {
 			symbolMap[name] = symPtr[name]

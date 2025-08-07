@@ -9,9 +9,9 @@ import (
 )
 
 func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err error) {
-	funcname := symbol.Name
+	funcName := symbol.Name
 	Func := symbol.Func
-	sym := linker.SymMap[funcname]
+	sym := linker.SymMap[funcName]
 	if Func != nil && len(Func.InlTree) != 0 {
 		for _func.Npcdata <= dataindex.PCDATA_InlTreeIndex {
 			sym.Func.PCData = append(sym.Func.PCData, uint32(0))
@@ -40,8 +40,8 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 			if _, ok := linker.ObjSymbolMap[inl.Func]; ok {
 				funcID = linker.ObjSymbolMap[inl.Func].Func.FuncID
 			}
-			inlinedcall := obj.InitInlinedCall(inl, funcID, linker.NameMap, linker.Filetab)
-			copy2Slice(bytes[k*obj.InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedcall)), obj.InlinedCallSize)
+			inlinedCall := obj.InitInlinedCall(inl, funcID, linker.NameMap, linker.Filetab)
+			copy2Slice(bytes[k*obj.InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedCall)), obj.InlinedCallSize)
 		}
 		offset := len(linker.Noptrdata)
 		linker.Noptrdata = append(linker.Noptrdata, bytes...)
