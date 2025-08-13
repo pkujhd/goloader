@@ -37,7 +37,7 @@ jobs:
 
     steps:
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v5
       with:
         go-version: 1.${{ matrix.go-second-version }}.x
         
@@ -47,7 +47,7 @@ jobs:
         cp -r `go env GOROOT`/src/cmd/internal `go env GOROOT`/src/cmd/objfile
         
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
       with:
         path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
       
