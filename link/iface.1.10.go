@@ -4,8 +4,9 @@
 package link
 
 import (
-	"github.com/pkujhd/goloader/constants"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
 )
 
 // layout of Itab known to compilers
@@ -68,6 +69,8 @@ func removeitabs(module *moduledata) bool {
 			}
 		}
 	}
+
+	resetTypeAssertInterfaceSwitchCache()
 	return true
 }
 

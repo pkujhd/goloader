@@ -126,5 +126,7 @@ func regSymbol(symPtr map[string]uintptr, path string, isValidateItab bool) erro
 			}
 		}
 	}
+
+	registerTypeAssertInterfaceSwitchCache(symPtr)
 	return nil
 }
