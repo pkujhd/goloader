@@ -15,7 +15,7 @@ const (
 	maxExtraCodeSize_CALLARM64        = 16
 	maxExtraCodeSize_ARM64_PCREL_LDST = 24
 	maxExtraCodeSize_PCRELxMOV        = 18
-	maxExtraCodeSize_PCRELxCMPL       = 14
+	maxExtraCodeSize_PCRELxCMPL       = 22
 	maxExtraCodeSize_PCRELxCALL       = 11
 	maxExtraCodeSize_PCRELxJMP        = 6
 	maxExtraCodeSize_CALL             = 11
@@ -225,8 +225,8 @@ func (linker *Linker) relocatePCREL(symAddr uintptr, loc obj.Reloc, segment *seg
 			fillCode(relocByte, loc, x86amd64JMPNCode, byteOrder, loc.Epilogue.Offset-loc.GetEnd())
 		case "CMP", "CMPL":
 			copy(segment.codeByte[epilogueOffset:], x86amd64ReplaceCMPCode)
-			byteOrder.PutUint32(segment.codeByte[epilogueOffset+4:], uint32(symAddr))
-			segment.codeByte[epilogueOffset+8] = relocByte[loc.Offset+loc.Size]
+			byteOrder.PutUint64(segment.codeByte[epilogueOffset+3:], uint64(symAddr))
+			segment.codeByte[epilogueOffset+14] = relocByte[loc.Offset+loc.Size]
 			epilogueOffset += len(x86amd64ReplaceCMPCode)
 			byteOrder.PutUint32(segment.codeByte[epilogueOffset-4:], uint32(loc.GetEnd()-epilogueOffset))
 			fillCode(relocByte, loc, x86amd64JMPNCode, byteOrder, loc.Epilogue.Offset-loc.GetEnd())
