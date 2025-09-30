@@ -81,7 +81,7 @@ func (td *typeData) adaptType(tl int32) {
 		s := (*sliceHeader)(unsafe.Pointer(&td.data[tl+int32(_typeSize+constants.PtrSize)]))
 		for i := 0; i < s.Len; i++ {
 			//Filed Name
-			off := s.Data - td.sAddr + +uintptr(3*i)*constants.PtrSize
+			off := s.Data - td.sAddr + uintptr(3*i)*constants.PtrSize
 			td.adaptPtr(int(off))
 			//Field Type
 			addr := td.adaptPtr(int(off + constants.PtrSize))
@@ -144,7 +144,7 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
-	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
+	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
 	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }
@@ -188,7 +188,7 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
-	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
+	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
 	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }
@@ -238,7 +238,7 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 	textSectData, _ := textSect.Data()
 	exeData.textSectData = &textSectData
 
-	exeData.md.typelinks = *ptr2uint32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
+	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
 
 	roDataAddr := uintptr(typesSect.VirtualAddress) + getImageBase(peFile)
 	registerTypelinksInExe(symPtr, binary.LittleEndian, typesSectData[md.types-roDataAddr:], md.types)

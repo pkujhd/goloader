@@ -4,11 +4,12 @@ import (
 	"cmd/objfile/sys"
 	"encoding/binary"
 	"fmt"
-	"github.com/pkujhd/goloader/constants"
 	"runtime"
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
 
 	"github.com/pkujhd/goloader/mmap"
 	"github.com/pkujhd/goloader/obj"
@@ -203,7 +204,7 @@ func preprocessSymbol(byteOrder binary.ByteOrder, name string, bytes []byte) err
 	return nil
 }
 
-func ptr2uint32slice(ptr uintptr, size int) *[]int32 {
+func ptr2int32slice(ptr uintptr, size int) *[]int32 {
 	s := sliceHeader{
 		Data: ptr,
 		Len:  size,
