@@ -3,6 +3,7 @@ package link
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/reloctype"
@@ -72,6 +73,10 @@ func expandFunc(linker *Linker, objsym *obj.ObjSymbol, symbol *obj.Sym) {
 func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment, symAddr uintptr) (err error) {
 	byteOrder := linker.Arch.ByteOrder
 	offset := int64(symAddr) - ((int64(segment.codeBase) + int64(loc.Offset)) &^ 0xFFF)
+	if loc.Type == reloctype.R_ARM64_GOTPCREL {
+		offset = int64(alignof((segment.dataBase+segment.dataOff)-((segment.codeBase+loc.Offset)&^0xFFF), constants.PtrSize))
+		putAddressAddOffset(byteOrder, segment.dataByte, &segment.dataOff, uint64(symAddr))
+	}
 	//overflow
 	if offset >= 1<<32 || offset < -1<<32 {
 		epilogueOffset := loc.Epilogue.Offset
@@ -131,17 +136,17 @@ func (linker *Linker) relocateADRP(mCode []byte, loc obj.Reloc, segment *segment
 			high = uint32(offset&0xFFF) << 10
 		case reloctype.R_ARM64_PCREL_LDST16:
 			if offset&0x1 != 0 {
-				err = fmt.Errorf("offset for 16-bit load/store has unaligned value %d", offset&0xFFF)
+				err = fmt.Errorf("offset for 16-bit load/store has unaligned value 0x%x", offset&0xFFF)
 			}
 			high = (uint32(offset&0xFFF) >> 1) << 10
 		case reloctype.R_ARM64_PCREL_LDST32:
 			if offset&0x3 != 0 {
-				err = fmt.Errorf("offset for 32-bit load/store has unaligned value %d", offset&0xFFF)
+				err = fmt.Errorf("offset for 32-bit load/store has unaligned value 0x%x", offset&0xFFF)
 			}
 			high = (uint32(offset&0xFFF) >> 2) << 10
-		case reloctype.R_ARM64_PCREL_LDST64:
+		case reloctype.R_ARM64_PCREL_LDST64, reloctype.R_ARM64_GOTPCREL:
 			if offset&0x7 != 0 {
-				err = fmt.Errorf("offset for 64-bit load/store has unaligned value %d", offset&0xFFF)
+				err = fmt.Errorf("offset for 64-bit load/store has unaligned value 0x%x", offset&0xFFF)
 			}
 			high = (uint32(offset&0xFFF) >> 3) << 10
 		}
@@ -319,7 +324,9 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					err = linker.relocatePCREL(symAddr, loc, segment, relocByte, addrBase)
 				case reloctype.R_CALLARM, reloctype.R_CALLARM64, reloctype.R_CALLARM64 | reloctype.R_WEAK:
 					linker.relocteCALLARM(symbolMap[loc.SymName], loc, segment)
-				case reloctype.R_ADDRARM64, reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16, reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
+				case reloctype.R_ADDRARM64, reloctype.R_ARM64_GOTPCREL,
+					reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16,
+					reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 					if symkind.IsText(symbol.Kind) {
 						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", loc.SymName)
 					}
@@ -351,7 +358,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						}
 					}
 					byteOrder.PutUint32(relocByte[loc.Offset:], uint32(offset))
-				case reloctype.R_GOTPCREL, reloctype.R_ARM64_GOTPCREL:
+				case reloctype.R_GOTPCREL:
 					offset := uint32(segment.dataBase + segment.dataOff - (addrBase + loc.GetEnd()))
 					byteOrder.PutUint32(relocByte[loc.Offset:], offset)
 					putAddressAddOffset(byteOrder, segment.dataByte, &segment.dataOff, uint64(symAddr))
