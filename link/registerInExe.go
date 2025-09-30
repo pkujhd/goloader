@@ -17,6 +17,7 @@ type typeData struct {
 	data      []byte
 	sAddr     uintptr
 	nAddr     uintptr
+	ptrMask   func(uintptr) uintptr
 	byteOrder binary.ByteOrder
 	adapted   map[int32]int32
 }
@@ -34,6 +35,9 @@ func (td *typeData) adaptPtr(dataOff int) uintptr {
 	ptr := uintptr(td.byteOrder.Uint64(td.data[dataOff:]))
 	if constants.PtrSize == constants.Uint32Size {
 		ptr = uintptr(td.byteOrder.Uint32(td.data[dataOff:]))
+	}
+	if td.ptrMask != nil {
+		ptr = td.ptrMask(ptr)
 	}
 	putAddress(td.byteOrder, td.data[dataOff:], uint64(ptr+td.nAddr-td.sAddr))
 	return ptr + td.nAddr - td.sAddr
@@ -79,6 +83,9 @@ func (td *typeData) adaptType(tl int32) {
 		//PkgPath
 		td.adaptPtr(int(tl + int32(_typeSize)))
 		s := (*sliceHeader)(unsafe.Pointer(&td.data[tl+int32(_typeSize+constants.PtrSize)]))
+		if td.ptrMask != nil {
+			s.Data = td.ptrMask(s.Data)
+		}
 		for i := 0; i < s.Len; i++ {
 			//Filed Name
 			off := s.Data - td.sAddr + uintptr(3*i)*constants.PtrSize
@@ -141,6 +148,17 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 		return err
 	}
 	byteOrder := machoFile.ByteOrder
+	/*
+		on osx/arm64, pointer in const-data segment has invalid high memory address,
+		use pointer mask function rewrite it.
+		on golang < 1.11 not define macho.CpuArm64,
+		so use macho.CpuArm|(macho.CpuAmd64&^macho.Cpu386) replace it
+	*/
+	if machoFile.Cpu == macho.CpuArm|(macho.CpuAmd64&^macho.Cpu386) {
+		exeData.typData.ptrMask = func(ptr uintptr) uintptr {
+			return ptr&0xFFFFFFFF | uintptr(typesSection.Addr-uint64(typesSection.Offset))
+		}
+	}
 
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
@@ -251,13 +269,12 @@ func registerTypelinksInExe(symPtr map[string]uintptr, byteOrder binary.ByteOrde
 	md.etypes = md.types + uintptr(len(data))
 	md.text = uintptr(unsafe.Pointer(&(*exeData.textSectData)[0]))
 	md.etext = md.text + uintptr(len(*exeData.textSectData))
-	exeData.typData = &typeData{
-		data:      data,
-		sAddr:     addr,
-		nAddr:     md.types,
-		byteOrder: byteOrder,
-		adapted:   make(map[int32]int32),
-	}
+
+	exeData.typData.data = data
+	exeData.typData.sAddr = addr
+	exeData.typData.nAddr = md.types
+	exeData.typData.byteOrder = byteOrder
+
 	modulesLock.Lock()
 	addModule(md)
 	modulesLock.Unlock()
@@ -271,6 +288,7 @@ func registerTypelinksInExe(symPtr map[string]uintptr, byteOrder binary.ByteOrde
 
 func registerTypesInExe(symPtr map[string]uintptr, path string) error {
 	exeData.md = &moduledata{}
+	exeData.typData = &typeData{ptrMask: nil, adapted: make(map[int32]int32)}
 	switch runtime.GOOS {
 	case "linux", "android":
 		return registerTypesInElf(path, symPtr)
