@@ -14,46 +14,46 @@ import (
 )
 
 type typeData struct {
-	data      []byte
-	sAddr     uintptr
-	nAddr     uintptr
-	ptrMask   func(uintptr) uintptr
-	byteOrder binary.ByteOrder
-	adapted   map[int32]int32
+	data        []byte
+	addrBase    uintptr
+	newAddrBase uintptr
+	ptrMask     func(uintptr) uintptr
+	byteOrder   binary.ByteOrder
+	adapted     map[int32]int32
 }
 
 type exeFileData struct {
 	md            *moduledata
 	typesSectData *[]byte
 	textSectData  *[]byte
-	typData       *typeData
+	typeData
 }
 
-var exeData = exeFileData{md: nil, typesSectData: nil, textSectData: nil, typData: nil}
+var exeData = exeFileData{md: nil, typesSectData: nil, textSectData: nil}
 
-func (td *typeData) adaptPtr(dataOff int) uintptr {
-	ptr := uintptr(td.byteOrder.Uint64(td.data[dataOff:]))
+func (_typData *typeData) adaptPtr(dataOff int) uintptr {
+	ptr := uintptr(_typData.byteOrder.Uint64(_typData.data[dataOff:]))
 	if constants.PtrSize == constants.Uint32Size {
-		ptr = uintptr(td.byteOrder.Uint32(td.data[dataOff:]))
+		ptr = uintptr(_typData.byteOrder.Uint32(_typData.data[dataOff:]))
 	}
-	if td.ptrMask != nil {
-		ptr = td.ptrMask(ptr)
+	if _typData.ptrMask != nil {
+		ptr = _typData.ptrMask(ptr)
 	}
-	putAddress(td.byteOrder, td.data[dataOff:], uint64(ptr+td.nAddr-td.sAddr))
-	return ptr + td.nAddr - td.sAddr
+	putAddress(_typData.byteOrder, _typData.data[dataOff:], uint64(ptr+_typData.newAddrBase-_typData.addrBase))
+	return ptr + _typData.newAddrBase - _typData.addrBase
 }
 
-func (td *typeData) adaptType(tl int32) {
-	if _, ok := td.adapted[tl]; ok {
+func (_typData *typeData) adaptType(tl int32) {
+	if _, ok := _typData.adapted[tl]; ok {
 		return
 	}
-	td.adapted[tl] = tl
-	t := (*_type)(adduintptr(td.nAddr, int(tl)))
+	_typData.adapted[tl] = tl
+	t := (*_type)(adduintptr(_typData.newAddrBase, int(tl)))
 	switch t.Kind() {
 	case reflect.Array, reflect.Ptr, reflect.Chan, reflect.Slice:
 		//Element
-		addr := td.adaptPtr(int(tl) + _typeSize)
-		td.adaptType(int32(addr - td.nAddr))
+		addr := _typData.adaptPtr(int(tl) + _typeSize)
+		_typData.adaptType(int32(addr - _typData.newAddrBase))
 	case reflect.Func:
 		f := (*funcType)(unsafe.Pointer(t))
 		inOutCount := f.inCount + f.outCount&(1<<15-1)
@@ -63,38 +63,38 @@ func (td *typeData) adaptType(tl int32) {
 		}
 		uadd += int(tl)
 		for i := 0; i < int(inOutCount); i++ {
-			addr := td.adaptPtr(int(uadd + i*constants.PtrSize))
-			td.adaptType(int32(addr - td.nAddr))
+			addr := _typData.adaptPtr(int(uadd + i*constants.PtrSize))
+			_typData.adaptType(int32(addr - _typData.newAddrBase))
 		}
 	case reflect.Interface:
 		//pkgPath
-		td.adaptPtr(int(tl + int32(_typeSize)))
+		_typData.adaptPtr(int(tl + int32(_typeSize)))
 	case reflect.Map:
 		//Key
-		addr := td.adaptPtr(int(tl) + _typeSize)
-		td.adaptType(int32(addr - td.nAddr))
+		addr := _typData.adaptPtr(int(tl) + _typeSize)
+		_typData.adaptType(int32(addr - _typData.newAddrBase))
 		//Elem
-		addr = td.adaptPtr(int(tl) + _typeSize + constants.PtrSize)
-		td.adaptType(int32(addr - td.nAddr))
+		addr = _typData.adaptPtr(int(tl) + _typeSize + constants.PtrSize)
+		_typData.adaptType(int32(addr - _typData.newAddrBase))
 		//Bucket
-		addr = td.adaptPtr(int(tl) + _typeSize + constants.PtrSize + constants.PtrSize)
-		td.adaptType(int32(addr - td.nAddr))
+		addr = _typData.adaptPtr(int(tl) + _typeSize + constants.PtrSize + constants.PtrSize)
+		_typData.adaptType(int32(addr - _typData.newAddrBase))
 	case reflect.Struct:
 		//PkgPath
-		td.adaptPtr(int(tl + int32(_typeSize)))
-		s := (*sliceHeader)(unsafe.Pointer(&td.data[tl+int32(_typeSize+constants.PtrSize)]))
-		if td.ptrMask != nil {
-			s.Data = td.ptrMask(s.Data)
+		_typData.adaptPtr(int(tl + int32(_typeSize)))
+		s := (*sliceHeader)(unsafe.Pointer(&_typData.data[tl+int32(_typeSize+constants.PtrSize)]))
+		if _typData.ptrMask != nil {
+			s.Data = _typData.ptrMask(s.Data)
 		}
 		for i := 0; i < s.Len; i++ {
 			//Filed Name
-			off := s.Data - td.sAddr + uintptr(3*i)*constants.PtrSize
-			td.adaptPtr(int(off))
+			off := s.Data - _typData.addrBase + uintptr(3*i)*constants.PtrSize
+			_typData.adaptPtr(int(off))
 			//Field Type
-			addr := td.adaptPtr(int(off + constants.PtrSize))
-			td.adaptType(int32(addr - td.nAddr))
+			addr := _typData.adaptPtr(int(off + constants.PtrSize))
+			_typData.adaptType(int32(addr - _typData.newAddrBase))
 		}
-		s.Data = s.Data + td.nAddr - td.sAddr
+		s.Data = s.Data + _typData.newAddrBase - _typData.addrBase
 	case reflect.Bool,
 		reflect.Int, reflect.Uint,
 		reflect.Int64, reflect.Uint64,
@@ -147,7 +147,6 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 	if err != nil {
 		return err
 	}
-	byteOrder := machoFile.ByteOrder
 	/*
 		on osx/arm64, pointer in const-data segment has invalid high memory address,
 		use pointer mask function rewrite it.
@@ -155,15 +154,16 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 		so use macho.CpuArm|(macho.CpuAmd64&^macho.Cpu386) replace it
 	*/
 	if machoFile.Cpu == macho.CpuArm|(macho.CpuAmd64&^macho.Cpu386) {
-		exeData.typData.ptrMask = func(ptr uintptr) uintptr {
+		exeData.ptrMask = func(ptr uintptr) uintptr {
 			return ptr&0xFFFFFFFF | uintptr(typesSection.Addr-uint64(typesSection.Offset))
 		}
 	}
 
+	exeData.byteOrder = machoFile.ByteOrder
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
 	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
-	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
+	registerTypelinksInExe(symPtr, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }
 
@@ -202,12 +202,11 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 		return err
 	}
 
-	byteOrder := elfFile.ByteOrder
-
+	exeData.byteOrder = elfFile.ByteOrder
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
 	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
-	registerTypelinksInExe(symPtr, byteOrder, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
+	registerTypelinksInExe(symPtr, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
 	return nil
 }
 
@@ -256,30 +255,30 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 	textSectData, _ := textSect.Data()
 	exeData.textSectData = &textSectData
 
+	exeData.byteOrder = binary.LittleEndian
 	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
 
 	roDataAddr := uintptr(typesSect.VirtualAddress) + getImageBase(peFile)
-	registerTypelinksInExe(symPtr, binary.LittleEndian, typesSectData[md.types-roDataAddr:], md.types)
+	registerTypelinksInExe(symPtr, typesSectData[md.types-roDataAddr:], md.types)
 	return nil
 }
 
-func registerTypelinksInExe(symPtr map[string]uintptr, byteOrder binary.ByteOrder, data []byte, addr uintptr) {
+func registerTypelinksInExe(symPtr map[string]uintptr, data []byte, addr uintptr) {
 	md := exeData.md
 	md.types = uintptr(unsafe.Pointer(&data[0]))
 	md.etypes = md.types + uintptr(len(data))
 	md.text = uintptr(unsafe.Pointer(&(*exeData.textSectData)[0]))
 	md.etext = md.text + uintptr(len(*exeData.textSectData))
 
-	exeData.typData.data = data
-	exeData.typData.sAddr = addr
-	exeData.typData.nAddr = md.types
-	exeData.typData.byteOrder = byteOrder
+	exeData.data = data
+	exeData.addrBase = addr
+	exeData.newAddrBase = md.types
 
 	modulesLock.Lock()
 	addModule(md)
 	modulesLock.Unlock()
 	for _, tl := range md.typelinks {
-		exeData.typData.adaptType(tl)
+		exeData.adaptType(tl)
 	}
 	for _, tl := range md.typelinks {
 		registerType((*_type)(adduintptr(md.types, int(tl))), symPtr)
@@ -288,7 +287,9 @@ func registerTypelinksInExe(symPtr map[string]uintptr, byteOrder binary.ByteOrde
 
 func registerTypesInExe(symPtr map[string]uintptr, path string) error {
 	exeData.md = &moduledata{}
-	exeData.typData = &typeData{ptrMask: nil, adapted: make(map[int32]int32)}
+	exeData.ptrMask = nil
+	exeData.adapted = make(map[int32]int32)
+
 	switch runtime.GOOS {
 	case "linux", "android":
 		return registerTypesInElf(path, symPtr)
