@@ -5,9 +5,10 @@ package stackobject
 
 import (
 	"fmt"
-	"github.com/pkujhd/goloader/constants"
 	"strings"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
 
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/dataindex"
@@ -40,15 +41,15 @@ func AddStackObject(funcname string, symMap map[string]*obj.Sym, symbolMap map[s
 	Func := symMap[funcname].Func
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_StackObjects &&
 		Func.FuncData[dataindex.FUNCDATA_StackObjects] != 0 {
-		objects := addr2stackObjectRecords(adduintptr(Func.FuncData[dataindex.FUNCDATA_StackObjects], int(noptrdata)))
+		objects := *addr2stackObjectRecords(adduintptr(Func.FuncData[dataindex.FUNCDATA_StackObjects], int(noptrdata)))
 		stkobjName := strings.TrimSuffix(funcname, constants.ABI0_SUFFIX) + constants.StkobjSuffix
-		for i := range *objects {
+		for i := range objects {
 			name := constants.EmptyString
 			if symbol := symMap[stkobjName]; symbol != nil {
 				name = symbol.Reloc[i].SymName
 			}
 			if ptr, ok := symbolMap[name]; ok {
-				setStackObjectPtr(&((*objects)[i]), adduintptr(ptr, 0), noptrdata)
+				setStackObjectPtr(&(objects[i]), adduintptr(ptr, 0), noptrdata)
 			} else {
 				return fmt.Errorf("unresolved external Var! Function name:%s index:%d, name:%s", funcname, i, name)
 			}

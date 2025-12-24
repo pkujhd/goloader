@@ -115,7 +115,7 @@ func parse(file, pkgpath string) {
 		return
 	}
 	obj, err := goloader.Parse(file, pkgpath)
-	fmt.Printf("%# v\n", obj)
+	fmt.Printf("%#v\n", obj)
 	if err != nil {
 		fmt.Printf("error reading %s: %v\n", file, err)
 		return
