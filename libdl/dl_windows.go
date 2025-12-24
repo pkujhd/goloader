@@ -13,7 +13,7 @@ import (
 func Open(dllName string) (uintptr, error) {
 	dll, err := syscall.LoadDLL(dllName)
 	if err != nil {
-		return 0, fmt.Errorf("could not open ", dllName)
+		return 0, fmt.Errorf("failed to open %s", dllName)
 	}
 	return uintptr(unsafe.Pointer(dll)), nil
 }

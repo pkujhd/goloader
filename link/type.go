@@ -180,10 +180,6 @@ func resolveTypeName(typ *_type) string {
 	if name != constants.EmptyString && typ.Kind() != reflect.UnsafePointer {
 		return name
 	}
-	//golang <= 1.16 map.bucket has a self-contained struct field
-	if strings.HasPrefix(typ.String(), "map.bucket[") {
-		return typ.String()
-	}
 	switch typ.Kind() {
 	case reflect.Ptr:
 		name := "*" + resolveTypeName(rtypeOf(typ.Elem()))
@@ -201,9 +197,14 @@ func resolveTypeName(typ *_type) string {
 				}
 				fieldName = fieldName + typ.Field(i).Name + " "
 			}
-			fields[i] = fieldName + resolveTypeName(rtypeOf(typ.Field(i).Type))
-			if typ.Field(i).Tag != constants.EmptyString {
-				fields[i] = fields[i] + fmt.Sprintf(" %q", string(typ.Field(i).Tag))
+			fieldType := rtypeOf(typ.Field(i).Type)
+			if fieldType.Kind() == reflect.Ptr && rtypeOf(fieldType.Elem()) == typ {
+				fields[i] = fieldName + fieldType.String()
+			} else {
+				fields[i] = fieldName + resolveTypeName(fieldType)
+				if typ.Field(i).Tag != constants.EmptyString {
+					fields[i] = fields[i] + fmt.Sprintf(" %q", string(typ.Field(i).Tag))
+				}
 			}
 		}
 		return fmt.Sprintf("struct { %s }", strings.Join(fields, "; "))

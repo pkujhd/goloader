@@ -39,8 +39,9 @@ func (_typData *typeData) adaptPtr(dataOff int) uintptr {
 	if _typData.ptrMask != nil {
 		ptr = _typData.ptrMask(ptr)
 	}
-	putAddress(_typData.byteOrder, _typData.data[dataOff:], uint64(ptr+_typData.newAddrBase-_typData.addrBase))
-	return ptr + _typData.newAddrBase - _typData.addrBase
+	newPtr := ptr + _typData.newAddrBase - _typData.addrBase
+	putAddress(_typData.byteOrder, _typData.data[dataOff:], uint64(newPtr))
+	return newPtr
 }
 
 func (_typData *typeData) adaptType(tl int32) {
