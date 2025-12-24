@@ -151,10 +151,8 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 	/*
 		on osx/arm64, pointer in const-data segment has invalid high memory address,
 		use pointer mask function rewrite it.
-		on golang < 1.11 not define macho.CpuArm64,
-		so use macho.CpuArm|(macho.CpuAmd64&^macho.Cpu386) replace it
 	*/
-	if machoFile.Cpu == macho.CpuArm|(macho.CpuAmd64&^macho.Cpu386) {
+	if runtime.GOARCH == "arm64" {
 		exeData.ptrMask = func(ptr uintptr) uintptr {
 			return ptr&0xFFFFFFFF | uintptr(typesSection.Addr-uint64(typesSection.Offset))
 		}
