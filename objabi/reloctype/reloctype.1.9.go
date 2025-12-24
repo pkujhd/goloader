@@ -49,7 +49,8 @@ const (
 
 const (
 	//not used, only adapter golang higher version
-	R_KEEP               = 0x10000000 - 10
+	R_KEEP               = 0x10000000 - 11
+	R_USENAMEDMETHOD     = 0x10000000 - 10
 	R_INITORDER          = 0x10000000 - 9
 	R_ARM64_PCREL_LDST8  = 0x10000000 - 8
 	R_ARM64_PCREL_LDST16 = 0x10000000 - 7

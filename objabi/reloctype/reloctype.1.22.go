@@ -1,5 +1,5 @@
-//go:build go1.16 && !go1.17
-// +build go1.16,!go1.17
+//go:build go1.22 && !go1.27
+// +build go1.22,!go1.27
 
 package reloctype
 
@@ -13,17 +13,12 @@ const (
 	R_ADDRARM64 = (int)(objabi.R_ADDRARM64)
 	// R_ADDROFF resolves to a 32-bit offset from the beginning of the section
 	// holding the data being relocated to the referenced symbol.
-	R_ADDROFF = (int)(objabi.R_ADDROFF)
-	// R_WEAKADDROFF resolves just like R_ADDROFF but is a weak relocation.
-	// A weak relocation does not make the symbol it refers to reachable,
-	// and is only honored by the linker if the symbol is in some other way
-	// reachable.
-	R_WEAKADDROFF = (int)(objabi.R_WEAKADDROFF)
-	R_CALL        = (int)(objabi.R_CALL)
-	R_CALLARM     = (int)(objabi.R_CALLARM)
-	R_CALLARM64   = (int)(objabi.R_CALLARM64)
-	R_CALLIND     = (int)(objabi.R_CALLIND)
-	R_PCREL       = (int)(objabi.R_PCREL)
+	R_ADDROFF   = (int)(objabi.R_ADDROFF)
+	R_CALL      = (int)(objabi.R_CALL)
+	R_CALLARM   = (int)(objabi.R_CALLARM)
+	R_CALLARM64 = (int)(objabi.R_CALLARM64)
+	R_CALLIND   = (int)(objabi.R_CALLIND)
+	R_PCREL     = (int)(objabi.R_PCREL)
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
 	// thread-local symbol from the thread local base and is used to implement the
 	// "local exec" model for tls access (r.Sym is not set on intel platforms but is
@@ -34,7 +29,13 @@ const (
 	// base and is used to implemented the "initial exec" model for tls access (r.Sym
 	// is not set on intel platforms but is set to a TLS symbol -- runtime.tlsg -- in
 	// the linker when externally linking).
-	R_TLS_IE = (int)(objabi.R_TLS_IE)
+	R_TLS_IE   = (int)(objabi.R_TLS_IE)
+	R_USEFIELD = (int)(objabi.R_USEFIELD)
+	// R_USETYPE resolves to an *rtype, but no relocation is created. The
+	// linker uses this as a signal that the pointed-to type information
+	// should be linked into the final binary, even if there are no other
+	// direct references. (This is used for types reachable by reflection.)
+	R_USETYPE = (int)(objabi.R_USETYPE)
 	// R_USEIFACE marks a type is converted to an interface in the function this
 	// relocation is applied to. The target is a type descriptor.
 	// This is a marker relocation (0-sized), for the linker's reachabililty
@@ -46,12 +47,20 @@ const (
 	// This is a marker relocation (0-sized), for the linker's reachabililty
 	// analysis.
 	R_USEIFACEMETHOD = (int)(objabi.R_USEIFACEMETHOD)
+	// R_USENAMEDMETHOD marks that methods with a specific name must not be eliminated.
+	// The target is a symbol containing the name of a method called via a generic
+	// interface or looked up via MethodByName("F").
+	R_USENAMEDMETHOD = (int)(objabi.R_USENAMEDMETHOD)
 	// R_METHODOFF resolves to a 32-bit offset from the beginning of the section
 	// holding the data being relocated to the referenced symbol.
 	// It is a variant of R_ADDROFF used when linking from the uncommonType of a
 	// *rtype, and may be set to zero by the linker if it determines the method
 	// text is unreachable by the linked program.
 	R_METHODOFF = (int)(objabi.R_METHODOFF)
+	// R_KEEP tells the linker to keep the referred-to symbol in the final binary
+	// if the symbol containing the R_KEEP relocation is in the final binary.
+	R_KEEP = (int)(objabi.R_KEEP)
+
 	// R_ADDRCUOFF resolves to a pointer-sized offset from the start of the
 	// symbol's DWARF compile unit.
 	R_ADDRCUOFF = (int)(objabi.R_ADDRCUOFF)
@@ -59,20 +68,32 @@ const (
 	R_GOTPCREL = (int)(objabi.R_GOTPCREL)
 
 	R_ARM64_GOTPCREL = (int)(objabi.R_ARM64_GOTPCREL)
-)
 
-const (
-	//not used, only adapter golang higher version
-	R_KEEP               = 0x10000000 - 11
-	R_USENAMEDMETHOD     = 0x10000000 - 10
-	R_INITORDER          = 0x10000000 - 9
-	R_ARM64_PCREL_LDST8  = 0x10000000 - 8
-	R_ARM64_PCREL_LDST16 = 0x10000000 - 7
-	R_ARM64_PCREL_LDST32 = 0x10000000 - 6
-	R_ARM64_PCREL_LDST64 = 0x10000000 - 5
-	R_USETYPE            = 0x10000000 - 4
-	R_WEAKADDR           = 0x20000000
-	R_WEAK               = 0x8000
+	// R_ARM64_PCREL_LDST8 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD8 or ST8 instruction.
+	R_ARM64_PCREL_LDST8 = (int)(objabi.R_ARM64_PCREL_LDST8)
+
+	// R_ARM64_PCREL_LDST16 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD16 or ST16 instruction.
+	R_ARM64_PCREL_LDST16 = (int)(objabi.R_ARM64_PCREL_LDST16)
+
+	// R_ARM64_PCREL_LDST32 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD32 or ST32 instruction.
+	R_ARM64_PCREL_LDST32 = (int)(objabi.R_ARM64_PCREL_LDST32)
+
+	// R_ARM64_PCREL_LDST64 resolves a PC-relative addresses instruction sequence, usually an
+	// adrp followed by a LD64 or ST64 instruction.
+	R_ARM64_PCREL_LDST64 = (int)(objabi.R_ARM64_PCREL_LDST64)
+
+	// R_INITORDER specifies an ordering edge between two inittask records.
+	// (From one p..inittask record to another one.)
+	// This relocation does not apply any changes to the actual data, it is
+	// just used in the linker to order the inittask records appropriately.
+	R_INITORDER = (int)(objabi.R_INITORDER)
+	R_WEAK      = 0x8000
+
+	R_WEAKADDR    = R_WEAK | R_ADDR
+	R_WEAKADDROFF = R_WEAK | R_ADDROFF
 )
 
 func RelocTypeString(relocType int) string {

@@ -87,7 +87,8 @@ const (
 
 const (
 	//not used, only adapter golang higher version
-	R_INITORDER = 0x10000000 - 9
+	R_USENAMEDMETHOD = 0x10000000 - 10
+	R_INITORDER      = 0x10000000 - 9
 )
 
 func RelocTypeString(relocType int) string {

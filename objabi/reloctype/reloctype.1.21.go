@@ -1,5 +1,5 @@
-//go:build go1.21 && !go1.27
-// +build go1.21,!go1.27
+//go:build go1.21 && !go1.22
+// +build go1.21,!go1.22
 
 package reloctype
 
@@ -90,6 +90,11 @@ const (
 
 	R_WEAKADDR    = R_WEAK | R_ADDR
 	R_WEAKADDROFF = R_WEAK | R_ADDROFF
+)
+
+const (
+	//not used, only adapter golang higher version
+	R_USENAMEDMETHOD = 0x10000000 - 10
 )
 
 func RelocTypeString(relocType int) string {

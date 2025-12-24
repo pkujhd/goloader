@@ -366,7 +366,8 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					reloctype.R_USEIFACE,
 					reloctype.R_USEIFACEMETHOD,
 					reloctype.R_ADDRCUOFF,
-					reloctype.R_INITORDER:
+					reloctype.R_INITORDER,
+					reloctype.R_USENAMEDMETHOD:
 					//nothing todo
 				case reloctype.R_KEEP:
 					//nothing todo
