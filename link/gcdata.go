@@ -6,16 +6,11 @@ import (
 	"sort"
 	"unsafe"
 
-	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/obj"
 	"github.com/pkujhd/goloader/objabi/symkind"
 )
 
-const (
-	KindGCProg = 1 << 6
-)
-
-func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
+func generateGcData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
 	segment := &codeModule.segment
 	//if symbol is in loader, ignore generate gc data
 	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.dataSeg.length) {
@@ -27,28 +22,13 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 		// This is likely a global var with no type information encoded, so can't be GC'd (ignore it)
 		return nil
 	}
-	sval := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
+	off := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
 	if sym.Kind == symkind.SBSS {
-		sval = sval - int64(segment.dataLen+segment.noptrdataLen)
+		off = off - int64(segment.dataLen+segment.noptrdataLen)
 	}
 	if ptr, ok := symbolMap[typeName]; ok {
 		typ := (*_type)(adduintptr(ptr, 0))
-		nptr := int64(typ.ptrdata) / int64(linker.Arch.PtrSize)
-		if typ.kind&KindGCProg == 0 {
-			var mask []byte
-			append2Slice(&mask, uintptr(unsafe.Pointer(typ.gcdata)), int(nptr+7)/8)
-			for i := int64(0); i < nptr; i++ {
-				if (mask[i/8]>>uint(i%8))&1 != 0 {
-					w.Ptr(sval/int64(linker.Arch.PtrSize) + i)
-				}
-			}
-
-		} else {
-			var prog []byte
-			append2Slice(&prog, uintptr(unsafe.Pointer(typ.gcdata)), constants.Uint32Size+int((*(*uint32)(unsafe.Pointer(typ.gcdata)))))
-			w.ZeroUntil(sval / int64(linker.Arch.PtrSize))
-			w.Append(prog[4:], nptr)
-		}
+		gcDataAddType(linker, w, off, typ)
 	} else {
 		return fmt.Errorf("type:%s not found\n", typeName)
 	}
@@ -56,18 +36,18 @@ func generategcdata(linker *Linker, codeModule *CodeModule, symbolMap map[string
 }
 
 func sortSym(symMap map[string]*obj.Sym, kindFunc func(k int) bool) []*obj.Sym {
-	syms := make(map[int]*obj.Sym)
+	symbolMaps := make(map[int]*obj.Sym)
 	keys := []int{}
 	for _, sym := range symMap {
 		if kindFunc(sym.Kind) {
-			syms[sym.Offset] = sym
+			symbolMaps[sym.Offset] = sym
 			keys = append(keys, sym.Offset)
 		}
 	}
 	sort.Ints(keys)
-	symbols := []*obj.Sym{}
+	symbols := make([]*obj.Sym, 0)
 	for _, key := range keys {
-		symbols = append(symbols, syms[key])
+		symbols = append(symbols, symbolMaps[key])
 	}
 	return symbols
 }
@@ -79,7 +59,7 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 		codeModule.gcdata = append(codeModule.gcdata, x)
 	})
 	for _, sym := range sortSym(linker.SymMap, symkind.IsData) {
-		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
+		err := generateGcData(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
 		}
@@ -95,7 +75,7 @@ func (linker *Linker) addgcdata(codeModule *CodeModule, symbolMap map[string]uin
 	})
 
 	for _, sym := range sortSym(linker.SymMap, symkind.IsBss) {
-		err := generategcdata(linker, codeModule, symbolMap, &w, sym)
+		err := generateGcData(linker, codeModule, symbolMap, &w, sym)
 		if err != nil {
 			return err
 		}
