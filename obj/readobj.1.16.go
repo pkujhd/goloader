@@ -237,10 +237,10 @@ func (pkg *Pkg) ResolveSymbols(packages map[string]*Pkg, ObjSymbolMap map[string
 				sym.Reloc[index].SymName = resolveSymRefName(reloc.SymName, packages, pkg.PkgPath, entryId, cache)
 			}
 		}
-		for _, sym := range pkg.Syms {
-			replacePkgPath(sym, pkg.PkgPath)
-			ObjSymbolMap[sym.Name] = sym
-		}
+	}
+	for _, sym := range pkg.Syms {
+		replacePkgPath(sym, pkg.PkgPath)
+		ObjSymbolMap[sym.Name] = sym
 	}
 }
 

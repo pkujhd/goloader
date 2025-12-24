@@ -1,9 +1,10 @@
 package link
 
 import (
-	"github.com/pkujhd/goloader/obj"
 	"strings"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/obj"
 
 	"github.com/pkujhd/goloader/constants"
 )
@@ -48,7 +49,7 @@ func validateInterface(symPtr map[string]uintptr, name string) bool {
 		x := typ.uncommon()
 		off := add(unsafe.Pointer(x), uintptr(x.moff))
 		ni := len(inter.mhdr)
-		methods := (*[1 << 16]unsafe.Pointer)(unsafe.Pointer(off))[:ni:ni]
+		methods := (*[1 << 16]unsafe.Pointer)(off)[:ni:ni]
 		for i := 0; i < ni; i++ {
 			if uintptr(methods[i]) == constants.InvalidHandleValue {
 				return false

@@ -5,7 +5,7 @@ package obj
 
 type funcID uint8
 
-// / inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
+// inlinedCall is the encoding of entries in the FUNCDATA_InlTree table.
 type InlinedCall struct {
 	funcID    funcID // type of the called function
 	_         [3]byte
