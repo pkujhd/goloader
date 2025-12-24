@@ -97,7 +97,7 @@ func putAddressAddOffset(byteOrder binary.ByteOrder, b []byte, offset *int, addr
 	if constants.PtrSize == constants.Uint32Size {
 		byteOrder.PutUint32(b[*offset:], uint32(addr))
 	} else {
-		byteOrder.PutUint64(b[*offset:], uint64(addr))
+		byteOrder.PutUint64(b[*offset:], addr)
 	}
 	*offset = *offset + constants.PtrSize
 }

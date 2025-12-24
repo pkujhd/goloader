@@ -325,7 +325,7 @@ func (linker *Linker) readFuncData(symbol *obj.ObjSymbol, symPtr map[string]uint
 		nameOff = offset
 	}
 
-	adaptePCFile(linker, symbol)
+	adaptPCFile(linker, symbol)
 	for _, reloc := range symbol.Reloc {
 		if reloc.Epilogue.Size > 0 {
 			patchPCValues(linker, &symbol.Func.PCSP, reloc)

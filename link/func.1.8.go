@@ -54,7 +54,3 @@ func getfuncname(f *_func, md *moduledata) string {
 func getfuncID(f *_func) uint8 {
 	return 0
 }
-
-func adaptePCFile(linker *Linker, symbol *obj.ObjSymbol) {
-	rewritePCFile(symbol, linker)
-}
