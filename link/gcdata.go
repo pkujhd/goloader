@@ -24,7 +24,7 @@ func generateGcData(linker *Linker, codeModule *CodeModule, symbolMap map[string
 	}
 	off := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
 	if sym.Kind == symkind.SBSS {
-		off = off - int64(segment.dataLen+segment.noptrdataLen)
+		off = off - int64(segment.dataLen+segment.noPtrDataLen)
 	}
 	if ptr, ok := symbolMap[typeName]; ok {
 		typ := (*_type)(adduintptr(ptr, 0))

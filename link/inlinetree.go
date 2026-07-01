@@ -43,9 +43,9 @@ func (linker *Linker) addInlineTree(_func *_func, symbol *obj.ObjSymbol) (err er
 			inlinedCall := obj.InitInlinedCall(inl, funcID, linker.NameMap, linker.Filetab)
 			copy2Slice(bytes[k*obj.InlinedCallSize:], uintptr(unsafe.Pointer(&inlinedCall)), obj.InlinedCallSize)
 		}
-		offset := len(linker.Noptrdata)
-		linker.Noptrdata = append(linker.Noptrdata, bytes...)
-		bytearrayAlign(&linker.Noptrdata, constants.PtrSize)
+		offset := len(linker.NoPtrData)
+		linker.NoPtrData = append(linker.NoPtrData, bytes...)
+		bytearrayAlign(&linker.NoPtrData, constants.PtrSize)
 		for _func.Nfuncdata <= dataindex.FUNCDATA_InlTree {
 			sym.Func.FuncData = append(sym.Func.FuncData, uintptr(0))
 			_func.Nfuncdata++

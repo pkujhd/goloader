@@ -38,11 +38,11 @@ func (linker *Linker) AddCgoSymbols(symPtr map[string]uintptr) error {
 			sym := obj.Sym{
 				Name:   cgoImport.GoSymName,
 				Kind:   symkind.SNOPTRDATA,
-				Offset: len(linker.Noptrdata),
+				Offset: len(linker.NoPtrData),
 			}
-			linker.Noptrdata = append(linker.Noptrdata, make([]byte, constants.PtrSize)...)
+			linker.NoPtrData = append(linker.NoPtrData, make([]byte, constants.PtrSize)...)
 			linker.SymMap[sym.Name] = &sym
-			putAddress(linker.Arch.ByteOrder, linker.Noptrdata[sym.Offset:], uint64(ptr))
+			putAddress(linker.Arch.ByteOrder, linker.NoPtrData[sym.Offset:], uint64(ptr))
 		} else {
 			symPtr[cgoImport.GoSymName] = ptr
 		}
