@@ -279,7 +279,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 					linker.Noptrdata = append(linker.Noptrdata, nameLen...)
 					linker.Noptrdata = append(linker.Noptrdata, path...)
 					linker.Noptrdata = append(linker.Noptrdata, constants.ZeroByte)
-					bytearrayAlign(&linker.Noptrbss, constants.PtrSize)
+					bytearrayAlign(&linker.Noptrdata, constants.PtrSize)
 				}
 				if isPreprocessSymbol(reloc.SymName) {
 					bytes := make([]byte, constants.UInt64Size)
@@ -289,7 +289,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 						relocSym.Kind = symkind.SNOPTRDATA
 						relocSym.Offset = len(linker.Noptrdata)
 						linker.Noptrdata = append(linker.Noptrdata, bytes...)
-						bytearrayAlign(&linker.Noptrbss, constants.PtrSize)
+						bytearrayAlign(&linker.Noptrdata, constants.PtrSize)
 					}
 				}
 				if reloc.Size > 0 {
