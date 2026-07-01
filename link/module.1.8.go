@@ -47,7 +47,7 @@ type moduledata struct {
 
 	gcdatamask, gcbssmask bitvector
 
-	typemap map[typeOff]uintptr // offset to *_rtype in previous module
+	typemap map[typeOff]*_type // offset to *_rtype in previous module
 
 	next *moduledata
 }
