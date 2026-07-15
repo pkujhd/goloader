@@ -11,9 +11,9 @@ import (
 )
 
 func generateGcData(linker *Linker, codeModule *CodeModule, symbolMap map[string]uintptr, w *gcprog.Writer, sym *obj.Sym) error {
-	segment := &codeModule.segment
+	module := codeModule.module
 	//if symbol is in loader, ignore generate gc data
-	if symbolMap[sym.Name] < uintptr(segment.dataBase) || symbolMap[sym.Name] > uintptr(segment.dataBase+segment.dataSeg.length) {
+	if symbolMap[sym.Name] < module.data || symbolMap[sym.Name] > module.ebss {
 		return nil
 	}
 	objsym := linker.SymMap[sym.Name]
@@ -22,9 +22,9 @@ func generateGcData(linker *Linker, codeModule *CodeModule, symbolMap map[string
 		// This is likely a global var with no type information encoded, so can't be GC'd (ignore it)
 		return nil
 	}
-	off := int64(symbolMap[sym.Name] - uintptr(segment.dataBase))
+	off := int64(symbolMap[sym.Name] - module.data)
 	if sym.Kind == symkind.SBSS {
-		off = off - int64(segment.dataLen+segment.noPtrDataLen)
+		off = off - int64(module.bss-module.data)
 	}
 	if ptr, ok := symbolMap[typeName]; ok {
 		typ := (*_type)(adduintptr(ptr, 0))
