@@ -253,3 +253,8 @@ func isGOTPCRELName(aName string) bool {
 func isStringTypeName(aName string) bool {
 	return strings.HasPrefix(aName, constants.TypeStringPrefix)
 }
+
+//go:inline
+func alignUp(n, a uintptr) uintptr {
+	return (n + a - 1) &^ (a - 1)
+}
