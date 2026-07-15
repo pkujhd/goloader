@@ -43,14 +43,6 @@ var itabLock *mutex = (*mutex)(unsafe.Pointer(&_itabLock))
 //go:linkname itabAdd runtime.itabAdd
 func itabAdd(m *itab)
 
-func additabs(module *moduledata) {
-	lock(itabLock)
-	for _, itab := range module.itablinks {
-		itabAdd(itab)
-	}
-	unlock(itabLock)
-}
-
 func removeitabs(module *moduledata) bool {
 	lock(itabLock)
 	defer unlock(itabLock)
@@ -72,10 +64,4 @@ func removeitabs(module *moduledata) bool {
 
 	resetTypeAssertInterfaceSwitchCache()
 	return true
-}
-
-func addItab(m *itab) {
-	lock(itabLock)
-	itabAdd(m)
-	unlock(itabLock)
 }

@@ -153,10 +153,12 @@ func addFakeItabs(symMap map[string]*obj.Sym, symbolMap, symPtr map[string]uintp
 			if symPtr[typ] != uintptr(0) && symMap[typ] != nil && symbolMap[inter] != uintptr(0) {
 				interType := (*interfacetype)(unsafe.Pointer(symbolMap[inter]))
 				typType := (*_type)(unsafe.Pointer(uintptr(symMap[typ].Offset + codeModule.dataBase)))
-				m := getitab(interType, typType, true)
-				if m != nil {
-					m._type = (*_type)(unsafe.Pointer(symPtr[typ]))
-					addItab(m)
+				it := getitab(interType, typType, true)
+				if it != nil {
+					it._type = (*_type)(unsafe.Pointer(symPtr[typ]))
+					lock(itabLock)
+					itabAdd(it)
+					unlock(itabLock)
 				}
 			}
 		}

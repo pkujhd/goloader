@@ -29,22 +29,20 @@ var hash [hashSize]*itab
 //go:linkname ifaceLock runtime.ifaceLock
 var ifaceLock mutex
 
+var itabLock *mutex = &ifaceLock
+
 //go:linkname additab runtime.additab
 func additab(m *itab, locked, canfail bool)
 
-func additabs(module *moduledata) {
-	lock(&ifaceLock)
-	for _, it := range module.itablinks {
-		if it.inhash == 0 {
-			additab(it, true, true)
-		}
+func itabAdd(it *itab) {
+	if it.inhash == 0 {
+		additab(it, true, true)
 	}
-	unlock(&ifaceLock)
 }
 
 func removeitabs(module *moduledata) bool {
-	lock(&ifaceLock)
-	defer unlock(&ifaceLock)
+	lock(itabLock)
+	defer unlock(itabLock)
 
 	//the itab alloc by runtime.persistentalloc, can't free
 	for index, h := range hash {
@@ -65,12 +63,4 @@ func removeitabs(module *moduledata) bool {
 		}
 	}
 	return true
-}
-
-func addItab(m *itab) {
-	lock(&ifaceLock)
-	if m.inhash == 0 {
-		additab(m, true, true)
-	}
-	unlock(&ifaceLock)
 }

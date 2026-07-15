@@ -442,10 +442,6 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 		} else {
 			symbolMap[name] = uintptr(sym.Offset + segment.dataBase)
 		}
-		//fill itablinks
-		if isItabName(name) {
-			codeModule.module.itablinks = append(codeModule.module.itablinks, (*itab)(adduintptr(symbolMap[name], 0)))
-		}
 	}
 	return symbolMap, err
 }
@@ -543,6 +539,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	}
 
 	linker.AddTypeLink(codeModule)
+	linker.AddItabLink(codeModule, symbolMap)
 
 	modulesLock.Lock()
 	addModule(codeModule.module)
