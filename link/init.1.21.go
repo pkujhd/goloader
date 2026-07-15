@@ -1,15 +1,16 @@
-//go:build go1.21 && !go1.27
-// +build go1.21,!go1.27
+//go:build go1.21 && !go1.28
+// +build go1.21,!go1.28
 
 package link
 
 import (
-	"github.com/pkujhd/goloader/constants"
-	"github.com/pkujhd/goloader/objabi/reloctype"
 	"reflect"
 	"regexp"
 	"strings"
 	"unsafe"
+
+	"github.com/pkujhd/goloader/constants"
+	"github.com/pkujhd/goloader/objabi/reloctype"
 
 	"github.com/pkujhd/goloader/obj"
 )
