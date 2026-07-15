@@ -112,27 +112,27 @@ func (_typData *typeData) adaptType(tl int32) {
 	}
 }
 
+func getSymbolInMacho(machoFile *macho.File, symbolName string) *macho.Symbol {
+	symbols := machoFile.Symtab.Syms
+	for _, sym := range symbols {
+		if sym.Name == symbolName {
+			return &sym
+		}
+	}
+	return nil
+}
+
 func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 	machoFile, err := macho.Open(path)
 	if err != nil {
 		return err
 	}
 	defer machoFile.Close()
-	typeLinkSect := machoFile.Section("__typelink")
-	typeLinkSectData, err := typeLinkSect.Data()
+	typeLinkSectData, typeLinkSectDataLen, err := getTypeLinkDataInMacho(machoFile)
 	if err != nil {
 		return err
 	}
 
-	getSymbolInMacho := func(machoFile *macho.File, symbolName string) *macho.Symbol {
-		symbols := machoFile.Symtab.Syms
-		for _, sym := range symbols {
-			if sym.Name == symbolName {
-				return &sym
-			}
-		}
-		return nil
-	}
 	typesSym := getSymbolInMacho(machoFile, "runtime.types")
 
 	typesSection := machoFile.Sections[typesSym.Sect-1]
@@ -161,8 +161,18 @@ func registerTypesInMacho(path string, symPtr map[string]uintptr) error {
 	exeData.byteOrder = machoFile.ByteOrder
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
-	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
-	registerTypelinksInExe(symPtr, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
+	typelinks := *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), typeLinkSectDataLen)
+	registerTypelinksInExe(symPtr, typesSectData[typesSym.Value-typesSection.Addr:], typelinks, uintptr(typesSym.Value))
+	return nil
+}
+
+func getSymbolInElf(elfFile *elf.File, symbolName string) *elf.Symbol {
+	symbols, _ := elfFile.Symbols()
+	for _, sym := range symbols {
+		if sym.Name == symbolName {
+			return &sym
+		}
+	}
 	return nil
 }
 
@@ -172,20 +182,11 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 		return err
 	}
 	defer elfFile.Close()
-	typeLinkSect := elfFile.Section(".typelink")
-	typeLinkSectData, err := typeLinkSect.Data()
+	typeLinkSectData, typeLinkSectDataLen, err := getTypeLinkDataInElf(elfFile)
 	if err != nil {
 		return err
 	}
-	getSymbolInElf := func(elfFile *elf.File, symbolName string) *elf.Symbol {
-		symbols, _ := elfFile.Symbols()
-		for _, sym := range symbols {
-			if sym.Name == symbolName {
-				return &sym
-			}
-		}
-		return nil
-	}
+
 	typesSym := getSymbolInElf(elfFile, "runtime.types")
 
 	typesSection := elfFile.Sections[typesSym.Section]
@@ -204,8 +205,18 @@ func registerTypesInElf(path string, symPtr map[string]uintptr) error {
 	exeData.byteOrder = elfFile.ByteOrder
 	exeData.typesSectData = &typesSectData
 	exeData.textSectData = &textSectData
-	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), len(typeLinkSectData)/constants.Uint32Size)
-	registerTypelinksInExe(symPtr, typesSectData[typesSym.Value-typesSection.Addr:], uintptr(typesSym.Value))
+	typelinks := *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), typeLinkSectDataLen)
+	registerTypelinksInExe(symPtr, typesSectData[typesSym.Value-typesSection.Addr:], typelinks, uintptr(typesSym.Value))
+	return nil
+}
+
+func getSymbolInPe(peFile *pe.File, symbolName string) *pe.Symbol {
+	symbols := peFile.Symbols
+	for _, sym := range symbols {
+		if sym.Name == symbolName {
+			return sym
+		}
+	}
 	return nil
 }
 
@@ -215,18 +226,10 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 		return err
 	}
 	defer peFile.Close()
-	getSymbolInPe := func(symbols []*pe.Symbol, symbolName string) *pe.Symbol {
-		for _, sym := range symbols {
-			if sym.Name == symbolName {
-				return sym
-			}
-		}
-		return nil
-	}
-	typelinkSym := getSymbolInPe(peFile.Symbols, "runtime.typelink")
-	moduledataSym := getSymbolInPe(peFile.Symbols, "runtime.firstmoduledata")
-	typesSym := getSymbolInPe(peFile.Symbols, "runtime.types")
-	textSym := getSymbolInPe(peFile.Symbols, "runtime.text")
+
+	moduledataSym := getSymbolInPe(peFile, "runtime.firstmoduledata")
+	typesSym := getSymbolInPe(peFile, "runtime.types")
+	textSym := getSymbolInPe(peFile, "runtime.text")
 
 	dataSect := peFile.Section(".data")
 	dataSectData, err := dataSect.Data()
@@ -234,8 +237,12 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 		return err
 	}
 
+	typeLinkSectData, typeLinkSectDataLen, err := getTypeLinkDataInPE(peFile)
+	if err != nil {
+		return err
+	}
+
 	md := (*moduledata)(unsafe.Pointer(&dataSectData[moduledataSym.Value]))
-	typelinksSectData, _ := peFile.Sections[typelinkSym.SectionNumber-1].Data()
 
 	getImageBase := func(peFile *pe.File) uintptr {
 		_, pe64 := peFile.OptionalHeader.(*pe.OptionalHeader64)
@@ -255,33 +262,11 @@ func registerTypesInPE(path string, symPtr map[string]uintptr) error {
 	exeData.textSectData = &textSectData
 
 	exeData.byteOrder = binary.LittleEndian
-	exeData.md.typelinks = *ptr2int32slice(uintptr(unsafe.Pointer(&typelinksSectData[typelinkSym.Value])), len(md.typelinks))
+	typelinks := *ptr2int32slice(uintptr(unsafe.Pointer(&typeLinkSectData[0])), typeLinkSectDataLen)
 
 	roDataAddr := uintptr(typesSect.VirtualAddress) + getImageBase(peFile)
-	registerTypelinksInExe(symPtr, typesSectData[md.types-roDataAddr:], md.types)
+	registerTypelinksInExe(symPtr, typesSectData[md.types-roDataAddr:], typelinks, md.types)
 	return nil
-}
-
-func registerTypelinksInExe(symPtr map[string]uintptr, data []byte, addr uintptr) {
-	md := exeData.md
-	md.types = uintptr(unsafe.Pointer(&data[0]))
-	md.etypes = md.types + uintptr(len(data))
-	md.text = uintptr(unsafe.Pointer(&(*exeData.textSectData)[0]))
-	md.etext = md.text + uintptr(len(*exeData.textSectData))
-
-	exeData.data = data
-	exeData.addrBase = addr
-	exeData.newAddrBase = md.types
-
-	modulesLock.Lock()
-	addModule(md)
-	modulesLock.Unlock()
-	for _, tl := range md.typelinks {
-		exeData.adaptType(tl)
-	}
-	for _, tl := range md.typelinks {
-		registerType((*_type)(adduintptr(md.types, int(tl))), symPtr)
-	}
 }
 
 func registerTypesInExe(symPtr map[string]uintptr, path string) error {
