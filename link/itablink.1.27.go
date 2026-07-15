@@ -30,6 +30,19 @@ func additabs(module *moduledata) {
 	unlock(itabLock)
 }
 
+func regsiterItablinks(symPtr map[string]uintptr) {
+	module := firstmoduledata
+	lock(itabLock)
+	p := module.types + module.itaboffset
+	end := p + module.itabsize
+	for p < end {
+		it := (*itab)(unsafe.Pointer(p))
+		symPtr[getItabName(it)] = p
+		p += uintptr(it.Size())
+	}
+	unlock(itabLock)
+}
+
 func (linker *Linker) AddItabLink(codeModule *CodeModule, symbolMap map[string]uintptr) {
 	module := codeModule.module
 	module.itaboffset = uintptr(codeModule.noPtrTypeDataLen)

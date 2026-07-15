@@ -58,6 +58,7 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 
 func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
 	typelinksRegister(symPtr)
+	regsiterItablinks(symPtr)
 	return regSymbol(symPtr, path, false)
 }
 
@@ -67,6 +68,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 		return err
 	}
 	typelinksRegister(symPtr)
+	regsiterItablinks(symPtr)
 	return regSymbol(symPtr, path, false)
 }
 

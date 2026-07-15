@@ -3,10 +3,23 @@
 
 package link
 
+import (
+	"unsafe"
+)
+
 func additabs(module *moduledata) {
 	lock(itabLock)
 	for _, it := range module.itablinks {
 		itabAdd(it)
+	}
+	unlock(itabLock)
+}
+
+func regsiterItablinks(symPtr map[string]uintptr) {
+	module := firstmoduledata
+	lock(itabLock)
+	for _, it := range module.itablinks {
+		symPtr[getItabName(it)] = uintptr(unsafe.Pointer(it))
 	}
 	unlock(itabLock)
 }

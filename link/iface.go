@@ -40,6 +40,11 @@ func getTypeNameByItab(name string) (string, string) {
 	return interTypeName, typeName
 }
 
+//go:inline
+func getItabName(it *itab) string {
+	return constants.ItabPrefix + it._type.String() + "," + it.inter.typ.String()
+}
+
 func validateInterface(symPtr map[string]uintptr, name string) bool {
 	interTypeName, typeName := getTypeNameByItab(name)
 	inter := (*interfacetype)(unsafe.Pointer(symPtr[interTypeName]))
