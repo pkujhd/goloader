@@ -213,6 +213,15 @@ func ptr2int32slice(ptr uintptr, size int) *[]int32 {
 	return (*[]int32)(unsafe.Pointer(&s))
 }
 
+func ptr2byteSlice(ptr uintptr, length, cap int) *[]byte {
+	s := sliceHeader{
+		Data: ptr,
+		Len:  length,
+		Cap:  cap,
+	}
+	return (*[]byte)(unsafe.Pointer(&s))
+}
+
 func isMmapInLowAddress(archName string) bool {
 	if archName == sys.ArchAMD64.Name && runtime.GOOS == "linux" {
 		return true

@@ -39,6 +39,7 @@ type dataSeg struct {
 	noPtrTypeDataLen int
 	noPtrItabDataLen int
 	noPtrDataLen     int
+	pclntabLen       int
 	bssLen           int
 	noPtrBssLen      int
 	dataOff          int
@@ -163,6 +164,7 @@ func (linker *Linker) addSymbols() error {
 
 func (linker *Linker) adaptSymbolOffset(codeModule *CodeModule) {
 	segment := codeModule.segment
+	noPtrLen := segment.noPtrTypeDataLen + segment.noPtrItabDataLen + segment.noPtrDataLen + segment.pclntabLen
 	if linker.AdaptedOffset == false {
 		for _, sym := range linker.SymMap {
 			offset := 0
@@ -177,9 +179,9 @@ func (linker *Linker) adaptSymbolOffset(codeModule *CodeModule) {
 					offset += segment.dataLen + segment.noPtrTypeDataLen + segment.noPtrItabDataLen
 				}
 			case symkind.SBSS:
-				offset += segment.dataLen + segment.noPtrTypeDataLen + segment.noPtrItabDataLen + segment.noPtrDataLen
+				offset += segment.dataLen + noPtrLen
 			case symkind.SNOPTRBSS:
-				offset += segment.dataLen + segment.noPtrTypeDataLen + segment.noPtrItabDataLen + segment.noPtrDataLen + segment.bssLen
+				offset += segment.dataLen + noPtrLen + segment.bssLen
 			}
 			if sym.Offset != constants.InvalidOffset {
 				sym.Offset += offset
@@ -475,7 +477,6 @@ func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map
 func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[string]uintptr) (err error) {
 	segment := &codeModule.segment
 	module := codeModule.module
-	module.pclntable = append(module.pclntable, linker.Pclntable...)
 	module.minpc = uintptr(segment.codeBase)
 	module.maxpc = uintptr(segment.codeBase + segment.codeOff)
 	module.text = uintptr(segment.codeBase)
@@ -483,7 +484,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	module.data = uintptr(segment.dataBase)
 	module.edata = uintptr(segment.dataBase) + uintptr(segment.dataLen)
 	module.noptrdata = module.edata
-	module.enoptrdata = module.noptrdata + uintptr(segment.noPtrTypeDataLen+segment.noPtrItabDataLen+segment.noPtrDataLen)
+	module.enoptrdata = module.noptrdata + uintptr(segment.noPtrTypeDataLen+segment.noPtrItabDataLen+segment.noPtrDataLen+segment.pclntabLen)
 	module.bss = module.enoptrdata
 	module.ebss = module.bss + uintptr(segment.bssLen)
 	module.noptrbss = module.ebss
@@ -491,6 +492,8 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	module.end = module.enoptrbss
 	module.types = module.noptrdata
 	module.etypes = module.enoptrdata
+	module.pclntable = *ptr2byteSlice(module.enoptrdata-uintptr(segment.pclntabLen), 0, segment.pclntabLen)
+	module.pclntable = append(module.pclntable, linker.Pclntable...)
 	initmodule(codeModule.module, linker)
 
 	grow(&module.pclntable, alignof(len(module.pclntable), constants.PtrSize))
@@ -553,6 +556,18 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	return err
 }
 
+func getPclntabLength(linker *Linker, codeModule *CodeModule) int {
+	pclntabLength := len(linker.Pclntable)
+	pclntabLength = alignof(pclntabLength, constants.PtrSize)
+	pclntabLength += codeModule.codeSeg.maxLen / pcbucketsize * FindFuncBucketSize
+	pclntabLength = alignof(pclntabLength, constants.PtrSize)
+	for _, _func := range linker.Funcs {
+		pclntabLength += _FuncSize + int(_func.Npcdata)*constants.Uint32Size + getFuncdataSize(_func)
+		pclntabLength = alignof(pclntabLength, constants.PtrSize)
+	}
+	return pclntabLength
+}
+
 func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, err error) {
 	//add cgo symbols
 	err = linker.AddCgoSymbols(symPtr)
@@ -586,7 +601,8 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	dataSeg.noPtrDataLen = len(linker.NoPtrData)
 	dataSeg.bssLen = len(linker.Bss)
 	dataSeg.noPtrBssLen = len(linker.NoPtrBss)
-	dataSeg.length = dataSeg.dataLen + dataSeg.noPtrTypeDataLen + dataSeg.noPtrItabDataLen + dataSeg.noPtrDataLen + dataSeg.bssLen + dataSeg.noPtrBssLen
+	dataSeg.pclntabLen = getPclntabLength(linker, codeModule)
+	dataSeg.length = dataSeg.dataLen + dataSeg.noPtrTypeDataLen + dataSeg.noPtrItabDataLen + dataSeg.noPtrDataLen + dataSeg.pclntabLen + dataSeg.bssLen + dataSeg.noPtrBssLen
 	dataSeg.maxLen = alignof(dataSeg.length+linker.ExtraData, constants.PageSize)
 	dataSeg.dataOff = 0
 	dataByte, err := MmapData(dataSeg.maxLen)
@@ -604,6 +620,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	dataSeg.dataOff += dataSeg.noPtrItabDataLen
 	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.NoPtrData)
 	dataSeg.dataOff += dataSeg.noPtrDataLen
+	dataSeg.dataOff += dataSeg.pclntabLen
 	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.Bss)
 	dataSeg.dataOff += dataSeg.bssLen
 	copy(dataSeg.dataByte[dataSeg.dataOff:], linker.NoPtrBss)

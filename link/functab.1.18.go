@@ -34,3 +34,8 @@ func addfuncdata(module *moduledata, Func *obj.Func, _func *_func) {
 	}
 	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcdata[0])), constants.Uint32Size*int(_func.Nfuncdata))
 }
+
+//go:inline
+func getFuncdataSize(_func *_func) int {
+	return constants.Uint32Size * int(_func.Nfuncdata)
+}
