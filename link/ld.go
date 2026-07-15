@@ -489,8 +489,8 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	module.noptrbss = module.ebss
 	module.enoptrbss = module.noptrbss + uintptr(segment.noPtrBssLen)
 	module.end = module.enoptrbss
-	module.types = module.data
-	module.etypes = module.enoptrbss
+	module.types = module.noptrdata
+	module.etypes = module.enoptrdata
 	initmodule(codeModule.module, linker)
 
 	grow(&module.pclntable, alignof(len(module.pclntable), constants.PtrSize))

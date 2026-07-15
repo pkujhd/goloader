@@ -11,6 +11,16 @@ func IsData(kind int) bool {
 }
 
 //go:inline
+func IsROData(kind int) bool {
+	return kind == SRODATA || kind == SRODATAFIPS
+}
+
+//go:inline
+func IsNoPtrData(kind int) bool {
+	return kind == SNOPTRDATA || kind == SNOPTRDATAFIPS
+}
+
+//go:inline
 func IsBss(kind int) bool {
 	return kind == SBSS
 }
