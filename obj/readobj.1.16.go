@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -156,7 +155,6 @@ func (pkg *Pkg) Symbols() error {
 			}
 			for _, importPkg := range r.Autolib() {
 				path := importPkg.Pkg
-				path = path[:len(path)-len(filepath.Ext(path))]
 				pkg.ImportPkgs = append(pkg.ImportPkgs, path)
 			}
 			goArchive.entryId++
