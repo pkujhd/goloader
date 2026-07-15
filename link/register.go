@@ -11,18 +11,9 @@ import (
 	"github.com/pkujhd/goloader/constants"
 )
 
-// !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
-func typelinksRegister(symPtr map[string]uintptr) {
-	md := firstmoduledata
-	for _, tl := range md.typelinks {
-		t := (*_type)(adduintptr(md.types, int(tl)))
-		registerType(t, symPtr)
-	}
-}
-
 func registerType(t *_type, symPtr map[string]uintptr) {
 	if t.Kind() == reflect.Invalid {
-		panic("Unexpected invalid kind during registration!")
+		panic("unexpected invalid kind during register type!")
 	}
 
 	name := constants.TypePrefix + resolveTypeName(t)
@@ -61,7 +52,7 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 		reflect.Interface:
 		// Nothing to do
 	default:
-		panic(fmt.Sprintf("typelinksregister found unexpected type (kind %s): ", t.Kind()))
+		panic(fmt.Sprintf("registerType found unexpected type (kind %s): ", t.Kind()))
 	}
 }
 

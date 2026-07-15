@@ -541,12 +541,8 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	if err = linker.addgcdata(codeModule, symbolMap); err != nil {
 		return err
 	}
-	for name, symbol := range linker.SymMap {
-		if isTypeName(name) {
-			typeOff := int32(codeModule.dataBase + symbol.Offset - int(module.types))
-			module.typelinks = append(module.typelinks, typeOff)
-		}
-	}
+
+	linker.AddTypeLink(codeModule)
 
 	modulesLock.Lock()
 	addModule(codeModule.module)
