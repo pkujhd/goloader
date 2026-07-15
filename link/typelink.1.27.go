@@ -13,6 +13,12 @@ import (
 func _DescriptorSize(t *_type) int
 func (t *_type) DescriptorSize() int { return _DescriptorSize(t) }
 
+//go:linkname moduleToTypelinksLock runtime.moduleToTypelinksLock
+var moduleToTypelinksLock mutex
+
+//go:linkname moduleToTypelinks runtime.moduleToTypelinks
+var moduleToTypelinks map[*moduledata][]*_type
+
 // !IMPORTANT: only init firstmodule type, avoid load multiple objs but unload non-sequence errors
 func typelinksRegister(symPtr map[string]uintptr) {
 	md := firstmoduledata
@@ -29,4 +35,10 @@ func typelinksRegister(symPtr map[string]uintptr) {
 
 func (linker *Linker) AddTypeLink(codeModule *CodeModule) {
 	codeModule.module.typedesclen = uintptr(len(linker.NoPtrTypeData))
+}
+
+func removeModuleToTypelinks(md *moduledata) {
+	lock(&moduleToTypelinksLock)
+	delete(moduleToTypelinks, md)
+	unlock(&moduleToTypelinksLock)
 }

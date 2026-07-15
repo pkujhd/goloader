@@ -100,6 +100,7 @@ func addModule(module *moduledata) {
 	}
 }
 func removeModule(module interface{}) {
+	modulesLock.Lock()
 	prevp := &firstmoduledata
 	for datap := &firstmoduledata; datap != nil; {
 		if datap == module {
@@ -110,4 +111,5 @@ func removeModule(module interface{}) {
 		datap = datap.next
 	}
 	delete(modules, module)
+	modulesLock.Unlock()
 }

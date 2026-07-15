@@ -25,3 +25,5 @@ func (linker *Linker) AddTypeLink(codeModule *CodeModule) {
 		}
 	}
 }
+
+func removeModuleToTypelinks(md *moduledata) {}

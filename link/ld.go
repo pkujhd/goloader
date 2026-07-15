@@ -607,7 +607,7 @@ func Load(linker *Linker, symPtr map[string]uintptr) (codeModule *CodeModule, er
 	dataSeg.dataOff = 0
 	dataByte, err := MmapData(dataSeg.maxLen)
 	if err != nil {
-		Munmap(dataSeg.dataByte)
+		_ = Munmap(dataSeg.dataByte)
 		return nil, err
 	}
 	dataSeg.dataByte = dataByte
@@ -685,10 +685,9 @@ func checkUnimplementedInterface(linker *Linker, symPtr map[string]uintptr) map[
 func (cm *CodeModule) Unload() {
 	removeitabs(cm.module)
 	runtime.GC()
-	modulesLock.Lock()
 	removeModule(cm.module)
-	modulesLock.Unlock()
+	removeModuleToTypelinks(cm.module)
 	modulesinit()
-	Munmap(cm.codeByte)
-	Munmap(cm.dataByte)
+	_ = Munmap(cm.codeByte)
+	_ = Munmap(cm.dataByte)
 }
