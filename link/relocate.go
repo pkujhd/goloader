@@ -328,7 +328,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 					reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16,
 					reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
 					if symkind.IsText(symbol.Kind) {
-						err = fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", loc.SymName)
+						return fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", loc.SymName)
 					}
 					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, symAddr)
 				case reloctype.R_ADDR, reloctype.R_WEAKADDR:
@@ -346,7 +346,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 						if sym, ok := linker.SymMap[loc.SymName]; ok {
 							offset = sym.Offset + loc.Add
 						} else {
-							err = fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
+							return fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
 						}
 					}
 					if symkind.IsROData(linker.SymMap[loc.SymName].Kind) || symkind.IsNoPtrData(linker.SymMap[loc.SymName].Kind) {

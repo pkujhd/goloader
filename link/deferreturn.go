@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkujhd/goloader/constants"
 	"github.com/pkujhd/goloader/objabi/dataindex"
+	"github.com/pkujhd/goloader/objabi/reloctype"
 )
 
 func (linker *Linker) addDeferReturn(_func *_func, module *moduledata) (err error) {
@@ -17,7 +18,7 @@ func (linker *Linker) addDeferReturn(_func *_func, module *moduledata) (err erro
 	if Func != nil && len(Func.FuncData) > dataindex.FUNCDATA_OpenCodedDeferInfo {
 		sym := linker.SymMap[funcName]
 		for _, r := range sym.Reloc {
-			if r.SymName == constants.RuntimeDeferReturn {
+			if r.SymName == constants.RuntimeDeferReturn && reloctype.IsDirectCall(r.Type) {
 				//../cmd/link/internal/ld/pcln.go:pclntab
 				switch linker.Arch.Name {
 				case sys.Arch386.Name, sys.ArchAMD64.Name:
