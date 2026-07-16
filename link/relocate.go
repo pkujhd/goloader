@@ -338,21 +338,15 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				case reloctype.R_ADDROFF,
 					reloctype.R_WEAKADDROFF,
 					reloctype.R_METHODOFF:
-					if symkind.IsText(linker.SymMap[loc.SymName].Kind) {
-						addrBase = segment.codeBase
-					}
-					offset := int(symAddr) - addrBase
-					if isOverflowInt32(offset) {
-						if sym, ok := linker.SymMap[loc.SymName]; ok {
-							offset = sym.Offset + loc.Add
-						} else {
-							return fmt.Errorf("symName:%s relocateType:%s, offset:%d is overflow!\n", loc.SymName, reloctype.RelocTypeString(loc.Type), offset)
+					if sym, ok := linker.SymMap[loc.SymName]; ok && sym.Offset != constants.InvalidOffset {
+						offset := sym.Offset + loc.Add
+						if symkind.IsROData(sym.Kind) || symkind.IsNoPtrData(sym.Kind) {
+							offset -= codeModule.dataLen
 						}
+						byteOrder.PutUint32(relocByte[loc.Offset:], uint32(offset))
+					} else {
+						return fmt.Errorf("symName:%s relocateType:%s, symbol is not exist!\n", loc.SymName, reloctype.RelocTypeString(loc.Type))
 					}
-					if symkind.IsROData(linker.SymMap[loc.SymName].Kind) || symkind.IsNoPtrData(linker.SymMap[loc.SymName].Kind) {
-						offset -= codeModule.dataLen
-					}
-					byteOrder.PutUint32(relocByte[loc.Offset:], uint32(offset))
 				case reloctype.R_GOTPCREL:
 					offset := uint32(segment.dataBase + segment.dataOff - (addrBase + loc.GetEnd()))
 					byteOrder.PutUint32(relocByte[loc.Offset:], offset)

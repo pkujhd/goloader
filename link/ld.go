@@ -278,8 +278,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 			reloc.Epilogue.Offset += symbol.Offset
 		}
 		if _, ok := linker.ObjSymbolMap[reloc.SymName]; ok {
-			if symPtr != nil && !isMmapInLowAddress(linker.Arch.Name) &&
-				(reloc.Type == reloctype.R_METHODOFF || reloc.Type == reloctype.R_ADDROFF || reloc.Type == reloctype.R_WEAKADDROFF) {
+			if symPtr != nil && reloctype.IsOffType(loc.Type) {
 				delete(symPtr, reloc.SymName)
 			}
 			relocSym, err := linker.addSymbol(reloc.SymName, symPtr)
