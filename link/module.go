@@ -1,6 +1,7 @@
 package link
 
 import (
+	"sync"
 	"unsafe"
 )
 
@@ -89,8 +90,10 @@ func modulesinit()
 //go:linkname progToPointerMask runtime.progToPointerMask
 func progToPointerMask(prog *byte, size uintptr) bitvector
 
+var modulesLock sync.Mutex
+
 func addModule(module *moduledata) {
-	modules[module] = true
+	modulesLock.Lock()
 	for datap := &firstmoduledata; ; {
 		if datap.next == nil {
 			datap.next = module
@@ -98,6 +101,7 @@ func addModule(module *moduledata) {
 		}
 		datap = datap.next
 	}
+	modulesLock.Unlock()
 }
 func removeModule(module interface{}) {
 	modulesLock.Lock()
@@ -110,6 +114,5 @@ func removeModule(module interface{}) {
 		prevp = datap
 		datap = datap.next
 	}
-	delete(modules, module)
 	modulesLock.Unlock()
 }

@@ -32,7 +32,6 @@ func additabs(module *moduledata) {
 
 func regsiterItablinks(symPtr map[string]uintptr) {
 	module := firstmoduledata
-	lock(itabLock)
 	p := module.types + module.itaboffset
 	end := p + module.itabsize
 	for p < end {
@@ -40,7 +39,6 @@ func regsiterItablinks(symPtr map[string]uintptr) {
 		symPtr[getItabName(it)] = p
 		p += uintptr(it.Size())
 	}
-	unlock(itabLock)
 }
 
 func (linker *Linker) AddItabLink(codeModule *CodeModule, symbolMap map[string]uintptr) {

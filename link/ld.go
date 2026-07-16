@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
-	"sync"
 	"unsafe"
 
 	"github.com/pkujhd/goloader/constants"
@@ -91,11 +90,6 @@ type Linker struct {
 	ExtraData          int
 	AdaptedOffset      bool
 }
-
-var (
-	modules     = make(map[interface{}]bool)
-	modulesLock sync.Mutex
-)
 
 // initialize Linker
 func initLinker() *Linker {
@@ -543,9 +537,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	linker.AddTypeLink(codeModule)
 	linker.AddItabLink(codeModule, symbolMap)
 
-	modulesLock.Lock()
 	addModule(codeModule.module)
-	modulesLock.Unlock()
 	moduledataverify1(codeModule.module)
 	modulesinit()
 	typelinksinit()
@@ -683,9 +675,9 @@ func checkUnimplementedInterface(linker *Linker, symPtr map[string]uintptr) map[
 
 func (cm *CodeModule) Unload() {
 	removeitabs(cm.module)
+	removeModuleToTypelinks(cm.module)
 	runtime.GC()
 	removeModule(cm.module)
-	removeModuleToTypelinks(cm.module)
 	modulesinit()
 	_ = Munmap(cm.codeByte)
 	_ = Munmap(cm.dataByte)

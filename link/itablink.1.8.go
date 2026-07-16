@@ -17,11 +17,9 @@ func additabs(module *moduledata) {
 
 func regsiterItablinks(symPtr map[string]uintptr) {
 	module := firstmoduledata
-	lock(itabLock)
 	for _, it := range module.itablinks {
 		symPtr[getItabName(it)] = uintptr(unsafe.Pointer(it))
 	}
-	unlock(itabLock)
 }
 
 func (linker *Linker) AddItabLink(codeModule *CodeModule, symbolMap map[string]uintptr) {

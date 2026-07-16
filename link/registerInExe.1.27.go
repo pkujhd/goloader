@@ -70,9 +70,7 @@ func registerTypelinksInExe(symPtr map[string]uintptr, data []byte, typelink []i
 	exeData.addrBase = addr
 	exeData.newAddrBase = md.types
 
-	modulesLock.Lock()
 	addModule(md)
-	modulesLock.Unlock()
 
 	p := uintptr(0) + constants.PtrSize
 	for p < md.typedesclen {

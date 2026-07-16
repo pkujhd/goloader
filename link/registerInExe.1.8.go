@@ -58,9 +58,7 @@ func registerTypelinksInExe(symPtr map[string]uintptr, data []byte, typelinks []
 	exeData.addrBase = addr
 	exeData.newAddrBase = md.types
 
-	modulesLock.Lock()
 	addModule(md)
-	modulesLock.Unlock()
 	for _, tl := range md.typelinks {
 		exeData.adaptType(tl)
 	}
