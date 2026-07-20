@@ -135,7 +135,7 @@ func ReadDependPackages(linker *Linker, files, pkgPaths []string, symbolNames []
 		}
 	}
 
-	for name, _ := range linker.CgoImportMap {
+	for name := range linker.CgoImportMap {
 		if _, ok := linker.SymMap[name]; !ok {
 			delete(linker.CgoImportMap, name)
 		}

@@ -373,7 +373,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 }
 
 func getUseInterfaceTypeMap(symbol *obj.Sym) map[string]int {
-	typMap := make(map[string]int, 0)
+	typMap := make(map[string]int)
 	for _, l := range symbol.Reloc {
 		if l.Type == reloctype.R_USEIFACE || l.Type == reloctype.R_USEIFACEMETHOD {
 			typMap[l.SymName] = 0x1

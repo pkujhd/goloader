@@ -68,6 +68,7 @@ type LinkerData struct {
 	NoPtrTypeData []byte
 	NoPtrItabData []byte
 	NoPtrData     []byte
+	Pclntable     []byte
 	Bss           []byte
 	NoPtrBss      []byte
 }
@@ -82,12 +83,11 @@ type Linker struct {
 	CgoFuncs           map[string]int
 	UnImplementedTypes map[string]map[string]int
 	Filetab            []uint32
-	Pclntable          []byte
 	Funcs              []*_func
 	Packages           map[string]*obj.Pkg
 	Arch               *sys.Arch
-	CUOffset           int32
 	ExtraData          int
+	CUOffset           int32
 	AdaptedOffset      bool
 }
 
@@ -133,7 +133,7 @@ func (linker *Linker) addFiles(files []string) {
 }
 
 func (linker *Linker) addSymbols() error {
-	//static_tmp is 0, golang compile not allocate memory.
+	//static_tmp is 0, the compiler of golang does not allocate memory.
 	linker.NoPtrData = append(linker.NoPtrData, make([]byte, constants.IntSize)...)
 	bytearrayAlign(&linker.NoPtrData, constants.PtrSize)
 	linker.NoPtrTypeData = append(linker.NoPtrTypeData, make([]byte, constants.PtrSize)...)
@@ -308,12 +308,11 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 					bytes := make([]byte, constants.UInt64Size)
 					if err := preprocessSymbol(linker.Arch.ByteOrder, reloc.SymName, bytes); err != nil {
 						return nil, err
-					} else {
-						relocSym.Kind = symkind.SNOPTRDATA
-						relocSym.Offset = len(linker.NoPtrData)
-						linker.NoPtrData = append(linker.NoPtrData, bytes...)
-						bytearrayAlign(&linker.NoPtrData, constants.PtrSize)
 					}
+					relocSym.Kind = symkind.SNOPTRDATA
+					relocSym.Offset = len(linker.NoPtrData)
+					linker.NoPtrData = append(linker.NoPtrData, bytes...)
+					bytearrayAlign(&linker.NoPtrData, constants.PtrSize)
 				}
 				if reloc.Size > 0 {
 					linker.SymMap[reloc.SymName] = relocSym
@@ -331,7 +330,7 @@ func (linker *Linker) addSymbol(name string, symPtr map[string]uintptr) (symbol 
 			if _, ok := linker.ObjSymbolMap[objsym.Type]; !ok {
 				linker.SymMap[objsym.Type] = &obj.Sym{Name: objsym.Type, Offset: constants.InvalidOffset}
 			} else {
-				linker.addSymbol(objsym.Type, symPtr)
+				return linker.addSymbol(objsym.Type, symPtr)
 			}
 		}
 	}
@@ -442,11 +441,11 @@ func (linker *Linker) addSymbolMap(symPtr map[string]uintptr, codeModule *CodeMo
 }
 
 func (linker *Linker) addFuncTab(module *moduledata, _func *_func, symbolMap map[string]uintptr) (err error) {
-	funcname := getfuncname(_func, module)
-	setfuncentry(_func, symbolMap[funcname], module.text)
-	Func := linker.SymMap[funcname].Func
+	funcName := getfuncname(_func, module)
+	setfuncentry(_func, symbolMap[funcName], module.text)
+	Func := linker.SymMap[funcName].Func
 
-	if err = stackobject.AddStackObject(funcname, linker.SymMap, symbolMap, module.noptrdata); err != nil {
+	if err = stackobject.AddStackObject(funcName, linker.SymMap, symbolMap, module.noptrdata); err != nil {
 		return err
 	}
 	if err = linker.addDeferReturn(_func, module); err != nil {
@@ -492,8 +491,8 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	grow(&module.pclntable, alignof(len(module.pclntable), constants.PtrSize))
 	module.ftab = append(module.ftab, initfunctab(module.minpc, uintptr(len(module.pclntable)), module.text))
 	for index, _func := range linker.Funcs {
-		funcname := getfuncname(_func, module)
-		module.ftab = append(module.ftab, initfunctab(symbolMap[funcname], uintptr(len(module.pclntable)), module.text))
+		funcName := getfuncname(_func, module)
+		module.ftab = append(module.ftab, initfunctab(symbolMap[funcName], uintptr(len(module.pclntable)), module.text))
 		if err = linker.addFuncTab(module, linker.Funcs[index], symbolMap); err != nil {
 			return err
 		}
@@ -501,7 +500,7 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 	module.ftab = append(module.ftab, initfunctab(module.maxpc, uintptr(len(module.pclntable)), module.text))
 
 	// see:^src/cmd/link/internal/ld/pcln.go findfunctab
-	funcbucket := []findfuncbucket{}
+	funcBucket := make([]findfuncbucket, 0)
 	for k := 0; k < len(linker.Funcs); k++ {
 		lEntry := int(getfuncentry(linker.Funcs[k], module.text) - module.text)
 		lb := lEntry / pcbucketsize
@@ -514,20 +513,20 @@ func (linker *Linker) buildModule(codeModule *CodeModule, symbolMap, symPtr map[
 		b := entry / pcbucketsize
 		i := entry % pcbucketsize / (pcbucketsize / nsub)
 
-		for m := b - len(funcbucket); m >= 0; m-- {
-			funcbucket = append(funcbucket, findfuncbucket{idx: uint32(k)})
+		for m := b - len(funcBucket); m >= 0; m-- {
+			funcBucket = append(funcBucket, findfuncbucket{idx: uint32(k)})
 		}
 		if lb < b {
 			i = nsub - 1
 		}
 		for n := li + 1; n <= i; n++ {
-			if funcbucket[lb].subbuckets[n] == 0 {
-				funcbucket[lb].subbuckets[n] = byte(k - int(funcbucket[lb].idx))
+			if funcBucket[lb].subbuckets[n] == 0 {
+				funcBucket[lb].subbuckets[n] = byte(k - int(funcBucket[lb].idx))
 			}
 		}
 	}
-	length := len(funcbucket) * FindFuncBucketSize
-	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcbucket[0])), length)
+	length := len(funcBucket) * FindFuncBucketSize
+	append2Slice(&module.pclntable, uintptr(unsafe.Pointer(&funcBucket[0])), length)
 	module.findfunctab = (uintptr)(unsafe.Pointer(&module.pclntable[len(module.pclntable)-length]))
 
 	if err = linker.addgcdata(codeModule, symbolMap); err != nil {
@@ -663,7 +662,7 @@ func checkUnimplementedInterface(linker *Linker, symPtr map[string]uintptr) map[
 			if typ.Kind() == reflect.Interface {
 				for _, typeName := range getUnimplementedInterfaceType(linker.SymMap[sym.Name], symPtr) {
 					if _, ok := linker.UnImplementedTypes[typeName]; !ok {
-						linker.UnImplementedTypes[typeName] = make(map[string]int, 0)
+						linker.UnImplementedTypes[typeName] = make(map[string]int)
 					}
 					linker.UnImplementedTypes[typeName][sym.Name] = 1
 				}
