@@ -49,10 +49,6 @@ func Parse(file, pkgPath string) ([]string, error) {
 	return link.Parse(file, pkgPath)
 }
 
-func RegSymbolWithSo(symPtr map[string]uintptr, path string) error {
-	return link.RegSymbolWithSo(symPtr, path)
-}
-
 func RegSymbol(symPtr map[string]uintptr) error {
 	return link.RegSymbol(symPtr)
 }
