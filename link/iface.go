@@ -45,34 +45,6 @@ func getItabName(it *itab) string {
 	return constants.ItabPrefix + it._type.String() + "," + it.inter.typ.String()
 }
 
-func validateInterface(symPtr map[string]uintptr, name string) bool {
-	interTypeName, typeName := getTypeNameByItab(name)
-	inter := (*interfacetype)(unsafe.Pointer(symPtr[interTypeName]))
-	typ := (*_type)(unsafe.Pointer(symPtr[typeName]))
-
-	if inter != nil && typ != nil {
-		x := typ.uncommon()
-		off := add(unsafe.Pointer(x), uintptr(x.moff))
-		ni := len(inter.mhdr)
-		methods := (*[1 << 16]unsafe.Pointer)(off)[:ni:ni]
-		for i := 0; i < ni; i++ {
-			if uintptr(methods[i]) == constants.InvalidHandleValue {
-				return false
-			}
-		}
-		nt := int(x.mcount)
-		xmhdr := (*[1 << 16]method)(add(unsafe.Pointer(x), uintptr(x.moff)))[:nt:nt]
-		for k := 0; k < nt; k++ {
-			t := &xmhdr[k]
-			if int(t.ifn) == constants.InvalidOffset || int(t.tfn) == constants.InvalidOffset {
-				return false
-			}
-		}
-		return true
-	}
-	return false
-}
-
 func getUnimplementedInterfaceType(symbol *obj.Sym, symPtr map[string]uintptr) []string {
 	methods := make(map[string]string)
 	for i := len(symbol.Reloc) - 1; i > 0; i -= 2 {

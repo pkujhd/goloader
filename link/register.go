@@ -66,7 +66,7 @@ func RegSymbol(symPtr map[string]uintptr) error {
 	return regSymbol(symPtr, path, false)
 }
 
-func regSymbol(symPtr map[string]uintptr, path string, isValidateItab bool) error {
+func regSymbol(symPtr map[string]uintptr, path string, isIgnoreItab bool) error {
 	f, err := objfile.Open(path)
 	if err != nil {
 		return err
@@ -88,12 +88,10 @@ func regSymbol(symPtr map[string]uintptr, path string, isValidateItab bool) erro
 	for _, sym := range symbols {
 		code := strings.ToUpper(string(sym.Code))
 		if code == "B" || code == "D" || code == "T" || code == "R" {
-			if isItabName(sym.Name) && isValidateItab {
-				if validateInterface(symPtr, sym.Name) {
+			if !strings.HasPrefix(sym.Name, constants.DefaultPkgPath) && !isTypeName(sym.Name) {
+				if !(isItabName(sym.Name) && isIgnoreItab) {
 					symPtr[sym.Name] = uintptr(int64(sym.Addr) + addrOff)
 				}
-			} else if !strings.HasPrefix(sym.Name, constants.DefaultPkgPath) && !isTypeName(sym.Name) {
-				symPtr[sym.Name] = uintptr(int64(sym.Addr) + addrOff)
 				if strings.HasSuffix(sym.Name, constants.FunctionWrapperSuffix) {
 					nName := strings.TrimSuffix(sym.Name, constants.FunctionWrapperSuffix)
 					if _, ok := symPtr[nName]; !ok {
