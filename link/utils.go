@@ -29,11 +29,17 @@ func isOverflowInt24(offset int) bool {
 	return false
 }
 
-//go:linkname add runtime.add
-func add(p unsafe.Pointer, x uintptr) unsafe.Pointer
+//go:inline
+//go:nosplit
+func add(p unsafe.Pointer, x uintptr) unsafe.Pointer {
+	return unsafe.Pointer(uintptr(p) + x)
+}
 
-//go:linkname adduintptr runtime.add
-func adduintptr(p uintptr, x int) unsafe.Pointer
+//go:inline
+//go:nosplit
+func adduintptr(p uintptr, x int) unsafe.Pointer {
+	return unsafe.Pointer(p + uintptr(x))
+}
 
 func putUint24(b []byte, v uint32) {
 	_ = b[2] // early bounds check to guarantee safety of writes below

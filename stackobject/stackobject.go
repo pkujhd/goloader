@@ -21,11 +21,17 @@ type sliceHeader struct {
 	Cap  int
 }
 
-//go:linkname add runtime.add
-func add(p unsafe.Pointer, x uintptr) unsafe.Pointer
+//go:inline
+//go:nosplit
+func add(p unsafe.Pointer, x uintptr) unsafe.Pointer {
+	return unsafe.Pointer(uintptr(p) + x)
+}
 
-//go:linkname adduintptr runtime.add
-func adduintptr(p uintptr, x int) unsafe.Pointer
+//go:inline
+//go:nosplit
+func adduintptr(p uintptr, x int) unsafe.Pointer {
+	return unsafe.Pointer(p + uintptr(x))
+}
 
 func addr2stackObjectRecords(addr unsafe.Pointer) *[]stackObjectRecord {
 	n := int(*(*uintptr)(addr))
