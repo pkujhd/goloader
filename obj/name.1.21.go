@@ -1,5 +1,5 @@
-//go:build go1.21 && !go1.28
-// +build go1.21,!go1.28
+//go:build go1.21 && !go1.23
+// +build go1.21,!go1.23
 
 package obj
 
@@ -8,7 +8,7 @@ import (
 )
 
 type Name struct {
-	bytes *byte
+	Bytes *byte
 }
 
 func (n Name) Name() string { return _name(n) }

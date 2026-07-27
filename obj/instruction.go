@@ -17,3 +17,7 @@ func GetOpName(op uint) string {
 func IsExtraRegister(regName string) bool {
 	return false
 }
+
+func AddInstLinkName(symPtr map[string]uintptr) {
+	
+}

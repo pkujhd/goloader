@@ -31,12 +31,6 @@ type Arg interface {
 	isArg()
 }
 
-//go:linkname Decode cmd/vendor/golang.org/x/arch/x86/x86asm.Decode
-func Decode(src []byte, mode int) (inst Inst, err error)
-
-//go:linkname OpString cmd/vendor/golang.org/x/arch/x86/x86asm.Op.String
-func OpString(op Op) string
-
 func (op Op) String() string { return OpString(op) }
 
 func MarkReloc(text []byte, relocs []Reloc, offset int, archName string) {

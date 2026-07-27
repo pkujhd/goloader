@@ -20,18 +20,6 @@ type mutex struct {
 	key uintptr
 }
 
-//go:linkname lock runtime.lock
-func lock(l *mutex)
-
-//go:linkname unlock runtime.unlock
-func unlock(l *mutex)
-
-//go:linkname atomicstorep runtime.atomicstorep
-func atomicstorep(ptr unsafe.Pointer, new unsafe.Pointer)
-
-//go:linkname getitab runtime.getitab
-func getitab(inter *interfacetype, typ *_type, canfail bool) *itab
-
 //go:inline
 func getTypeNameByItab(name string) (string, string) {
 	result := strings.Split(name, ",")
@@ -72,7 +60,7 @@ func getUnimplementedInterfaceType(symbol *obj.Sym, symPtr map[string]uintptr) [
 }
 
 func isTypeImplementMethods(typ *_type, methods map[string]string) bool {
-	uncommon := _uncommon(typ)
+	uncommon := typ.uncommon()
 	if uncommon != nil && int(uncommon.mcount) >= len(methods) {
 		for methodName, typeName := range methods {
 			methodFound := false
@@ -99,7 +87,7 @@ func isTypeImplementMethods(typ *_type, methods map[string]string) bool {
 }
 
 func hasInvalidMethod(typ *_type, methods map[string]string) bool {
-	uncommon := _uncommon(typ)
+	uncommon := typ.uncommon()
 	if uncommon != nil {
 		for _, m := range uncommon.methods() {
 			if m.ifn == constants.InvalidMethodOff {

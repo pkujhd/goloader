@@ -1,7 +1,7 @@
-//go:build (386 || amd64) && go1.27 && !go1.28
+//go:build (386 || amd64) && go1.23 && !go1.27
 // +build 386 amd64
-// +build go1.27
-// +build !go1.28
+// +build go1.23
+// +build !go1.27
 
 package obj
 
@@ -12,7 +12,7 @@ import "unsafe"
 // An Args holds the instruction arguments.
 // If an instruction has fewer than 4 arguments,
 // the final elements in the array are nil.
-type Args [6]Arg
+type Args [4]Arg
 
 // An Inst is a single instruction.
 type Inst struct {
@@ -27,11 +27,6 @@ type Inst struct {
 	Len      int      // length of encoded instruction in bytes
 	PCRel    int      // length of PC-relative address in instruction encoding
 	PCRelOff int      // index of start of PC-relative address in instruction encoding
-	// AVX-512 flags
-	Broadcast bool // EVEX broadcast
-	Zeroing   bool // EVEX zeroing
-	SAE       bool // Suppress All Exceptions
-	Rounding  int8 // Rounding control (0-3), valid only when SAE is true
 }
 
 func Decode(src []byte, mode int) (inst Inst, err error) {

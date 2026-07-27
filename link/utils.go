@@ -264,3 +264,10 @@ func isStringTypeName(aName string) bool {
 func alignUp(n, a uintptr) uintptr {
 	return (n + a - 1) &^ (a - 1)
 }
+
+//go:nosplit
+func gostringnocopy(str *byte) string {
+	ss := stringHeader{Data: uintptr(unsafe.Pointer(str)), Len: findnull(str)}
+	s := *(*string)(unsafe.Pointer(&ss))
+	return s
+}

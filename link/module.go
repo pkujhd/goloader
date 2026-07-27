@@ -2,11 +2,8 @@ package link
 
 import (
 	"sync"
-	"unsafe"
+	_ "unsafe"
 )
-
-//go:linkname firstmoduledata runtime.firstmoduledata
-var firstmoduledata moduledata
 
 // findfunctab is an array of these structures.
 // Each bucket represents 4096 bytes of the text segment.
@@ -66,35 +63,11 @@ const minfunc = 16                 // minimum function size
 const pcbucketsize = 256 * minfunc // size of bucket in the pc->func lookup table
 const nsub = len(findfuncbucket{}.subbuckets)
 
-//go:linkname step runtime.step
-func step(p []byte, pc *uintptr, val *int32, first bool) (newp []byte, ok bool)
-
-//go:linkname findfunc runtime.findfunc
-func findfunc(pc uintptr) funcInfo
-
-//go:linkname funcdata runtime.funcdata
-func funcdata(f funcInfo, i int32) unsafe.Pointer
-
-//go:linkname funcname runtime.funcname
-func funcname(f funcInfo) string
-
-//go:linkname gostringnocopy runtime.gostringnocopy
-func gostringnocopy(str *byte) string
-
-//go:linkname moduledataverify1 runtime.moduledataverify1
-func moduledataverify1(datap *moduledata)
-
-//go:linkname modulesinit runtime.modulesinit
-func modulesinit()
-
-//go:linkname progToPointerMask runtime.progToPointerMask
-func progToPointerMask(prog *byte, size uintptr) bitvector
-
 var modulesLock sync.Mutex
 
 func addModule(module *moduledata) {
 	modulesLock.Lock()
-	for datap := &firstmoduledata; ; {
+	for datap := firstmoduledata; ; {
 		if datap.next == nil {
 			datap.next = module
 			break
@@ -105,8 +78,8 @@ func addModule(module *moduledata) {
 }
 func removeModule(module interface{}) {
 	modulesLock.Lock()
-	prevp := &firstmoduledata
-	for datap := &firstmoduledata; datap != nil; {
+	prevp := firstmoduledata
+	for datap := firstmoduledata; datap != nil; {
 		if datap == module {
 			prevp.next = datap.next
 			break

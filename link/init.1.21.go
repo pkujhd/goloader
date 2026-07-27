@@ -50,9 +50,6 @@ func isNeedInitTaskInPlugin(name string) bool {
 
 func fakeInit() {}
 
-//go:linkname doInit1 runtime.doInit1
-func doInit1(t unsafe.Pointer) // t should be a *runtime.initTask
-
 func doInit(ptr, fakeInitPtr uintptr) {
 	p := adduintptr(ptr, 0)
 	task := *(*initTask)(p)

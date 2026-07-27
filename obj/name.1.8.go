@@ -8,7 +8,7 @@ import (
 )
 
 type Name struct {
-	bytes *byte
+	Bytes *byte
 }
 
 func (n Name) Name() string { return _name(n) }

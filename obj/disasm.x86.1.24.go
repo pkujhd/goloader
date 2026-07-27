@@ -9,6 +9,8 @@ import (
 	"cmd/objfile/disasm"
 )
 
-func Dummy() {
-	_, _ = disasm.DisasmForFile(nil)
+func _Dummy(dummy bool) {
+	if dummy {
+		_, _ = disasm.DisasmForFile(nil)
+	}
 }

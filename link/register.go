@@ -61,9 +61,11 @@ func RegSymbol(symPtr map[string]uintptr) error {
 	if err != nil {
 		return err
 	}
+	err = regSymbol(symPtr, path, false)
+	addLinkName(symPtr)
 	typelinksRegister(symPtr)
 	regsiterItablinks(symPtr)
-	return regSymbol(symPtr, path, false)
+	return err
 }
 
 func regSymbol(symPtr map[string]uintptr, path string, isIgnoreItab bool) error {

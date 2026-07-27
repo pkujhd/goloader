@@ -1,9 +1,13 @@
-//go:build (386 || amd64) && go1.8 && !go1.27
+//go:build (386 || amd64) && go1.8 && !go1.23
 // +build 386 amd64
 // +build go1.8
-// +build !go1.27
+// +build !go1.23
 
 package obj
+
+import (
+	_ "unsafe"
+)
 
 //see:src/cmd/vendor/golang.org/x/arch/x86/x86asm
 
@@ -26,3 +30,9 @@ type Inst struct {
 	PCRel    int      // length of PC-relative address in instruction encoding
 	PCRelOff int      // index of start of PC-relative address in instruction encoding
 }
+
+//go:linkname Decode cmd/vendor/golang.org/x/arch/x86/x86asm.Decode
+func Decode(src []byte, mode int) (inst Inst, err error)
+
+//go:linkname OpString cmd/vendor/golang.org/x/arch/x86/x86asm.Op.String
+func OpString(op Op) string

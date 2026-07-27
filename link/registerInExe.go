@@ -6,6 +6,7 @@ import (
 	"debug/pe"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"unsafe"
@@ -295,5 +296,15 @@ func RegSymbolWithPath(symPtr map[string]uintptr, path string) error {
 	if err != nil {
 		return err
 	}
+	builderPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	builderSymPtr := make(map[string]uintptr)
+	err = regSymbol(builderSymPtr, builderPath, false)
+	if err != nil {
+		return err
+	}
+	addLinkName(builderSymPtr)
 	return registerTypesInExe(symPtr, path)
 }
