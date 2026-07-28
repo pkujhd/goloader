@@ -7,6 +7,6 @@ import (
 	"cmd/objfile/goobj"
 )
 
-func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgpath string, fd *readAtSeeker) (err error) {
+func initInline(objFunc *goobj.Func, Func *FuncInfo, pkgPath string, fd *readAtSeeker) (err error) {
 	return nil
 }
