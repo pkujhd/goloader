@@ -327,7 +327,7 @@ func (linker *Linker) relocate(codeModule *CodeModule, symbolMap, symPtr map[str
 				case reloctype.R_ADDRARM64, reloctype.R_ARM64_GOTPCREL,
 					reloctype.R_ARM64_PCREL_LDST8, reloctype.R_ARM64_PCREL_LDST16,
 					reloctype.R_ARM64_PCREL_LDST32, reloctype.R_ARM64_PCREL_LDST64:
-					if symkind.IsText(symbol.Kind) {
+					if !symkind.IsText(symbol.Kind) {
 						return fmt.Errorf("impossible!Sym:%s locate not in code segment!\n", loc.SymName)
 					}
 					err = linker.relocateADRP(relocByte[loc.Offset:], loc, segment, symAddr)
