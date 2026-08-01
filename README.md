@@ -33,12 +33,6 @@ First, execute the following command, then do build and test. This is because Go
 ## Examples
 
 #### Build Loader:
-
-If use go version >= 1.23
-```
-  go build --ldflags="-checklinkname=0" github.com/pkujhd/goloader/examples/loader
-```
-If use go version <= 1.22
 ```
   go build github.com/pkujhd/goloader/examples/loader
 ```
@@ -59,22 +53,9 @@ If use go path and go version < 1.20
   go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/schedule/schedule.go
   ./loader -o schedule.o -run main.main -times 10
   
-  go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/base/base.go
-  ./loader -o base.o -run main.main
-  
-  go tool compile $GOPATH/src/github.com/pkujhd/goloader/examples/http/http.go
-  ./loader -o http.o -run main.main
-  
   go install github.com/pkujhd/goloader/examples/basecontext
   go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ $GOPATH/src/github.com/pkujhd/goloader/examples/inter/inter.go
   ./loader -o $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/github.com/pkujhd/goloader/examples/basecontext.a:github.com/pkujhd/goloader/examples/basecontext -o inter.o
-```
-
-
-#### Build multiple go files
-```
-  go tool compile -I $GOPATH/pkg/`go env GOOS`_`go env GOARCH`/ -o test.o test1.go test2.go
-  ./loader -o test.o -run main.main
 ```
 
 ## compile with goloaderbuilder
