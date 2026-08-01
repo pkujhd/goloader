@@ -4,3 +4,7 @@
 #vscode file
 .vscode/*
 .vs/*
+
+#claude file
+.claude/*
+CLAUDE.md
