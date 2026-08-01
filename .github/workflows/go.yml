@@ -54,11 +54,7 @@ jobs:
     - name: Build loader
       shell: bash
       run: |
-        if [ "${{ matrix.go-second-version }}" -ge 23 ]; then
-          go build -ldflags="-checklinkname=0" github.com/pkujhd/goloader/examples/loader
-        else
           go build github.com/pkujhd/goloader/examples/loader
-        fi
 
     - name: Compile and test examples
       shell: bash
