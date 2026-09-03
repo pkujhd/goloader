@@ -88,3 +88,6 @@ Golang 1.10-1.27 (arm, linux, android)
 Golang 1.8-1.27 (arm64, linux, android)
 
 Golang 1.16-1.27 (arm64, darwin)
+
+### Powered by
+[![JetBrains logo.](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
