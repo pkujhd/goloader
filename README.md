@@ -89,5 +89,11 @@ Golang 1.8-1.27 (arm64, linux, android)
 
 Golang 1.16-1.27 (arm64, darwin)
 
+
+## Contributors 
+- [@dearplain](https://github.com/dearplain) - basic version developer
+- [@eh-steve](https://github.com/eh-steve) - propose practical ideas to support cgo and automate package dependency management.
+  
+
 ### Powered by
 [![JetBrains logo.](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
