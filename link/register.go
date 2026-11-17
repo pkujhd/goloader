@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"unsafe"
 
@@ -56,12 +57,20 @@ func registerType(t *_type, symPtr map[string]uintptr) {
 	}
 }
 
+// runtimePinnedTypemapsAddr points to runtime.pinnedTypemaps. This private
+// Runtime layout was validated only on Go 1.23.2 linux/amd64; fail closed
+// on every other toolchain/platform until separately verified.
+var runtimePinnedTypemapsAddr uintptr
+
 func RegSymbol(symPtr map[string]uintptr) error {
 	path, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	err = regSymbol(symPtr, path, false)
+	if runtime.Version() == "go1.23.2" && runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
+		runtimePinnedTypemapsAddr = symPtr["runtime.pinnedTypemaps"]
+	}
 	addLinkName(symPtr)
 	typelinksRegister(symPtr)
 	regsiterItablinks(symPtr)
@@ -90,7 +99,15 @@ func regSymbol(symPtr map[string]uintptr, path string, isIgnoreItab bool) error 
 	for _, sym := range symbols {
 		code := strings.ToUpper(string(sym.Code))
 		if code == "B" || code == "D" || code == "T" || code == "R" {
-			if !strings.HasPrefix(sym.Name, constants.DefaultPkgPath) && !isTypeName(sym.Name) {
+			// The host executable's type-assertion and interface-switch caches
+			// must be registered even though ordinary main-package symbols are
+			// intentionally excluded. Unload resets these caches; omitting them
+			// leaves stale *_type pointers after a module is unmapped.
+			isMainCache := strings.HasPrefix(sym.Name, constants.DefaultPkgPath) &&
+				(strings.Contains(sym.Name, "..typeAssert.") || strings.Contains(sym.Name, "..interfaceSwitch."))
+			if isMainCache {
+				symPtr[sym.Name] = uintptr(int64(sym.Addr) + addrOff)
+			} else if !strings.HasPrefix(sym.Name, constants.DefaultPkgPath) && !isTypeName(sym.Name) {
 				if !(isItabName(sym.Name) && isIgnoreItab) {
 					symPtr[sym.Name] = uintptr(int64(sym.Addr) + addrOff)
 				}
